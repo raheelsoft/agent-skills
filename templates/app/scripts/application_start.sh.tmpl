@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+# Runs from $APP_DIR/current (a symlink to the release just installed — see
+# /usr/local/bin/app-pipeline-deploy.sh, which relinks it and cd's here
+# before calling this). pm2 startOrReload starts fresh on the very first
+# deploy, and on subsequent ones either fast-restarts (fork mode) or does a
+# true zero-downtime rolling reload (cluster mode, >=2 instances) — see
+# ecosystem.config.js for which one this app uses.
+
+export NVM_DIR="$HOME/.nvm"
+# shellcheck source=/dev/null
+source "$NVM_DIR/nvm.sh"
+
+pm2 startOrReload ecosystem.config.js
+pm2 save

@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Managed RDS Postgres instance for one app — the recommended alternative to
+  the ec2-instance.yaml `NeedsPostgres=true` option, which runs Postgres
+  unmanaged on the app box with zero automated backups (if that instance is
+  ever terminated, the data is gone). This template gets automated backups,
+  and a master password that's never chosen or stored by this skill at all
+  (ManageMasterUserPassword hands it to RDS-managed Secrets Manager).
+  Network access is restricted to exactly the app instance's own security
+  group — never publicly reachable.
+
+Parameters:
+  AppName:
+    Type: String
+    AllowedPattern: '[a-z0-9-]+'
+  DatabaseName:
+    Type: String
+    Default: appdb
+    AllowedPattern: '[a-zA-Z_][a-zA-Z0-9_]*'
+    Description: Postgres identifiers can't contain hyphens — derive this from AppName with hyphens replaced by underscores, don't pass AppName through directly.
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    Description: Always ask the user explicitly (same as the EC2 instance type) rather than defaulting silently for anything beyond a small/staging app.
+  AllocatedStorageGB:
+    Type: Number
+    Default: 20
+  EngineVersion:
+    Type: String
+    Default: '16'
+    Description: Verify this is still a supported version before deploying — `aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[].EngineVersion"` — RDS deprecates old Postgres minor/major versions over time and this default can go stale.
+  MasterUsername:
+    Type: String
+    Default: appadmin
+    Description: Avoid reserved words like 'admin' — Postgres on RDS rejects some of them as the master username.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: At least 2 subnets in different AZs — required for the DB subnet group even when MultiAZ is false.
+  AppInstanceSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: The `SecurityGroupId` output from templates/cfn/ec2-instance.yaml — inbound 5432 is scoped to only this SG, nothing else.
+  MultiAZ:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: true = standby replica in a second AZ (higher cost, survives an AZ outage). Ask explicitly for anything beyond a small/staging app — don't default this silently either way.
+  BackupRetentionPeriod:
+    Type: Number
+    Default: 7
+    Description: Days. This is the entire point of choosing RDS over local Postgres — don't let a user talk this down to 0 without flagging what that means.
+  DeletionProtection:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Blocks accidental deletion of the DB via stack deletion. Leave true unless the user explicitly wants it off (e.g. a disposable staging DB).
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub '${AppName} DB subnet group'
+      SubnetIds: !Ref SubnetIds
+
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub '${AppName} RDS — inbound 5432 from the app instance only'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref AppInstanceSecurityGroupId
+      Tags:
+        - Key: Name
+          Value: !Sub '${AppName}-rds-sg'
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub '${AppName}-db'
+      DBName: !Ref DatabaseName
+      Engine: postgres
+      EngineVersion: !Ref EngineVersion
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref AllocatedStorageGB
+      StorageType: gp3
+      StorageEncrypted: true
+      MasterUsername: !Ref MasterUsername
+      # RDS generates and owns the password in Secrets Manager — this skill
+      # never chooses, sees, or stores a database password itself.
+      ManageMasterUserPassword: true
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !GetAtt DBSecurityGroup.GroupId
+      PubliclyAccessible: false
+      MultiAZ: !Ref MultiAZ
+      BackupRetentionPeriod: !Ref BackupRetentionPeriod
+      DeletionProtection: !Ref DeletionProtection
+
+Outputs:
+  Endpoint:
+    Value: !GetAtt DBInstance.Endpoint.Address
+  Port:
+    Value: !GetAtt DBInstance.Endpoint.Port
+  MasterUserSecretArn:
+    Value: !GetAtt DBInstance.MasterUserSecret.SecretArn
+  DatabaseName:
+    Value: !Ref DatabaseName

@@ -1,0 +1,5 @@
+#!/bin/bash
+set -euo pipefail
+# Docker path: the image build happens in application_start.sh
+# (`docker compose up -d --build`), not here — nothing to do before that.
+echo "AfterInstall: no host-side build for the Docker deploy path."

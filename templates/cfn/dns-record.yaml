@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  One Route53 A record for one app, in an existing hosted zone (see
+  templates/cfn/hosted-zone.yaml if one doesn't exist yet). Two target
+  shapes: a plain A record to an EC2 Elastic IP, or an Alias A record to a
+  CloudFront distribution (required for the static-site S3+CloudFront path
+  — CloudFront has no static IP, so a plain A record can't target it).
+  Deploy once per record — twice if both the apex domain and a `www`
+  subdomain need one.
+
+Parameters:
+  HostedZoneId:
+    Type: String
+    Description: The Route53 hosted zone that manages this domain.
+  RecordName:
+    Type: String
+    Description: Fully-qualified, e.g. app.example.com or example.com.
+  TargetType:
+    Type: String
+    AllowedValues: ['ip', 'cloudfront']
+  TargetIp:
+    Type: String
+    Default: ''
+    Description: Required when TargetType=ip — the EC2 Elastic IP.
+  TargetCloudFrontDomain:
+    Type: String
+    Default: ''
+    Description: Required when TargetType=cloudfront — the distribution's *.cloudfront.net domain name (from the static-site-s3.yaml or s3-bucket.yaml stack output).
+
+Conditions:
+  IsIpTarget: !Equals [!Ref TargetType, ip]
+  IsCloudFrontTarget: !Equals [!Ref TargetType, cloudfront]
+
+Resources:
+  IpRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: IsIpTarget
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref RecordName
+      Type: A
+      TTL: '300'
+      ResourceRecords:
+        - !Ref TargetIp
+
+  CloudFrontAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: IsCloudFrontTarget
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref RecordName
+      Type: A
+      AliasTarget:
+        # Fixed AWS constant — the hosted zone ID for every CloudFront
+        # distribution, regardless of account/region. Not a typo, not
+        # something to look up per-distribution.
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !Ref TargetCloudFrontDomain
+        EvaluateTargetHealth: false
+
+Outputs:
+  RecordName:
+    Value: !Ref RecordName

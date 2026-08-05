@@ -1,0 +1,406 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  No-SSH CI/CD pipeline for one app: CodePipeline (Source: GitHub via
+  CodeStar Connection) -> CodeBuild (quality gate: the repo's own
+  buildspec.yml) -> CodeBuild (deploy: triggers
+  /usr/local/bin/app-pipeline-deploy.sh on the target EC2 instance via SSM
+  RunCommand — used instead of a real CodeDeploy deployment group because
+  the CodeDeploy agent's legacy installer rejects Ruby 3.x, which recent
+  Ubuntu LTS images ship with). That script (installed once per instance by
+  templates/cfn/ec2-instance.yaml) does the fetch, release-directory
+  creation, validation, and auto-rollback-on-failure — see
+  references/gotchas.md and the release/rollback notes in SKILL.md.
+  One stack per app (deploy this template once per app, parameterized).
+
+Parameters:
+  AppName:
+    Type: String
+    Description: Short app identifier, e.g. my-api. Used to name/tag every resource.
+    AllowedPattern: '[a-z0-9-]+'
+  GitHubOwner:
+    Type: String
+    Description: GitHub org/user that owns the repo.
+  GitHubRepo:
+    Type: String
+    Description: Repo name, e.g. my-api.
+  GitHubBranch:
+    Type: String
+    Default: main
+  CodeStarConnectionArn:
+    Type: String
+    Description: ARN of an already-authorized CodeStar Connection to GitHub (see references/codestar-connection-setup.md — this cannot be created headlessly).
+  InstanceId:
+    Type: AWS::EC2::Instance::Id
+    Description: Target EC2 instance this app deploys to.
+  AppDir:
+    Type: String
+    Description: Absolute path of the app checkout on the instance, e.g. /home/ubuntu/apps/my-api.
+  OsUser:
+    Type: String
+    Default: ubuntu
+    Description: The OS user the app runs/deploys as on the instance.
+  AwsRegion:
+    Type: String
+    Default: us-east-1
+  NotificationTopicArn:
+    Type: String
+    Default: ''
+    Description: SNS topic ARN from templates/cfn/notifications.yaml. Leave blank to skip failure notifications for this pipeline.
+  BuildTimeoutMinutes:
+    Type: Number
+    Default: 20
+    Description: Sized for a small app. Raise this for a larger repo/monorepo instead of letting the Build stage silently fail on timeout — don't leave it at the default without checking it's enough.
+  DeployTimeoutMinutes:
+    Type: Number
+    Default: 35
+    Description: Covers the SSM RunCommand round-trip (app-pipeline-deploy.sh's own build + validate_service.sh's up-to-60s poll) plus its own polling loop overhead. Raise alongside BuildTimeoutMinutes if the app's build/install is heavy. The pipeline's own ExecutionMode QUEUED setting keeps two triggers from ever reaching this stage concurrently, but app-pipeline-deploy.sh's per-app flock (up to 20 minutes, see ec2-instance.yaml) is still a backstop for anything outside the pipeline's control (a manual SSM run, a second app on the same instance) — factor that worst case in too, not just build weight, when deciding whether to raise this.
+  CodeBuildImage:
+    Type: String
+    Default: aws/codebuild/standard:7.0
+    Description: Pinned rather than left to float, for reproducible builds — but AWS periodically releases newer standard images, so revisit this if it's been a long time since this stack was last updated (deprecated images eventually stop being usable).
+  BuildComputeType:
+    Type: String
+    Default: BUILD_GENERAL1_SMALL
+    AllowedValues: ['BUILD_GENERAL1_SMALL', 'BUILD_GENERAL1_MEDIUM', 'BUILD_GENERAL1_LARGE']
+    Description: SMALL (3GB RAM/2 vCPU) is fine for a typical app's build. A large monorepo or heavy type-checking step may need MEDIUM/LARGE to avoid OOM or excessive build time — don't assume SMALL fits every app.
+
+Conditions:
+  HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, '']]
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AppName}-pipeline-artifacts-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldArtifacts
+            Status: Enabled
+            ExpirationInDays: 30
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-codebuild-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: codebuild-logs-and-artifacts
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: Logs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AppName}-*'
+              - Sid: ArtifactBucket
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                Resource:
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub '${ArtifactBucket.Arn}/*'
+
+  # Separate role for the deploy-stage CodeBuild project: same logs/artifact
+  # permissions above, plus (and only plus) the ability to trigger the SSM
+  # RunCommand against this app's specific instance. Kept separate from
+  # CodeBuildServiceRole so the quality-gate build never has SSM access it
+  # doesn't need.
+  DeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-codebuild-deploy-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: codebuild-logs-and-artifacts
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: Logs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AppName}-*'
+              - Sid: ArtifactBucket
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                Resource:
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub '${ArtifactBucket.Arn}/*'
+        - PolicyName: ssm-deploy-trigger
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SendDeployCommand
+                Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub 'arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript'
+                  - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}'
+              - Sid: ReadCommandResult
+                Effect: Allow
+                Action: ssm:GetCommandInvocation
+                Resource: '*'
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-codepipeline-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: pipeline-permissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ArtifactBucket
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                Resource:
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub '${ArtifactBucket.Arn}/*'
+              - Sid: UseGitHubConnection
+                Effect: Allow
+                Action: codestar-connections:UseConnection
+                Resource: !Ref CodeStarConnectionArn
+              - Sid: RunCodeBuild
+                Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                Resource:
+                  - !GetAtt BuildProject.Arn
+                  - !GetAtt DeployProject.Arn
+
+  # Quality gate: builds using the repo's own buildspec.yml (npm ci/install,
+  # lint, typecheck, build). Never touches the server — this build's output
+  # is discarded, the real build happens again on-box in the Deploy stage.
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AppName}-build'
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: !Ref BuildComputeType
+        Image: !Ref CodeBuildImage
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec.yml
+      TimeoutInMinutes: !Ref BuildTimeoutMinutes
+
+  # Deploy stage: generic SSM trigger, parameterized by InstanceId/AppDir.
+  # Just invokes /usr/local/bin/app-pipeline-deploy.sh on the box (installed
+  # once by ec2-instance.yaml) — identical logic for every app, just
+  # parameterized, which is why it's infra-owned (lives here) rather than
+  # duplicated per app repo.
+  DeployProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AppName}-deploy'
+      ServiceRole: !GetAtt DeployServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: !Ref BuildComputeType
+        Image: !Ref CodeBuildImage
+        EnvironmentVariables:
+          - Name: INSTANCE_ID
+            Value: !Ref InstanceId
+          - Name: APP_DIR
+            Value: !Ref AppDir
+          - Name: OS_USER
+            Value: !Ref OsUser
+          - Name: AWS_REGION
+            Value: !Ref AwsRegion
+          - Name: GIT_BRANCH
+            Value: !Ref GitHubBranch
+          - Name: DEPLOY_TIMEOUT_MINUTES
+            Value: !Ref DeployTimeoutMinutes
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            build:
+              commands:
+                - |
+                  cat > /tmp/ssm-params.json <<JSON
+                  {
+                    "commands": [
+                      "set -euo pipefail",
+                      "sudo -u ${!OS_USER} bash -lc 'AWS_REGION=\"${!AWS_REGION}\" /usr/local/bin/app-pipeline-deploy.sh \"${!APP_DIR}\" \"${!GIT_BRANCH}\"'"
+                    ]
+                  }
+                  JSON
+                - >
+                  CMD_ID=$(aws ssm send-command
+                  --region "$AWS_REGION"
+                  --instance-ids "$INSTANCE_ID"
+                  --document-name "AWS-RunShellScript"
+                  --comment "CodePipeline deploy ${AppName} $CODEBUILD_RESOLVED_SOURCE_VERSION"
+                  --parameters file:///tmp/ssm-params.json
+                  --cloud-watch-output-config CloudWatchOutputEnabled=true
+                  --query "Command.CommandId" --output text)
+                - echo "SSM CommandId $CMD_ID"
+                - |
+                  # Deliberately not `aws ssm wait command-executed` here —
+                  # that waiter's built-in delay/max-attempts budget is
+                  # fixed and far shorter than a real app build+deploy can
+                  # take, and the CLI doesn't expose overriding it. A
+                  # custom loop keyed off DEPLOY_TIMEOUT_MINUTES is the
+                  # correct choice for a wait that can legitimately run for
+                  # many minutes, not an oversight.
+                  #
+                  # Poll for up to DEPLOY_TIMEOUT_MINUTES, minus a ~5min
+                  # buffer for this CodeBuild step's own startup/shutdown
+                  # overhead, so this loop's own cap tracks the parameter
+                  # instead of a hardcoded value that raising
+                  # DeployTimeoutMinutes alone wouldn't actually extend.
+                  MAX_ITERS=$(( (DEPLOY_TIMEOUT_MINUTES - 5) * 6 ))
+                  for i in $(seq 1 "$MAX_ITERS"); do
+                    STATUS=$(aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+                    case "$STATUS" in
+                      Success) echo "Deploy succeeded."; break ;;
+                      Failed|Cancelled|TimedOut)
+                        echo "Deploy $STATUS"
+                        aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query StandardErrorContent --output text || true
+                        exit 1 ;;
+                      *) sleep 10 ;;
+                    esac
+                    if [ "$i" -eq "$MAX_ITERS" ]; then echo "Timed out"; exit 1; fi
+                  done
+                - aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query StandardOutputContent --output text || true
+      TimeoutInMinutes: !Ref DeployTimeoutMinutes
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub '${AppName}-pipeline'
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      # V2 + QUEUED: a second trigger arriving while a deploy is still
+      # running (e.g. a manual start-pipeline-execution racing a delayed
+      # GitHub webhook — a real, observed failure mode, not a theoretical
+      # one) waits for the current execution to finish instead of running
+      # its own Deploy stage concurrently. This is the pipeline-level
+      # counterpart to app-pipeline-deploy.sh's own per-app flock — that
+      # flock is a correct backstop either way, but preventing two
+      # concurrent CodeBuild deploy actions in the first place avoids
+      # burning a full DeployTimeoutMinutes budget on a queued wait. V2
+      # pricing is usage-based rather than V1's flat per-active-pipeline
+      # rate — see references/cost-estimates.md.
+      PipelineType: V2
+      ExecutionMode: QUEUED
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHub
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: '1'
+              Configuration:
+                ConnectionArn: !Ref CodeStarConnectionArn
+                FullRepositoryId: !Sub '${GitHubOwner}/${GitHubRepo}'
+                BranchName: !Ref GitHubBranch
+              OutputArtifacts:
+                - Name: SourceOutput
+        - Name: Build
+          Actions:
+            - Name: BuildAndVerify
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref BuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+        - Name: Deploy
+          Actions:
+            - Name: DeployViaSSM
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref DeployProject
+              InputArtifacts:
+                - Name: SourceOutput
+
+  # Notifies the SNS topic on any FAILED pipeline execution — created only
+  # if a topic ARN was given (see templates/cfn/notifications.yaml).
+  PipelineNotificationRule:
+    Type: AWS::CodeStarNotifications::NotificationRule
+    Condition: HasNotificationTopic
+    Properties:
+      Name: !Sub '${AppName}-pipeline-failures'
+      DetailType: BASIC
+      EventTypeIds:
+        - codepipeline-pipeline-pipeline-execution-failed
+      Resource: !Sub 'arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}'
+      Targets:
+        - TargetType: SNS
+          TargetAddress: !Ref NotificationTopicArn
+
+Outputs:
+  PipelineName:
+    Value: !Ref Pipeline
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket
+  BuildProjectName:
+    Value: !Ref BuildProject
+  DeployProjectName:
+    Value: !Ref DeployProject

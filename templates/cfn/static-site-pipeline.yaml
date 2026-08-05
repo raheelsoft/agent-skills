@@ -1,0 +1,324 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CI/CD pipeline for the static-site path (templates/cfn/static-site-s3.yaml)
+  — Source (GitHub via CodeStar Connection) -> Build (the repo's own
+  buildspec.yml: npm ci, lint, `next build` with static export — output
+  packaged as the pipeline artifact, NOT discarded like the EC2 path's
+  quality-gate build, since it IS the deploy payload here) -> Deploy (infra-
+  owned, generic: aws s3 sync + CloudFront invalidation). No EC2, no SSM —
+  there's no server to deploy onto.
+
+Parameters:
+  AppName:
+    Type: String
+    AllowedPattern: '[a-z0-9-]+'
+  GitHubOwner:
+    Type: String
+  GitHubRepo:
+    Type: String
+  GitHubBranch:
+    Type: String
+    Default: main
+  CodeStarConnectionArn:
+    Type: String
+    Description: See references/codestar-connection-setup.md.
+  SiteBucketName:
+    Type: String
+    Description: BucketName output from templates/cfn/static-site-s3.yaml.
+  DistributionId:
+    Type: String
+    Description: DistributionId output from templates/cfn/static-site-s3.yaml.
+  NotificationTopicArn:
+    Type: String
+    Default: ''
+    Description: SNS topic ARN from templates/cfn/notifications.yaml. Leave blank to skip failure notifications.
+  BuildTimeoutMinutes:
+    Type: Number
+    Default: 20
+    Description: Sized for a small app. Raise for a larger repo instead of letting the Build stage silently fail on timeout.
+  DeployTimeoutMinutes:
+    Type: Number
+    Default: 15
+    Description: Covers the s3 sync + CloudFront invalidation trigger — raise only if the exported site is unusually large (many thousands of files).
+  CodeBuildImage:
+    Type: String
+    Default: aws/codebuild/standard:7.0
+    Description: Pinned rather than left to float, for reproducible builds — but AWS periodically releases newer standard images, so revisit this if it's been a long time since this stack was last updated.
+  BuildComputeType:
+    Type: String
+    Default: BUILD_GENERAL1_SMALL
+    AllowedValues: ['BUILD_GENERAL1_SMALL', 'BUILD_GENERAL1_MEDIUM', 'BUILD_GENERAL1_LARGE']
+    Description: SMALL (3GB RAM/2 vCPU) is fine for a typical static export. A large site with many pages/heavy build tooling may need MEDIUM/LARGE — don't assume SMALL fits every app.
+
+Conditions:
+  HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, '']]
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AppName}-pipeline-artifacts-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldArtifacts
+            Status: Enabled
+            ExpirationInDays: 30
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-codebuild-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: codebuild-logs-and-artifacts
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: Logs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AppName}-*'
+              - Sid: ArtifactBucket
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                Resource:
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub '${ArtifactBucket.Arn}/*'
+
+  # No SSM permissions at all here, unlike pipeline.yaml's DeployServiceRole
+  # — this deploy is s3 sync + a CloudFront invalidation, nothing else.
+  DeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-codebuild-deploy-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: codebuild-logs-and-artifacts
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: Logs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AppName}-*'
+              - Sid: ArtifactBucket
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                Resource:
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub '${ArtifactBucket.Arn}/*'
+              - Sid: SyncToSiteBucket
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${SiteBucketName}'
+                  - !Sub 'arn:aws:s3:::${SiteBucketName}/*'
+              - Sid: InvalidateCache
+                Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${DistributionId}'
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-codepipeline-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: pipeline-permissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ArtifactBucket
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                Resource:
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub '${ArtifactBucket.Arn}/*'
+              - Sid: UseGitHubConnection
+                Effect: Allow
+                Action: codestar-connections:UseConnection
+                Resource: !Ref CodeStarConnectionArn
+              - Sid: RunCodeBuild
+                Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                Resource:
+                  - !GetAtt BuildProject.Arn
+                  - !GetAtt DeployProject.Arn
+
+  # Runs the repo's own buildspec.yml (buildspec.static.yml.tmpl) — npm
+  # ci/install, lint, `next build` with static export. Output artifact IS
+  # the deploy payload this time (base-directory: out in the repo's
+  # buildspec), unlike the EC2 path where the Build stage's output is
+  # thrown away.
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AppName}-build'
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: !Ref BuildComputeType
+        Image: !Ref CodeBuildImage
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec.yml
+      TimeoutInMinutes: !Ref BuildTimeoutMinutes
+
+  DeployProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AppName}-deploy'
+      ServiceRole: !GetAtt DeployServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: !Ref BuildComputeType
+        Image: !Ref CodeBuildImage
+        EnvironmentVariables:
+          - Name: SITE_BUCKET
+            Value: !Ref SiteBucketName
+          - Name: DISTRIBUTION_ID
+            Value: !Ref DistributionId
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            build:
+              commands:
+                - aws s3 sync . "s3://${!SITE_BUCKET}" --delete
+                - aws cloudfront create-invalidation --distribution-id "${!DISTRIBUTION_ID}" --paths "/*"
+      TimeoutInMinutes: !Ref DeployTimeoutMinutes
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub '${AppName}-pipeline'
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      # V2 + QUEUED: a second trigger arriving mid-deploy (e.g. a manual
+      # start-pipeline-execution racing a delayed GitHub webhook — a real,
+      # observed failure mode, not a theoretical one) waits for the
+      # current execution to finish instead of racing it. This path has no
+      # box-level backstop the way the EC2 path's flock provides — two
+      # concurrent `aws s3 sync --delete` + CloudFront invalidation runs
+      # could otherwise leave the site briefly serving a mix of two
+      # commits' files — so queuing here matters even more. V2 pricing is
+      # usage-based rather than V1's flat per-active-pipeline rate — see
+      # references/cost-estimates.md.
+      PipelineType: V2
+      ExecutionMode: QUEUED
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHub
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: '1'
+              Configuration:
+                ConnectionArn: !Ref CodeStarConnectionArn
+                FullRepositoryId: !Sub '${GitHubOwner}/${GitHubRepo}'
+                BranchName: !Ref GitHubBranch
+              OutputArtifacts:
+                - Name: SourceOutput
+        - Name: Build
+          Actions:
+            - Name: BuildStaticExport
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref BuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+        - Name: Deploy
+          Actions:
+            - Name: SyncAndInvalidate
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref DeployProject
+              InputArtifacts:
+                - Name: BuildOutput
+
+  PipelineNotificationRule:
+    Type: AWS::CodeStarNotifications::NotificationRule
+    Condition: HasNotificationTopic
+    Properties:
+      Name: !Sub '${AppName}-pipeline-failures'
+      DetailType: BASIC
+      EventTypeIds:
+        - codepipeline-pipeline-pipeline-execution-failed
+      Resource: !Sub 'arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}'
+      Targets:
+        - TargetType: SNS
+          TargetAddress: !Ref NotificationTopicArn
+
+Outputs:
+  PipelineName:
+    Value: !Ref Pipeline
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket

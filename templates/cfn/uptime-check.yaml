@@ -1,0 +1,97 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Continuous uptime monitoring — a Route53 health check against the app's
+  real domain (or IP, if no domain) plus a CloudWatch alarm on it, wired to
+  the notifications SNS topic. Fills the gap between deploy-time-only
+  validation (validate_service.sh, which only runs during a deploy) and the
+  disk/status alarms in ec2-instance.yaml (which watch the box, not the
+  app). MUST be deployed with --region us-east-1 regardless of the app's
+  actual region — Route53 health check metrics are only published to
+  CloudWatch in us-east-1, a hard requirement, not a default to
+  second-guess.
+
+Parameters:
+  AppName:
+    Type: String
+    AllowedPattern: '[a-z0-9-]+'
+  TargetType:
+    Type: String
+    AllowedValues: ['domain', 'ip']
+    Description: domain checks what real users actually hit (needs a domain to exist — see dns-record.yaml); ip checks the Elastic IP directly for apps with no domain yet.
+  FullyQualifiedDomainName:
+    Type: String
+    Default: ''
+    Description: Required when TargetType=domain.
+  IpAddress:
+    Type: String
+    Default: ''
+    Description: Required when TargetType=ip — the EC2 Elastic IP.
+  Protocol:
+    Type: String
+    AllowedValues: ['HTTP', 'HTTPS']
+    Default: HTTPS
+  Port:
+    Type: Number
+    Default: 443
+  ResourcePath:
+    Type: String
+    Default: /
+    Description: The health-check path — reuse the same one validate_service.sh checks (Step 8/references/release-rollback.md), so a single source of truth for "is this app healthy."
+  RequestIntervalSeconds:
+    Type: Number
+    AllowedValues: [10, 30]
+    Default: 30
+    Description: 10s ("fast") costs meaningfully more than 30s ("standard") — see references/cost-estimates.md. Default to 30 unless the user specifically wants faster detection and has confirmed the cost tradeoff.
+  FailureThreshold:
+    Type: Number
+    Default: 3
+    Description: Consecutive failed checks before Route53 considers the endpoint unhealthy — avoids alarming on a single transient blip.
+  NotificationTopicArn:
+    Type: String
+    Default: ''
+    Description: SNS topic ARN from templates/cfn/notifications.yaml. Leave blank to create the alarm without an action (still visible in the CloudWatch console).
+
+Conditions:
+  IsDomainTarget: !Equals [!Ref TargetType, domain]
+  IsIpTarget: !Equals [!Ref TargetType, ip]
+  HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, '']]
+
+Resources:
+  HealthCheck:
+    Type: AWS::Route53::HealthCheck
+    Properties:
+      HealthCheckConfig:
+        Type: !Ref Protocol
+        ResourcePath: !Ref ResourcePath
+        FullyQualifiedDomainName: !If [IsDomainTarget, !Ref FullyQualifiedDomainName, !Ref 'AWS::NoValue']
+        IPAddress: !If [IsIpTarget, !Ref IpAddress, !Ref 'AWS::NoValue']
+        Port: !Ref Port
+        RequestInterval: !Ref RequestIntervalSeconds
+        FailureThreshold: !Ref FailureThreshold
+      HealthCheckTags:
+        - Key: Name
+          Value: !Sub '${AppName}-uptime'
+
+  # HealthCheckStatus is 1 (healthy) or 0 (unhealthy) — alarm when it drops
+  # below 1. Route53 only publishes this metric in us-east-1, regardless of
+  # where the checked endpoint or this stack's other resources live.
+  UptimeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AppName}-uptime-check-failed'
+      Namespace: AWS/Route53
+      MetricName: HealthCheckStatus
+      Dimensions:
+        - Name: HealthCheckId
+          Value: !Ref HealthCheck
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions: !If [HasNotificationTopic, [!Ref NotificationTopicArn], []]
+
+Outputs:
+  HealthCheckId:
+    Value: !Ref HealthCheck

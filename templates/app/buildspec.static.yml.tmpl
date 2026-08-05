@@ -1,0 +1,29 @@
+version: 0.2
+
+# Unlike the EC2 path's buildspec (a discarded quality gate — the real
+# build happens again on-box), this Build stage's output IS the deploy
+# payload: `next build` with `output: 'export'` set in next.config produces
+# static files directly into out/ (Next 13.3+ folds export into build),
+# synced to S3 by the infra-owned Deploy stage in static-site-pipeline.yaml.
+
+phases:
+  install:
+    commands:
+      - curl -fsSL https://deb.nodesource.com/setup___NODE_MAJOR___.x | bash -
+      - apt-get install -y nodejs
+      - export PATH="/usr/bin:$PATH"
+      - node -v
+  pre_build:
+    commands:
+      - export PATH="/usr/bin:$PATH"
+      - ___INSTALL_CMD___
+  build:
+    commands:
+      - export PATH="/usr/bin:$PATH"
+      - ___LINT_CMD___
+      - npm run build
+
+artifacts:
+  base-directory: out
+  files:
+    - '**/*'

@@ -1,0 +1,183 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Optional S3 bucket(s) for an app: a private bucket (Block Public Access on,
+  for presigned-URL uploads/downloads) and/or a public bucket (public read,
+  for directly-servable assets). Creates a dedicated least-privilege IAM
+  user scoped only to the bucket(s) actually created — no access key is
+  minted here (see references/s3-bucket-setup.md — access keys are created
+  imperatively via `aws iam create-access-key` after this stack, so the
+  secret never sits in CloudFormation stack state/Outputs).
+
+Parameters:
+  AppName:
+    Type: String
+    AllowedPattern: '[a-z0-9-]+'
+  BucketVisibility:
+    Type: String
+    AllowedValues: ['private', 'public', 'both']
+    Description: private = presigned-URL access only, no public reads. public = public-read bucket for directly-servable assets. both = one of each.
+  AllowedOrigins:
+    Type: CommaDelimitedList
+    Default: 'http://localhost:3000'
+    Description: Origins allowed to PUT to the private bucket via a presigned URL (browser uploads need CORS). Only used if a private bucket is created.
+  EnableCloudFront:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Puts a CloudFront distribution in front of the public bucket (HTTPS by default, edge caching). Only applies when a public bucket is created — ignored otherwise.
+
+Conditions:
+  CreatePrivate: !Or [!Equals [!Ref BucketVisibility, private], !Equals [!Ref BucketVisibility, both]]
+  CreatePublic: !Or [!Equals [!Ref BucketVisibility, public], !Equals [!Ref BucketVisibility, both]]
+  CreateAnyBucket: !Or [!Condition CreatePrivate, !Condition CreatePublic]
+  CreateCloudFront: !And [!Condition CreatePublic, !Equals [!Ref EnableCloudFront, 'true']]
+
+Resources:
+  PrivateBucket:
+    Type: AWS::S3::Bucket
+    Condition: CreatePrivate
+    Properties:
+      BucketName: !Sub '${AppName}-private-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [GET, PUT, HEAD]
+            AllowedOrigins: !Ref AllowedOrigins
+            AllowedHeaders: ['*']
+            MaxAge: 3000
+
+  PublicBucket:
+    Type: AWS::S3::Bucket
+    Condition: CreatePublic
+    Properties:
+      BucketName: !Sub '${AppName}-public-${AWS::AccountId}'
+      # Public *reads* only — writes still require the app's own IAM
+      # credentials via the bucket policy below, not anonymous PutObject.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: false
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: false
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3000
+
+  PublicBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: CreatePublic
+    Properties:
+      Bucket: !Ref PublicBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicRead
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub '${PublicBucket.Arn}/*'
+
+  # One IAM user for the app to use from its own .env — dev team code and
+  # local dev use the same access key. No access key is created as part of
+  # this stack (see the description above); the skill mints one afterward
+  # via `aws iam create-access-key` so the secret is never stored as CFN
+  # stack state.
+  AppUser:
+    Type: AWS::IAM::User
+    Condition: CreateAnyBucket
+    Properties:
+      UserName: !Sub '${AppName}-s3-user'
+
+  PrivateBucketPolicy:
+    Type: AWS::IAM::Policy
+    Condition: CreatePrivate
+    Properties:
+      PolicyName: !Sub '${AppName}-s3-private-access'
+      Users:
+        - !Ref AppUser
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:DeleteObject
+              - s3:ListBucket
+            Resource:
+              - !GetAtt PrivateBucket.Arn
+              - !Sub '${PrivateBucket.Arn}/*'
+
+  PublicBucketAccessPolicy:
+    Type: AWS::IAM::Policy
+    Condition: CreatePublic
+    Properties:
+      PolicyName: !Sub '${AppName}-s3-public-access'
+      Users:
+        - !Ref AppUser
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:ListBucket
+            Resource:
+              - !GetAtt PublicBucket.Arn
+              - !Sub '${PublicBucket.Arn}/*'
+
+  # Standard S3 REST origin (not the S3 website endpoint) — works directly
+  # against PublicBucket's existing public-read bucket policy above with no
+  # extra Origin Access Control needed, since the bucket already allows
+  # anonymous s3:GetObject.
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: CreateCloudFront
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        PriceClass: PriceClass_100
+        DefaultCacheBehavior:
+          TargetOriginId: PublicBucketOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          ForwardedValues:
+            QueryString: false
+        Origins:
+          - Id: PublicBucketOrigin
+            DomainName: !Sub '${PublicBucket}.s3.${AWS::Region}.amazonaws.com'
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+
+Outputs:
+  AppUserName:
+    Value: !Ref AppUser
+  PrivateBucketName:
+    Condition: CreatePrivate
+    Value: !Ref PrivateBucket
+  PublicBucketName:
+    Condition: CreatePublic
+    Value: !Ref PublicBucket
+  PublicBucketUrl:
+    Condition: CreatePublic
+    Value: !Sub 'https://${PublicBucket}.s3.${AWS::Region}.amazonaws.com'
+  CloudFrontDomainName:
+    Condition: CreateCloudFront
+    Value: !GetAtt CloudFrontDistribution.DomainName

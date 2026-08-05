@@ -1,0 +1,105 @@
+name: Deploy
+
+# Same two-phase shape as the CodePipeline path: a quality-gate build (this
+# job) followed by a deploy trigger that invokes
+# /usr/local/bin/app-pipeline-deploy.sh (installed once per instance by
+# templates/cfn/ec2-instance.yaml) on the target instance over SSM — that
+# script does the fetch, release-directory creation, validation, and
+# auto-rollback-on-failure. No long-lived AWS keys stored in GitHub — this
+# job assumes ___DEPLOY_ROLE_ARN___ via OIDC.
+on:
+  push:
+    branches: [___GITHUB_BRANCH___]
+
+# Queue rather than run two deploys at once — the shared
+# /usr/local/bin/app-pipeline-deploy.sh also flocks per-app as a backstop,
+# but avoiding two workflow runs racing in the first place saves wasted CI
+# minutes and keeps the Actions UI from showing two "in progress" deploys.
+concurrency:
+  group: deploy-___GITHUB_BRANCH___
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '___NODE_MAJOR___'
+      - run: ___INSTALL_CMD___
+      - run: ___LINT_CMD___
+      - run: npm run build
+
+  deploy:
+    needs: build-and-verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ___DEPLOY_ROLE_ARN___
+          aws-region: ___AWS_REGION___
+
+      - name: Trigger deploy over SSM and wait for completion
+        env:
+          INSTANCE_ID: ___INSTANCE_ID___
+          APP_DIR: ___APP_DIR___
+          OS_USER: ___OS_USER___
+          AWS_REGION: ___AWS_REGION___
+          GIT_BRANCH: ___GITHUB_BRANCH___
+          DEPLOY_TIMEOUT_MINUTES: ___DEPLOY_TIMEOUT_MINUTES___
+        run: |
+          set -euo pipefail
+          cat > /tmp/ssm-params.json <<JSON
+          {
+            "commands": [
+              "set -euo pipefail",
+              "sudo -u ${OS_USER} bash -lc 'AWS_REGION=\"${AWS_REGION}\" /usr/local/bin/app-pipeline-deploy.sh \"${APP_DIR}\" \"${GIT_BRANCH}\"'"
+            ]
+          }
+          JSON
+
+          CMD_ID=$(aws ssm send-command \
+            --region "$AWS_REGION" \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "GitHub Actions deploy $GITHUB_SHA" \
+            --parameters file:///tmp/ssm-params.json \
+            --cloud-watch-output-config CloudWatchOutputEnabled=true \
+            --query "Command.CommandId" --output text)
+          echo "SSM CommandId $CMD_ID"
+
+          # Deliberately not `aws ssm wait command-executed` — its
+          # delay/max-attempts budget is fixed, far shorter than a real
+          # build+deploy can take, and not overridable via the CLI. This
+          # loop's own cap tracks DEPLOY_TIMEOUT_MINUTES instead of a
+          # hardcoded value, same reasoning as the CodePipeline path's
+          # equivalent loop in templates/cfn/pipeline.yaml.
+          MAX_ITERS=$(( (DEPLOY_TIMEOUT_MINUTES - 2) * 6 ))
+          for i in $(seq 1 "$MAX_ITERS"); do
+            STATUS=$(aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Success) echo "Deploy succeeded."; break ;;
+              Failed|Cancelled|TimedOut)
+                echo "Deploy $STATUS"
+                aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query StandardErrorContent --output text || true
+                exit 1 ;;
+              *) sleep 10 ;;
+            esac
+            if [ "$i" -eq "$MAX_ITERS" ]; then echo "Timed out"; exit 1; fi
+          done
+
+          aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query StandardOutputContent --output text || true
+
+      - name: Notify on failure
+        if: failure() && '___NOTIFICATION_TOPIC_ARN___' != ''
+        run: |
+          aws sns publish --region ___AWS_REGION___ \
+            --topic-arn '___NOTIFICATION_TOPIC_ARN___' \
+            --subject "Deploy failed: ___GITHUB_BRANCH___" \
+            --message "Deploy failed for $GITHUB_REPOSITORY@$GITHUB_SHA — see $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

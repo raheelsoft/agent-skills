@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#
+# Manual/debug helper only — runs the four deploy hooks in order from the
+# current directory (e.g. inside a specific releases/<sha>/ dir, or
+# $APP_DIR/current), useful for re-running or debugging on the box directly.
+#
+# The real per-deploy orchestration (git fetch, release directory creation,
+# rollback-on-validate-failure, pruning old releases) lives in
+# /usr/local/bin/app-pipeline-deploy.sh — installed once per instance (see
+# templates/cfn/ec2-instance.yaml), shared by every app on the box. CI
+# triggers that script over SSM, not this one.
+set -euo pipefail
+
+bash scripts/before_install.sh
+bash scripts/after_install.sh
+bash scripts/application_start.sh
+bash scripts/validate_service.sh
+
+echo "==> Hooks complete."

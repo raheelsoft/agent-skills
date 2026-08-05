@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+# Runs from $APP_DIR/current. COMPOSE_PROJECT_NAME is fixed (not derived
+# from the release directory name, which changes every deploy) so `up -d`
+# recreates the SAME container set in place rather than starting a second,
+# parallel one alongside the previous release's containers. docker compose
+# reads .env from the current directory automatically — it's already
+# symlinked in by app-pipeline-deploy.sh.
+export COMPOSE_PROJECT_NAME=___APP_NAME___
+docker compose up -d --build --remove-orphans

@@ -1,0 +1,78 @@
+# Rendered to /etc/nginx/sites-available/___DOMAIN___ and symlinked into
+# sites-enabled/ (see SKILL.md Step 11) — combined-host variant of
+# nginx.conf.tmpl, used when a frontend and a backend from the same product
+# are deployed to the *same* EC2 instance under *one* shared domain, instead
+# of two separate domains/vhosts. Lower cost than the two-domain default
+# (one cert, one DNS record, no CORS to configure between them) — see
+# references/cost-estimates.md and SKILL.md Step 11 for when to pick this
+# over nginx.conf.tmpl's per-app-per-domain default.
+#
+# Plain HTTP reverse proxy on port 80 only — certbot's --nginx --redirect
+# plugin adds the HTTPS server block, cert paths, and the 80->443 redirect
+# automatically; don't hand-write those, they'll be overwritten/duplicated.
+#
+# ___API_PREFIX___ (e.g. "/api") routes to the backend; everything else
+# routes to the frontend. nginx picks the longest matching location prefix
+# regardless of declaration order, so ___API_PREFIX___ always wins over `/`
+# for anything under it — no special ordering needed. proxy_pass below has
+# no trailing path after the port, so the ___API_PREFIX___ prefix is
+# preserved when forwarded (matches a backend with its own global prefix
+# set to the same value, e.g. NestJS's app.setGlobalPrefix('api') — the
+# common case). If the backend instead expects the prefix stripped, add a
+# trailing `/` to both the location and its proxy_pass.
+#
+# Both apps run on loopback-only ports — nothing in
+# templates/cfn/ec2-instance.yaml's security group opens either port
+# directly to the internet, so this nginx config is the only way in for
+# either one.
+#
+# ___SERVER_NAMES___ is space-separated, same convention as nginx.conf.tmpl.
+limit_req_zone $binary_remote_addr zone=___APP_NAME____fe_limit:10m rate=___RATE_LIMIT_RPS___;
+limit_req_zone $binary_remote_addr zone=___APP_NAME____be_limit:10m rate=___RATE_LIMIT_RPS___;
+
+server {
+    listen 80;
+    server_name ___SERVER_NAMES___;
+
+    # Raise this if either app accepts large file uploads directly (not via
+    # S3 presigned URLs) — default is deliberately conservative.
+    client_max_body_size 10m;
+
+    location ___BACKEND_HEALTH_PATH___ {
+        proxy_pass http://127.0.0.1:___BACKEND_PORT___;
+        proxy_set_header Host $host;
+    }
+
+    location ___FRONTEND_HEALTH_PATH___ {
+        proxy_pass http://127.0.0.1:___FRONTEND_PORT___;
+        proxy_set_header Host $host;
+    }
+
+___RESTRICTED_LOCATION_BLOCK___
+
+    location ___API_PREFIX___ {
+        limit_req zone=___APP_NAME____be_limit burst=___RATE_LIMIT_BURST___ nodelay;
+
+        proxy_pass http://127.0.0.1:___BACKEND_PORT___;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    location / {
+        limit_req zone=___APP_NAME____fe_limit burst=___RATE_LIMIT_BURST___ nodelay;
+
+        proxy_pass http://127.0.0.1:___FRONTEND_PORT___;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}

@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  One SNS topic + email subscription per app, used as the alarm action for
+  ec2-instance.yaml's CloudWatch alarms and (CodePipeline path) a
+  CodeStarNotificationRule on pipeline failure. The GitHub Actions path
+  publishes to the same topic directly from the workflow on failure — see
+  templates/github-actions/deploy.yml.tmpl. Deploy this once per app, before
+  ec2-instance.yaml/pipeline.yaml if you want their failure/alarm actions
+  wired up from the start (their NotificationTopicArn params are optional
+  and can also be added later via a stack update).
+
+Parameters:
+  AppName:
+    Type: String
+    AllowedPattern: '[a-z0-9-]+'
+  NotificationEmail:
+    Type: String
+    Description: Where deploy-failure and disk/status alarm notifications go. The subscription needs a one-time email confirmation click before it starts delivering.
+
+Resources:
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${AppName}-notifications'
+
+  EmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref Topic
+      Protocol: email
+      Endpoint: !Ref NotificationEmail
+
+  # Required for AWS::CodeStarNotifications::NotificationRule (see
+  # pipeline.yaml) to be allowed to publish to this topic.
+  TopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref Topic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCodeStarNotifications
+            Effect: Allow
+            Principal:
+              Service: codestar-notifications.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref Topic
+
+Outputs:
+  TopicArn:
+    Value: !Ref Topic

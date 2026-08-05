@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Private, encrypted S3 bucket for automated database backups, with a
+  lifecycle rule that expires objects after RetentionDays — no manual
+  cleanup needed. Deploy this once per app (or once for a shared bucket
+  across several apps' backups, each under its own <app-name>/ prefix — see
+  references/db-backups.md). Does NOT grant any instance access by itself;
+  pass this stack's BucketArn output into ec2-instance.yaml's
+  BackupBucketArn parameter (redeploy that stack if the instance already
+  exists) to grant s3:PutObject on it to the instance's own role.
+
+Parameters:
+  AppName:
+    Type: String
+    AllowedPattern: '[a-z0-9-]+'
+    Description: Used as the bucket name prefix and the S3 key prefix backups are written under — doesn't need to be unique to one app if sharing a bucket across several (see references/db-backups.md).
+  RetentionDays:
+    Type: Number
+    Default: 7
+    Description: Backups older than this are automatically deleted. Ask the user explicitly rather than defaulting silently — a short window (default 7) trades disaster-recovery depth for lower storage cost; some projects want longer.
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AppName}-db-backups-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old-db-backups
+            Status: Enabled
+            ExpirationInDays: !Ref RetentionDays
+
+Outputs:
+  BucketName:
+    Value: !Ref Bucket
+  BucketArn:
+    Value: !GetAtt Bucket.Arn

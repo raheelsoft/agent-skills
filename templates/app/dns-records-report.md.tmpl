@@ -1,0 +1,16 @@
+## DNS records to add — ___APP_NAME___
+
+Your domain's DNS isn't managed in Route53, so these need to be added
+manually at your registrar/DNS provider. No secrets in here — safe to
+paste anywhere.
+
+| Type | Host/Name | Value | TTL | Purpose |
+|---|---|---|---|---|
+___RECORDS_TABLE___
+
+___PROVIDER_NOTES___
+
+DNS changes can take anywhere from a few minutes to a few hours to
+propagate, depending on your provider and the previous record's TTL. Once
+`dig ___DOMAIN___` (or `nslookup`) shows the new value, let me know and
+I'll verify/continue.

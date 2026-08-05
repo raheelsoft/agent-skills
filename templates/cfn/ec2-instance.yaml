@@ -1,0 +1,507 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Single EC2 instance for hosting one or more Node apps behind nginx, fully
+  bootstrapped via UserData (nvm/Node, pm2, nginx, certbot, AWS CLI v2, swap,
+  CloudWatch Agent for disk/mem metrics + centralized pm2 log shipping,
+  optional local Postgres/Redis/Docker) — replaces doing this bootstrap by
+  hand over SSM one command at a time. Also installs two shared, app-agnostic
+  scripts used by every app hosted on this box:
+  /usr/local/bin/app-pipeline-deploy.sh (fetch -> new release directory ->
+  symlink swap -> validate -> auto-rollback-on-failure -> prune old
+  releases) and /usr/local/bin/app-pipeline-rollback.sh (relink `current` to
+  the previous release). CI (CodePipeline or GitHub Actions) triggers the
+  former over SSM RunCommand instead of a real CodeDeploy agent (see
+  references/gotchas.md for why).
+
+Parameters:
+  AppName:
+    Type: String
+    Description: >-
+      Short identifier for tagging, e.g. my-api. Multiple apps may share one
+      instance. Pick a globally-unique slug across every engagement this
+      skill is ever used for (e.g. prefix with a client/project name,
+      acme-api not api) — every stack, IAM role, and S3 bucket this skill
+      creates is named from this value alone, so two unrelated apps
+      choosing the same short name will collide. SKILL.md Step 3 checks for
+      an existing stack under this name before creating anything, as a
+      backstop, but a unique name up front avoids the check ever firing.
+    AllowedPattern: '[a-z0-9-]+'
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    Description: t3.micro (~908MB RAM) needs the swap file + NODE_OPTIONS heap cap below to survive a Node build — fine for small apps, size up for anything heavier. Always ask the user explicitly rather than defaulting silently.
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id
+    Description: Resolved at deploy time via the Canonical-maintained SSM public parameter — always the current Ubuntu 24.04 LTS AMI, never a stale hardcoded ID.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Must be a public subnet (auto-assigns a public IP; the Elastic IP below also needs a public subnet to associate against).
+  KeyName:
+    Type: String
+    Default: ''
+    Description: Optional EC2 key pair name for break-glass SSH access. Leave blank to rely on SSM Session Manager only (recommended — no open SSH key to manage).
+  SshCidr:
+    Type: String
+    Default: ''
+    Description: CIDR allowed to reach port 22, e.g. 203.0.113.4/32 (your office/VPN IP). Leave blank to not open port 22 at all (recommended — SSM Session Manager needs no inbound port). Never defaults to 0.0.0.0/0.
+  RootVolumeSize:
+    Type: Number
+    Default: 20
+    Description: GiB. The default 8GB Ubuntu root volume fills up fast under repeated npm/build churn.
+  SwapSizeGB:
+    Type: Number
+    Default: 2
+  NodeMajorVersion:
+    Type: String
+    Default: '24'
+  NvmVersion:
+    Type: String
+    Default: v0.39.7
+    Description: Pinned rather than always installing nvm's latest release, for reproducible bootstraps — but nvm releases periodically add support for newer Node majors before older nvm versions know about them. If NodeMajorVersion is very new and `nvm install` fails to find it, this is usually why — check nvm-sh/nvm's releases for a newer NvmVersion.
+  NeedsPostgres:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  NeedsRedis:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  EnableDocker:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Installs Docker + the Compose plugin, for apps that deploy via a Dockerfile/docker-compose.yml instead of bare pm2. See references/docker-option.md.
+  NotificationTopicArn:
+    Type: String
+    Default: ''
+    Description: SNS topic ARN from templates/cfn/notifications.yaml, used as the action for the disk-space and status-check alarms below. Leave blank to create the alarms without any action (still visible in the CloudWatch console).
+  BackupBucketArn:
+    Type: String
+    Default: ''
+    Description: S3 bucket ARN from templates/cfn/db-backup.yaml, if automated database backups were requested. Leave blank to skip. Grants this instance's role s3:PutObject on that bucket only — no read/list/delete — see references/db-backups.md.
+  OsUser:
+    Type: String
+    Default: ubuntu
+  BootstrapTimeoutMinutes:
+    Type: Number
+    Default: 20
+    Description: How long `aws cloudformation deploy` waits for UserData to finish (via cfn-signal) before failing the stack outright. Raise if EnableDocker/NeedsPostgres/NeedsRedis are all true (more apt installs) or the region's package mirrors are known to be slow.
+  AssignElasticIp:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Always ask explicitly, never assume — a stable Elastic IP is effectively required if a domain will ever point at this instance (the default dynamic public IP changes on stop/start, silently breaking DNS). 'false' relies on the subnet's auto-assigned public IP instead — fine for a short-lived/throwaway instance with no domain, one fewer resource to account for.
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, '']]
+  HasSshCidr: !Not [!Equals [!Ref SshCidr, '']]
+  HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, '']]
+  HasBackupBucket: !Not [!Equals [!Ref BackupBucketArn, '']]
+  ShouldAssignElasticIp: !Equals [!Ref AssignElasticIp, 'true']
+
+Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub '${AppName} app host — HTTP/HTTPS, SSH only if a CIDR was given'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - !If
+          - HasSshCidr
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Ref SshCidr
+          - !Ref 'AWS::NoValue'
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${AppName}-sg'
+
+  # ssm:GetParameter/PutParameter are scoped to this app's own namespace
+  # only — mirrors the least-privilege pattern used for the pipeline's
+  # DeployServiceRole. PutParameter is what lets the box push its own
+  # .env to Parameter Store as a backup (Step 9 in SKILL.md) entirely
+  # on-box, using its own file already on disk — no local temp file or
+  # re-transmission of the secret needed anywhere else.
+  # AmazonSSMManagedInstanceCore is required for SSM Session Manager /
+  # RunCommand to reach this box at all (that's how the pipeline's Deploy
+  # stage — and this skill's own bootstrap-verification step — talk to it,
+  # with no SSH needed). CloudWatchAgentServerPolicy lets the CloudWatch
+  # Agent installed below publish metrics/logs and read its own config.
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-instance-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: app-parameter-store-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AppName}/*'
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  # Separate AWS::IAM::Policy resource (rather than another entry in
+  # InstanceRole's inline Policies list above) specifically so the whole
+  # thing can be skipped via Condition when no backup bucket was requested
+  # — a list entry can't be conditionally omitted the same way a resource
+  # can. Write-only on purpose: the box can push backups but can't
+  # list/read/delete existing ones, so a compromised instance can't use
+  # this role to exfiltrate or wipe backup history (verified in practice —
+  # `aws s3 cp` *from* the box correctly 403s under this policy).
+  BackupBucketPolicy:
+    Type: AWS::IAM::Policy
+    Condition: HasBackupBucket
+    Properties:
+      PolicyName: db-backup-s3-put
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: s3:PutObject
+            Resource: !Sub '${BackupBucketArn}/*'
+      Roles:
+        - !Ref InstanceRole
+
+  # CreationPolicy + the UserData's own cfn-signal call (see below) make
+  # `aws cloudformation deploy` block until bootstrap actually finishes or
+  # fails — a real await instead of returning immediately and requiring a
+  # separate hand-rolled poll loop for a marker file (see SKILL.md Step 4,
+  # and references/gotchas.md for the reasoning).
+  Instance:
+    Type: AWS::EC2::Instance
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: !Sub 'PT${BootstrapTimeoutMinutes}M'
+        Count: 1
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      IamInstanceProfile: !Ref InstanceProfile
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref 'AWS::NoValue']
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp3
+      Tags:
+        - Key: Name
+          Value: !Ref AppName
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          exec > /var/log/app-pipeline-bootstrap.log 2>&1
+
+          NODE_MAJOR="${NodeMajorVersion}"
+          NVM_VERSION="${NvmVersion}"
+          NEEDS_POSTGRES="${NeedsPostgres}"
+          NEEDS_REDIS="${NeedsRedis}"
+          ENABLE_DOCKER="${EnableDocker}"
+          SWAP_GB="${SwapSizeGB}"
+          OS_USER="${OsUser}"
+
+          apt-get update -y
+
+          # --- cfn-signal: not preinstalled on Ubuntu (unlike Amazon Linux)
+          # — installed first, before anything else that could fail, so a
+          # failure signal can actually be sent even if something early
+          # breaks. Lets the CreationPolicy above turn this UserData script
+          # into a real await for `aws cloudformation deploy` instead of a
+          # fire-and-forget that needs a separate poll loop to know when
+          # (or whether) bootstrap actually finished.
+          apt-get install -y python3-pip
+          pip3 install --break-system-packages aws-cfn-bootstrap
+          trap 'cfn-signal --exit-code 1 --stack "${AWS::StackName}" --resource Instance --region "${AWS::Region}" || true' ERR
+
+          # --- swap: small instances OOM on a default-heap Node build without this ---
+          fallocate -l "${!SWAP_GB}G" /swapfile
+          chmod 600 /swapfile
+          mkswap /swapfile
+          swapon /swapfile
+          echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+          # --- nginx + certbot + git (not preinstalled on the Ubuntu base
+          # AMI, unlike some distros — app-pipeline-deploy.sh's git fetch
+          # and Step 8's initial clone both depend on it) + apache2-utils
+          # (htpasswd, for optional HTTP Basic Auth on a path — see Step 11
+          # and references/deploy-key-setup.md's sibling doc on Basic Auth
+          # gating in SKILL.md) ---
+          apt-get install -y nginx certbot python3-certbot-nginx git apache2-utils
+
+          # --- AWS CLI v2 ---
+          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+          unzip -q /tmp/awscliv2.zip -d /tmp
+          /tmp/aws/install
+
+          # --- optional local Postgres/Redis ---
+          if [ "${!NEEDS_POSTGRES}" = "true" ]; then
+            apt-get install -y postgresql
+          fi
+          if [ "${!NEEDS_REDIS}" = "true" ]; then
+            apt-get install -y redis-server
+          fi
+
+          # --- optional Docker (see references/docker-option.md) ---
+          if [ "${!ENABLE_DOCKER}" = "true" ]; then
+            apt-get install -y docker.io docker-compose-v2
+            usermod -aG docker "${!OS_USER}"
+            systemctl enable --now docker
+          fi
+
+          # --- nvm + Node + pm2, installed under the app user (not root) ---
+          su - "${!OS_USER}" -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${!NVM_VERSION}/install.sh | bash"
+          su - "${!OS_USER}" -c "export NVM_DIR=\"\$HOME/.nvm\"; source \"\$NVM_DIR/nvm.sh\"; nvm install ${!NODE_MAJOR}; npm install -g pm2"
+
+          mkdir -p "/home/${!OS_USER}/apps"
+          chown -R "${!OS_USER}:${!OS_USER}" "/home/${!OS_USER}/apps"
+
+          # --- CloudWatch Agent: disk/mem metrics + centralized pm2 log shipping ---
+          curl -fsSL "https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb" -o /tmp/amazon-cloudwatch-agent.deb
+          dpkg -i -E /tmp/amazon-cloudwatch-agent.deb
+
+          mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+          cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWAGENT'
+          {
+            "metrics": {
+              "namespace": "AppPipeline/${AppName}",
+              "append_dimensions": { "InstanceId": "${!aws:InstanceId}" },
+              "metrics_collected": {
+                "disk": { "measurement": ["used_percent"], "resources": ["/"], "drop_device": true },
+                "mem": { "measurement": ["mem_used_percent"] }
+              }
+            },
+            "logs": {
+              "logs_collected": {
+                "files": {
+                  "collect_list": [
+                    {
+                      "file_path": "/home/${OsUser}/.pm2/logs/*.log",
+                      "log_group_name": "/app-pipeline/${AppName}/pm2",
+                      "log_stream_name": "{instance_id}"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+          CWAGENT
+
+          /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
+          # --- shared deploy/rollback entrypoints, installed once, used by every app on this box ---
+          cat > /usr/local/bin/app-pipeline-deploy.sh <<'DEPLOY_SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+          APP_DIR="$1"
+          BRANCH="$2"
+
+          # Two overlapping deploys (e.g. two rapid pushes with no CI-level
+          # concurrency guard, or a manual re-run racing a real trigger)
+          # would otherwise race on the same repo/ checkout, release
+          # directory, and `current` symlink. Serialize instead of
+          # corrupting a deploy — wait up to 20 minutes for any in-progress
+          # deploy on this app to finish before starting.
+          exec 9>"$APP_DIR/.deploy.lock"
+          if ! flock -w 1200 9; then
+            echo "Timed out waiting for a previous deploy of $APP_DIR to finish." >&2
+            exit 1
+          fi
+
+          # If a private-repo SSH deploy key was set up for this app (see
+          # references/deploy-key-setup.md — a one-time step before the
+          # very first clone), use it for every git operation below; a
+          # public-repo app with no key present falls through unaffected —
+          # its origin remote is a plain HTTPS URL and needs no credential.
+          if [ -f "$APP_DIR/.ssh/deploy_key" ]; then
+            export GIT_SSH_COMMAND="ssh -i $APP_DIR/.ssh/deploy_key -o UserKnownHostsFile=$APP_DIR/.ssh/known_hosts -o IdentitiesOnly=yes"
+          fi
+
+          cd "$APP_DIR/repo"
+          git fetch --all --prune
+          git reset --hard "origin/$BRANCH"
+          SHA="$(git rev-parse --short HEAD)"
+
+          RELEASE_DIR="$APP_DIR/releases/$SHA"
+          mkdir -p "$RELEASE_DIR"
+          rsync -a --delete --exclude='.git' "$APP_DIR/repo/" "$RELEASE_DIR/"
+
+          # Parameter Store is the source of truth for env vars, not this
+          # box (see SKILL.md Step 9 / references/env-parameter-store.md) —
+          # .env is regenerated fresh on every deploy, one line per
+          # parameter under /<app-name>/<environment>/, never a static file
+          # someone has to remember to edit in place. APP_NAME is derived
+          # from APP_DIR's basename, which is already named after it by
+          # convention throughout this skill. APP_ENV comes from a small
+          # marker file written once during Step 8's initial checkout
+          # (defaults to "prod" when absent, so a single-environment app
+          # set up before this file existed keeps working unchanged) —
+          # never hardcode an environment name here; see
+          # references/staging-environment.md for why a hardcoded literal
+          # here is a real, previously-hit prod-secret-leak-onto-staging
+          # failure mode, not just a style preference.
+          #
+          # Written straight to the file via redirection only — never
+          # echoed to stdout, which SSM/CodeBuild persist indefinitely (see
+          # references/gotchas.md). The AWS CLI auto-paginates
+          # get-parameters-by-path, so this returns every parameter under
+          # the path regardless of count, not just the first page.
+          APP_NAME="$(basename "$APP_DIR")"
+          APP_ENV="prod"
+          [ -f "$APP_DIR/.environment" ] && APP_ENV="$(cat "$APP_DIR/.environment")"
+          : > "$APP_DIR/.env"
+          aws ssm get-parameters-by-path --region "$AWS_REGION" --path "/$APP_NAME/$APP_ENV/" \
+            --with-decryption --recursive --query 'Parameters[].[Name,Value]' --output text | \
+            while IFS=$'\t' read -r param_name param_value; do
+              printf '%s=%s\n' "${!param_name##*/}" "$param_value" >> "$APP_DIR/.env"
+            done
+          chmod 600 "$APP_DIR/.env"
+
+          ln -sf "$APP_DIR/.env" "$RELEASE_DIR/.env"
+
+          cd "$RELEASE_DIR"
+          bash scripts/before_install.sh
+          bash scripts/after_install.sh
+
+          ln -sfn "$RELEASE_DIR" "$APP_DIR/current"
+
+          cd "$APP_DIR/current"
+          bash scripts/application_start.sh
+
+          if ! bash scripts/validate_service.sh; then
+            echo "Validation failed for $SHA -- rolling back." >&2
+            /usr/local/bin/app-pipeline-rollback.sh "$APP_DIR" || true
+            exit 1
+          fi
+
+          CURRENT_TARGET="$(readlink -f "$APP_DIR/current")"
+          find "$APP_DIR/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | tail -n +6 | cut -d' ' -f2- | while IFS= read -r dir; do
+            [ "$(readlink -f "$dir")" = "$CURRENT_TARGET" ] && continue
+            rm -rf "$dir"
+          done
+
+          echo "==> Deploy of $SHA complete."
+          DEPLOY_SCRIPT
+          chmod +x /usr/local/bin/app-pipeline-deploy.sh
+
+          cat > /usr/local/bin/app-pipeline-rollback.sh <<'ROLLBACK_SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+          APP_DIR="$1"
+
+          # Release dir names are git short-SHAs (no spaces/globs/newlines),
+          # so ls -t is safe here and simpler than a find+sort equivalent.
+          # shellcheck disable=SC2012
+          PREV="$(ls -1dt "$APP_DIR"/releases/*/ | sed -n '2p')"
+          if [ -z "$PREV" ]; then
+            echo "No previous release to roll back to." >&2
+            exit 1
+          fi
+
+          ln -sfn "$PREV" "$APP_DIR/current"
+          cd "$APP_DIR/current"
+          bash scripts/application_start.sh
+          bash scripts/validate_service.sh
+          echo "==> Rolled back to $(basename "$PREV")."
+          ROLLBACK_SCRIPT
+          chmod +x /usr/local/bin/app-pipeline-rollback.sh
+
+          touch /home/"${!OS_USER}"/.app-pipeline-bootstrap-complete
+          cfn-signal --exit-code 0 --stack "${AWS::StackName}" --resource Instance --region "${AWS::Region}"
+
+  DiskSpaceAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AppName}-disk-space-high'
+      AlarmDescription: Root volume usage — the exact failure mode that already cost a debugging session once (see references/gotchas.md).
+      Namespace: !Sub 'AppPipeline/${AppName}'
+      MetricName: disk_used_percent
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref Instance
+        - Name: path
+          Value: /
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasNotificationTopic, [!Ref NotificationTopicArn], []]
+
+  StatusCheckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${AppName}-status-check-failed'
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref Instance
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions: !If [HasNotificationTopic, [!Ref NotificationTopicArn], []]
+
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Condition: ShouldAssignElasticIp
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref Instance
+      Tags:
+        - Key: Name
+          Value: !Sub '${AppName}-eip'
+
+Outputs:
+  InstanceId:
+    Value: !Ref Instance
+  # Use this one — it's always populated, with the stable Elastic IP if
+  # AssignElasticIp=true, or the subnet's auto-assigned dynamic public IP
+  # otherwise. Every other template/step that needs "the instance's public
+  # IP" (dns-record.yaml, uptime-check.yaml, Step 9/10 in SKILL.md) reads
+  # this output, not ElasticIp below.
+  PublicIp:
+    Value: !If [ShouldAssignElasticIp, !Ref ElasticIP, !GetAtt Instance.PublicIp]
+  # Only present when AssignElasticIp=true — use PublicIp above for the
+  # general case; this exists for when a caller specifically needs to know
+  # whether the IP is guaranteed stable.
+  ElasticIp:
+    Condition: ShouldAssignElasticIp
+    Value: !Ref ElasticIP
+  SecurityGroupId:
+    Value: !Ref SecurityGroup

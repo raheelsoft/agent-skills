@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ACM certificate for the static-site CloudFront distribution
+  (templates/cfn/static-site-s3.yaml). MUST be deployed with
+  --region us-east-1 regardless of the app's actual region — a hard
+  CloudFront requirement, not a default to second-guess. If HostedZoneId is
+  given (domain is in Route53), CloudFormation creates and manages the DNS
+  validation record(s) automatically and waits for issuance as part of this
+  stack's deploy. If left blank (external DNS), stack creation still waits
+  for validation — the user must add the validation CNAME(s) at their
+  registrar while the deploy is in progress; get the value(s) from
+  `aws acm describe-certificate` if not obvious from the stack events.
+
+Parameters:
+  DomainName:
+    Type: String
+    Description: e.g. app.example.com — must match static-site-s3.yaml's CustomDomain exactly.
+  SecondaryDomainName:
+    Type: String
+    Default: ''
+    Description: Optional second domain to cover, e.g. www.example.com alongside DomainName=example.com — must match static-site-s3.yaml's SecondaryDomain exactly. Assumed to be in the same hosted zone as DomainName when HostedZoneId is given.
+  HostedZoneId:
+    Type: String
+    Default: ''
+    Description: Route53 hosted zone for DomainName (and SecondaryDomainName, if given). Leave blank if DNS is external — see the description above for what changes.
+
+Conditions:
+  HasHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
+  HasSecondaryDomain: !Not [!Equals [!Ref SecondaryDomainName, '']]
+
+Resources:
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames: !If [HasSecondaryDomain, [!Ref SecondaryDomainName], !Ref 'AWS::NoValue']
+      ValidationMethod: DNS
+      DomainValidationOptions: !If
+        - HasHostedZone
+        - !If
+          - HasSecondaryDomain
+          - - DomainName: !Ref DomainName
+              HostedZoneId: !Ref HostedZoneId
+            - DomainName: !Ref SecondaryDomainName
+              HostedZoneId: !Ref HostedZoneId
+          - - DomainName: !Ref DomainName
+              HostedZoneId: !Ref HostedZoneId
+        - !Ref 'AWS::NoValue'
+
+Outputs:
+  CertificateArn:
+    Value: !Ref Certificate

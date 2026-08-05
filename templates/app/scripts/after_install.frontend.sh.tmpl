@@ -1,0 +1,29 @@
+#!/bin/bash
+set -euo pipefail
+# Runs from inside the new release directory (see before_install.sh.tmpl for
+# why no `cd` happens here). Never echo/cat .env or any secret value.
+#
+# NOTE: any NEXT_PUBLIC_* (or equivalent client-bundled) env var is baked in
+# at build time below, not read at runtime — changing .env and reloading pm2
+# alone does nothing for those vars, a fresh deploy (this script) is required.
+
+export NVM_DIR="$HOME/.nvm"
+# shellcheck source=/dev/null
+source "$NVM_DIR/nvm.sh"
+
+# The SUBDIR-SETUP placeholder right below is empty for a single-package
+# repo (the common case, no behavior change). For a monorepo with this app
+# in a subdirectory, it's `cd`+a relink of .env (which
+# app-pipeline-deploy.sh symlinks only into the release root, not any
+# subdirectory) so build-time env vars (see references/gotchas.md's
+# "Frontend build-time env vars") are found the same way they would be if
+# this app were at the repo root — see Step 8's AppSubdirectory question.
+# Deliberately not spelled with its literal token in this comment — its
+# value can be multi-line, and render.sh substitutes every occurrence of a
+# placeholder token in the whole file, comments included, which would
+# otherwise splice real shell commands into this comment and run them a
+# second time.
+___SUBDIR_SETUP___
+
+___INSTALL_CMD___
+npm run build

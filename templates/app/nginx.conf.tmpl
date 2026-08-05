@@ -1,0 +1,57 @@
+# Rendered to /etc/nginx/sites-available/___DOMAIN___ and symlinked into
+# sites-enabled/ (see SKILL.md Step 9). Plain HTTP reverse proxy on port 80
+# only — certbot's --nginx --redirect plugin adds the HTTPS server block,
+# cert paths, and the 80->443 redirect automatically; don't hand-write those,
+# they'll be overwritten/duplicated.
+#
+# ___SERVER_NAMES___ is space-separated (nginx's native multi-name syntax)
+# — "example.com" alone, or "example.com www.example.com" if a secondary
+# domain was chosen. One server block serves both; certbot's -d flags need
+# to list both too (see SKILL.md Step 10) so the cert actually covers each.
+#
+# limit_req_zone must live at this (http-context) level, not inside the
+# server block — this file is included directly inside nginx.conf's http{}
+# block via sites-enabled/, so top-level here is the right place.
+#
+# The RESTRICTED-LOCATION placeholder a few lines down is an empty string
+# unless Step 2b's Basic Auth question was answered yes — see
+# references/basic-auth-gating.md. Its value, when non-empty, is a complete
+# `location <path> { auth_basic ...; }` block (nginx's longest-prefix-match
+# means it doesn't matter that this is declared before the catch-all
+# `location /` below). Deliberately not spelled with its literal token
+# here — render.sh substitutes every occurrence of a placeholder token in
+# the whole file, comments included, and this placeholder's value can be
+# multi-line, so writing it out literally in prose would splice nginx
+# directives into the middle of this comment.
+limit_req_zone $binary_remote_addr zone=___APP_NAME____limit:10m rate=___RATE_LIMIT_RPS___;
+
+server {
+    listen 80;
+    server_name ___SERVER_NAMES___;
+
+    # Raise this if the app accepts large file uploads directly (not via
+    # S3 presigned URLs) — default is deliberately conservative.
+    client_max_body_size 10m;
+
+    location ___HEALTH_PATH___ {
+        # Health checks bypass rate limiting — a monitoring system hammering
+        # this path shouldn't trip the same limit as real traffic.
+        proxy_pass http://127.0.0.1:___PORT___;
+        proxy_set_header Host $host;
+    }
+
+___RESTRICTED_LOCATION_BLOCK___
+
+    location / {
+        limit_req zone=___APP_NAME____limit burst=___RATE_LIMIT_BURST___ nodelay;
+
+        proxy_pass http://127.0.0.1:___PORT___;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}

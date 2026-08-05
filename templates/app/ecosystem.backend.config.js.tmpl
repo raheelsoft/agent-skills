@@ -1,0 +1,32 @@
+// PM2 process config. The instances/exec_mode placeholders below default
+// to 2/'cluster' — ask explicitly during Step 2b whether this backend is
+// stateless/cluster-safe (no in-memory rate limiting or session state, no
+// in-process cron/websocket-sticky-session assumptions — see
+// references/zero-downtime-restarts.md) rather than silently defaulting to
+// fork mode. cluster mode with >=2 workers is what makes `pm2
+// startOrReload`/`pm2 reload` actually zero-downtime (PM2 brings a new
+// worker up, waits until it's ready, then kills an old one, one at a time)
+// — fork mode with 1 instance is a fast restart, not a true zero-downtime
+// swap, and drops in-flight connections on every deploy. Only fall back to
+// fork/1 when the app itself isn't safe to run as >1 concurrent process.
+//
+// `cwd` below resolves to the fixed `current` symlink, or a subdirectory
+// of it for a monorepo (see Step 8's AppSubdirectory question), not
+// __dirname — pm2 is always started from here (see application_start.sh)
+// so a restart from a stale pm2 process list still finds the latest
+// release, not whichever one happened to be current when pm2 first
+// launched.
+module.exports = {
+  apps: [
+    {
+      name: '___APP_NAME___',
+      cwd: '___APP_CWD___',
+      script: '___BACKEND_ENTRYPOINT___',
+      instances: ___BACKEND_INSTANCES___,
+      exec_mode: '___BACKEND_EXEC_MODE___',
+      env: {
+        NODE_ENV: 'production',
+      },
+    },
+  ],
+};

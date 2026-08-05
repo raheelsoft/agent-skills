@@ -1,0 +1,31 @@
+version: 0.2
+
+# Quality gate only — this build's output is discarded. The actual deployed
+# build happens again on the EC2 instance via scripts/after_install.sh
+# (called from scripts/deploy/deploy.sh).
+
+phases:
+  install:
+    commands:
+      - curl -fsSL https://deb.nodesource.com/setup___NODE_MAJOR___.x | bash -
+      - apt-get install -y nodejs
+      - export PATH="/usr/bin:$PATH"
+      - node -v
+  pre_build:
+    commands:
+      - export PATH="/usr/bin:$PATH"
+      - node -v
+      # The CD-SUBDIR placeholder right below is `true` (no-op) for a
+      # single-package repo, or `cd "<subdir>"` for a monorepo — see
+      # SKILL.md Step 8's AppSubdirectory question. Repeated at the top of
+      # every phase since CodeBuild doesn't guarantee cwd (or exported
+      # vars) persist across phase boundaries — same reasoning as the PATH
+      # re-assertion above.
+      - ___CD_SUBDIR___
+      - ___INSTALL_CMD___
+  build:
+    commands:
+      - export PATH="/usr/bin:$PATH"
+      - ___CD_SUBDIR___
+      - ___LINT_CMD___
+      - npm run build

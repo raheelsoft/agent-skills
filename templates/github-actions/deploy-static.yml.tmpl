@@ -1,0 +1,53 @@
+name: Deploy (static site)
+
+# Unlike the EC2 path's workflow, there's no separate deploy trigger over
+# SSM — the build output (out/, from `next build` with output:'export') IS
+# the deploy payload, synced straight to S3 and the CloudFront cache
+# invalidated. No EC2, no SSM, no appspec — nothing to run a server on.
+on:
+  push:
+    branches: [___GITHUB_BRANCH___]
+
+# Safe to cancel an in-progress static deploy for a newer one — unlike the
+# EC2 path there's no box-side state a mid-flight cancellation could leave
+# corrupted, just an S3 sync + CloudFront invalidation, both idempotent.
+# Cancelling gets the latest commit live faster instead of waiting behind
+# a stale one.
+concurrency:
+  group: deploy-___GITHUB_BRANCH___
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '___NODE_MAJOR___'
+      - run: ___INSTALL_CMD___
+      - run: ___LINT_CMD___
+      - run: npm run build
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ___DEPLOY_ROLE_ARN___
+          aws-region: ___AWS_REGION___
+
+      - name: Sync to S3 and invalidate CloudFront
+        run: |
+          aws s3 sync out/ "s3://___SITE_BUCKET___" --delete
+          aws cloudfront create-invalidation --distribution-id "___DISTRIBUTION_ID___" --paths "/*"
+
+      - name: Notify on failure
+        if: failure() && '___NOTIFICATION_TOPIC_ARN___' != ''
+        run: |
+          aws sns publish --region ___AWS_REGION___ \
+            --topic-arn '___NOTIFICATION_TOPIC_ARN___' \
+            --subject "Deploy failed: ___GITHUB_BRANCH___" \
+            --message "Deploy failed for $GITHUB_REPOSITORY@$GITHUB_SHA — see $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

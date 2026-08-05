@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#
+# Restores a single backup .zip (produced by backup-db.sh) into a target
+# Postgres database. DESTRUCTIVE: the dump was taken with `pg_dump --clean
+# --if-exists`, so restoring drops/recreates existing objects in the target
+# DB before loading data back in — it will overwrite whatever's already
+# there at $DATABASE_URL.
+#
+# Usage:
+#   DATABASE_URL="postgres://user:pass@host:5432/dbname" ./restore-db.sh <backup.zip>
+#   ./restore-db.sh <backup.zip> "postgres://user:pass@host:5432/dbname"
+#
+# Restore into a throwaway/local DB first to sanity-check a backup before
+# ever pointing this at a live database — see references/db-backups.md for
+# a scratch-database restore-test recipe that doesn't need a live DB copy.
+
+set -euo pipefail
+
+zip_file="${1:?Usage: $0 <backup.zip> [database_url]}"
+database_url="${2:-${DATABASE_URL:?set DATABASE_URL or pass it as the 2nd argument}}"
+
+if [ ! -f "$zip_file" ]; then
+  echo "ERROR: file not found: $zip_file" >&2
+  exit 1
+fi
+
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+unzip -q -j "$zip_file" -d "$tmp_dir"
+sql_file="$(find "$tmp_dir" -maxdepth 1 -name '*.sql' | head -1)"
+if [ -z "$sql_file" ]; then
+  echo "ERROR: no .sql file found inside $zip_file" >&2
+  exit 1
+fi
+
+echo "About to restore $(basename "$sql_file") into the target database."
+echo "This DROPS and recreates existing objects there first (--clean --if-exists dump)."
+read -rp "Type 'yes' to continue: " confirm
+if [ "$confirm" != "yes" ]; then
+  echo "Aborted."
+  exit 1
+fi
+
+psql "$database_url" -f "$sql_file"
+echo "==> Restore complete."

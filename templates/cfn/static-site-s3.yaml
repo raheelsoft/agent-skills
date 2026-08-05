@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Static-site hosting for a frontend that doesn't need a Node server —
+  private S3 bucket (never directly public) + CloudFront distribution using
+  Origin Access Control, so the bucket stays private and only CloudFront can
+  read it. Alternative to ec2-instance.yaml + pipeline.yaml for a frontend
+  that's been confirmed static-exportable (see
+  references/static-site-conversion.md) and where the user explicitly chose
+  this path over EC2 (Step 2 in SKILL.md — never picked silently).
+
+Parameters:
+  AppName:
+    Type: String
+    AllowedPattern: '[a-z0-9-]+'
+  CustomDomain:
+    Type: String
+    Default: ''
+    Description: e.g. app.example.com. Leave blank to use the CloudFront-assigned *.cloudfront.net domain only.
+  SecondaryDomain:
+    Type: String
+    Default: ''
+    Description: Optional second domain to serve from the same distribution, e.g. www.example.com alongside CustomDomain=example.com. Only used if CustomDomain is also set — must be covered by the same AcmCertificateArn (see acm-certificate.yaml's SecondaryDomainName).
+  AcmCertificateArn:
+    Type: String
+    Default: ''
+    Description: Required if CustomDomain is set — an ACM cert covering CustomDomain (and SecondaryDomain, if given), issued in us-east-1 (a hard CloudFront requirement, not a default to second-guess). See references/dns-route53.md.
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref CustomDomain, '']]
+  HasSecondaryDomain: !Not [!Equals [!Ref SecondaryDomain, '']]
+
+Resources:
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AppName}-site-${AWS::AccountId}'
+      # Never directly public — CloudFront (via the Origin Access Control
+      # below) is the only reader. Unlike the "public" bucket option in
+      # s3-bucket.yaml, there's no reason for this one to be reachable by
+      # anything other than CloudFront.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AppName}-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontOAC
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${SiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        PriceClass: PriceClass_100
+        DefaultRootObject: index.html
+        Aliases: !If
+          - HasCustomDomain
+          - !If
+            - HasSecondaryDomain
+            - [!Ref CustomDomain, !Ref SecondaryDomain]
+            - [!Ref CustomDomain]
+          - !Ref 'AWS::NoValue'
+        ViewerCertificate:
+          !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref AcmCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        DefaultCacheBehavior:
+          TargetOriginId: SiteOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          ForwardedValues:
+            QueryString: false
+        # A static export has no server to 404 gracefully — serve the
+        # generated 404.html (next export/output:'export' always produces
+        # one) instead of CloudFront's raw XML error page.
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+        Origins:
+          - Id: SiteOrigin
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+
+Outputs:
+  BucketName:
+    Value: !Ref SiteBucket
+  DistributionId:
+    Value: !Ref Distribution
+  DistributionDomainName:
+    Value: !GetAtt Distribution.DomainName

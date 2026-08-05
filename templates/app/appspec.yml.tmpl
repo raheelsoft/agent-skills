@@ -1,0 +1,30 @@
+version: 0.0
+os: linux
+# Kept CodeDeploy-shaped for future compatibility (see references/gotchas.md
+# for why the agent isn't used directly) — not read by the current
+# SSM-driven flow. `destination` reflects the persistent git checkout that
+# /usr/local/bin/app-pipeline-deploy.sh fetches from; the actual serving
+# directory is $APP_DIR/current, a symlink to the release rsync'd from here.
+files:
+  - source: /
+    destination: ___APP_DIR___/repo
+permissions:
+  - object: ___APP_DIR___/repo
+    pattern: "**"
+    owner: ___OS_USER___
+    group: ___OS_USER___
+hooks:
+  BeforeInstall:
+    - location: scripts/before_install.sh
+      timeout: 60
+  AfterInstall:
+    - location: scripts/after_install.sh
+      timeout: 300
+      runas: ___OS_USER___
+  ApplicationStart:
+    - location: scripts/application_start.sh
+      timeout: 120
+      runas: ___OS_USER___
+  ValidateService:
+    - location: scripts/validate_service.sh
+      timeout: 60

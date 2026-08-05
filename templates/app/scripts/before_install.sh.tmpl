@@ -1,0 +1,7 @@
+#!/bin/bash
+set -euo pipefail
+# Runs from inside the new release directory (see
+# /usr/local/bin/app-pipeline-deploy.sh on the instance, which cd's here
+# before calling this). Nothing to stop — the previous release keeps
+# serving traffic until this one passes validate_service.sh.
+echo "BeforeInstall: nothing to stop, previous release stays live until this one validates."

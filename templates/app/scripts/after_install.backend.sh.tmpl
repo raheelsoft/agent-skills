@@ -1,0 +1,33 @@
+#!/bin/bash
+set -euo pipefail
+# Runs from inside the new release directory (see before_install.sh.tmpl for
+# why no `cd` happens here). Never echo/cat .env or any secret value — SSM
+# captures this script's stdout in CloudWatch.
+
+export NVM_DIR="$HOME/.nvm"
+# shellcheck source=/dev/null
+source "$NVM_DIR/nvm.sh"
+
+# The SUBDIR-SETUP placeholder right below is empty for a single-package
+# repo (the common case, no behavior change). For a monorepo with this app
+# in a subdirectory, it's `cd`+a relink of .env (which
+# app-pipeline-deploy.sh symlinks only into the release root, not any
+# subdirectory) so npm/build tooling below finds it the same way it would
+# if this app were at the repo root — see Step 8's AppSubdirectory
+# question. Deliberately not spelled with its literal token in this
+# comment — its value can be multi-line, and render.sh substitutes every
+# occurrence of a placeholder token in the whole file, comments included,
+# which would otherwise splice real shell commands into this comment and
+# run them a second time.
+___SUBDIR_SETUP___
+
+# Small instances (e.g. t3.micro, ~900MB RAM) OOM on a default-heap build.
+# Raise the heap explicitly — pair with a swap file provisioned on the box
+# (see templates/cfn/ec2-instance.yaml) to cover the rest.
+export NODE_OPTIONS="--max-old-space-size=___NODE_HEAP_MB___"
+
+___INSTALL_CMD___
+___PRISMA_GENERATE_CMD___
+npm run build
+___PRISMA_MIGRATE_CMD___
+___SEED_CMD___

@@ -1,0 +1,24 @@
+#!/bin/bash
+set -euo pipefail
+# Runs from $APP_DIR/current. Non-zero exit here triggers an automatic
+# rollback (see /usr/local/bin/app-pipeline-rollback.sh) — the deploy
+# entrypoint relinks `current` back to the previous release and restarts it.
+# A single fixed sleep isn't enough right after a build — the box can still
+# be under memory pressure when pm2 reports "online" but the app hasn't
+# bound its port yet. Poll instead of a single fixed-delay attempt.
+#
+# .env is symlinked into every release directory by the deploy entrypoint,
+# so this reads the real PORT rather than assuming one.
+PORT="$(grep -m1 '^PORT=' .env 2>/dev/null | cut -d= -f2)"
+PORT="${PORT:-___DEFAULT_PORT___}"
+
+for _ in $(seq 1 12); do
+  if curl -sf "http://127.0.0.1:${PORT}___HEALTH_PATH___" >/dev/null; then
+    echo "Health check passed."
+    exit 0
+  fi
+  sleep 5
+done
+
+echo "Health check failed after 60s." >&2
+exit 1

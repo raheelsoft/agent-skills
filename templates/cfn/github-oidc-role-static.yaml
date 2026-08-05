@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  IAM role assumable by a GitHub Actions workflow via OIDC, for the
+  static-site (S3+CloudFront) deploy path — scoped to s3 sync on exactly
+  one bucket plus cloudfront:CreateInvalidation on exactly one distribution.
+  Deliberately separate from github-oidc-role.yaml (the EC2/SSM path's
+  role), which needs completely different permissions (ssm:SendCommand) —
+  least-privilege means these two shouldn't share a role. See
+  references/github-oidc-setup.md for the renamed-repo/owner "sub" claim
+  edge case before debugging a trust-policy AccessDenied.
+
+Parameters:
+  AppName:
+    Type: String
+    AllowedPattern: '[a-z0-9-]+'
+  GitHubOwner:
+    Type: String
+  GitHubRepo:
+    Type: String
+  GitHubBranch:
+    Type: String
+    Default: main
+  SiteBucketName:
+    Type: String
+    Description: BucketName output from templates/cfn/static-site-s3.yaml.
+  DistributionId:
+    Type: String
+    Description: DistributionId output from templates/cfn/static-site-s3.yaml.
+  CreateOidcProvider:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: The GitHub OIDC provider is one-per-AWS-account — set to 'false' and fill in ExistingOidcProviderArn if a prior stack (github-oidc-role.yaml or this template, for a different app) already created it in this account.
+  ExistingOidcProviderArn:
+    Type: String
+    Default: ''
+
+Conditions:
+  ShouldCreateProvider: !Equals [!Ref CreateOidcProvider, 'true']
+
+Resources:
+  GithubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AppName}-github-actions-static-deploy-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If [ShouldCreateProvider, !Ref GithubOidcProvider, !Ref ExistingOidcProviderArn]
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
+              StringLike:
+                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOwner}/${GitHubRepo}:ref:refs/heads/${GitHubBranch}'
+      Policies:
+        - PolicyName: s3-sync-and-invalidate
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SyncToSiteBucket
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${SiteBucketName}'
+                  - !Sub 'arn:aws:s3:::${SiteBucketName}/*'
+              - Sid: InvalidateCache
+                Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${DistributionId}'
+
+Outputs:
+  DeployRoleArn:
+    Value: !GetAtt DeployRole.Arn
+  OidcProviderArn:
+    Value: !If [ShouldCreateProvider, !Ref GithubOidcProvider, !Ref ExistingOidcProviderArn]

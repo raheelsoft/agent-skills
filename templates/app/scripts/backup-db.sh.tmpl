@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+#
+# Runs ON the app server, via cron. Dumps this app's Postgres DB, zips it,
+# and uploads it to the backup bucket from templates/cfn/db-backup.yaml.
+# Generic/parameterized — the same file works for any app on any server,
+# driven entirely by the env vars below (set inline in the crontab line
+# SKILL.md's Step 10 installs). See references/db-backups.md for the full
+# design writeup and the ENV_SOURCE_MODE shapes table.
+#
+# Fetches DATABASE_URL fresh on every run — from SSM Parameter Store (three
+# shapes) or a local .env file, via whichever this app actually uses
+# (ENV_SOURCE_MODE below). For an app built by this skill, that's always
+# `direct` mode against /{app-name}/prod/DATABASE_URL (Step 9's one-
+# parameter-per-var convention) — the other modes exist for apps whose
+# existing (pre-this-skill) infra stores env vars differently; see Step
+# 2a-pre / references/staging-environment.md. The instance's existing role
+# already has ssm:GetParameter/decrypt on its own app's parameter(s), so
+# SSM modes need no new IAM permission for that part.
+#
+# Never echoes/logs a secret value, and unsets each secret-holding variable
+# right after it's consumed — matches this skill's standing rule that
+# CodeDeploy/SSM/cron logs persist indefinitely (references/gotchas.md).
+
+set -euo pipefail
+
+: "${APP_NAME:?short slug used in filenames/S3 prefix, e.g. myapp}"
+# One of: direct | blob | path-chunks | local-file
+#   direct:      SSM_PARAM is the exact parameter holding DATABASE_URL itself
+#                (this skill's own convention: /{app-name}/prod/DATABASE_URL).
+#   blob:        SSM_PARAM is a single parameter whose Value is a whole .env
+#                file's text.
+#   path-chunks: SSM_PARAM is a path prefix; each parameter under it holds one
+#                chunk of .env text, concatenated in Name order (Standard
+#                tier's 4096-char-per-parameter cap forces this split for a
+#                large .env).
+#   local-file:  no AWS Parameter Store at all — SSM_PARAM is instead a local
+#                file path (e.g. /home/ubuntu/apps/myapp/.env) read directly
+#                off the box. For projects that don't use SSM for env vars.
+: "${ENV_SOURCE_MODE:?one of: direct, blob, path-chunks, local-file}"
+: "${SSM_PARAM:?SSM parameter name/path, or local file path in local-file mode}"
+: "${BACKUP_BUCKET:?destination bucket, e.g. myapp-db-backups-<account-id>}"
+: "${AWS_REGION:=us-east-1}"
+: "${BACKUP_DIR:=/tmp/db-backups}"
+
+mkdir -p "$BACKUP_DIR"
+timestamp="$(date -u +%Y%m%d-%H%M%S)"
+sql_file="$BACKUP_DIR/${APP_NAME}-${timestamp}.sql"
+zip_file="$BACKUP_DIR/${APP_NAME}-${timestamp}.zip"
+
+echo "==> [$APP_NAME] Fetching DATABASE_URL from SSM ($ENV_SOURCE_MODE: $SSM_PARAM)"
+case "$ENV_SOURCE_MODE" in
+  direct)
+    database_url="$(aws ssm get-parameter --name "$SSM_PARAM" --with-decryption \
+      --region "$AWS_REGION" --output text --query Parameter.Value)"
+    ;;
+  blob)
+    env_contents="$(aws ssm get-parameter --name "$SSM_PARAM" --with-decryption \
+      --region "$AWS_REGION" --output text --query Parameter.Value)"
+    database_url="$(printf '%s\n' "$env_contents" | grep -m1 '^DATABASE_URL=' | cut -d= -f2-)"
+    unset env_contents
+    ;;
+  path-chunks)
+    env_contents="$(aws ssm get-parameters-by-path --path "$SSM_PARAM" --with-decryption \
+      --region "$AWS_REGION" --output json | jq -j '.Parameters | sort_by(.Name) | .[].Value')"
+    database_url="$(printf '%s\n' "$env_contents" | grep -m1 '^DATABASE_URL=' | cut -d= -f2-)"
+    unset env_contents
+    ;;
+  local-file)
+    if [ ! -f "$SSM_PARAM" ]; then
+      echo "ERROR: [$APP_NAME] local-file mode: $SSM_PARAM not found" >&2
+      exit 1
+    fi
+    database_url="$(grep -m1 '^DATABASE_URL=' "$SSM_PARAM" | cut -d= -f2-)"
+    ;;
+  *)
+    echo "ERROR: [$APP_NAME] unknown ENV_SOURCE_MODE: $ENV_SOURCE_MODE (expected direct, blob, path-chunks, or local-file)" >&2
+    exit 1
+    ;;
+esac
+
+if [ -z "$database_url" ]; then
+  echo "ERROR: [$APP_NAME] DATABASE_URL not found via $ENV_SOURCE_MODE ($SSM_PARAM)" >&2
+  exit 1
+fi
+
+# Prisma appends query params (?schema=public, etc.) that libpq/pg_dump don't
+# understand ("invalid URI query parameter"). They only tell Prisma which
+# schema to default to — pg_dump backs up every schema in the DB regardless,
+# so it's safe to just drop the whole query string before connecting.
+pg_dump_url="${database_url%%\?*}"
+
+echo "==> [$APP_NAME] Dumping database"
+pg_dump --clean --if-exists --no-owner --no-privileges --dbname="$pg_dump_url" -f "$sql_file"
+unset database_url pg_dump_url
+
+echo "==> [$APP_NAME] Zipping"
+zip -j -q "$zip_file" "$sql_file"
+rm -f "$sql_file"
+
+s3_key="${APP_NAME}/$(basename "$zip_file")"
+echo "==> [$APP_NAME] Uploading to s3://$BACKUP_BUCKET/$s3_key"
+if aws s3 cp "$zip_file" "s3://$BACKUP_BUCKET/$s3_key" --region "$AWS_REGION"; then
+  rm -f "$zip_file"
+  echo "==> [$APP_NAME] Backup complete: s3://$BACKUP_BUCKET/$s3_key"
+else
+  echo "ERROR: [$APP_NAME] upload failed — local copy kept at $zip_file, not deleted" >&2
+  exit 1
+fi

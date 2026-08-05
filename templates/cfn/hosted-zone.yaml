@@ -1,0 +1,24 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  A Route53 public hosted zone for a domain — only needed if the domain has
+  no Route53 zone yet. Creating this does NOT make Route53 authoritative for
+  the domain by itself: the registrar's nameservers must be updated to this
+  zone's NameServers output, a manual step at the registrar (GoDaddy, etc.)
+  that can't be automated from here. See references/dns-route53.md.
+
+Parameters:
+  DomainName:
+    Type: String
+    Description: The domain (or subdomain) to host, e.g. example.com.
+
+Resources:
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref DomainName
+
+Outputs:
+  HostedZoneId:
+    Value: !Ref HostedZone
+  NameServers:
+    Value: !Join [', ', !GetAtt HostedZone.NameServers]
