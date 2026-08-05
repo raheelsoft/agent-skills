@@ -1,0 +1,33 @@
+{
+  "name": "@raheelsoft/agent-skills",
+  "version": "0.1.0",
+  "description": "Install Claude Code skills from this collection via npx — copies a skill into ~/.claude/skills/.",
+  "bin": {
+    "agent-skills": "bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "skills",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raheelsoft/agent-skills.git"
+  },
+  "keywords": [
+    "claude-code",
+    "claude",
+    "skills",
+    "aws",
+    "ci-cd",
+    "cli"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "publishConfig": {
+    "access": "public"
+  }
+}
