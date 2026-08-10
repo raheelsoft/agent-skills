@@ -20,6 +20,7 @@ Point Claude Code at a repo and say "set up a pipeline for this app," "deploy th
 - **S3 buckets, CloudWatch alarms, SNS notifications, continuous uptime monitoring, a staging environment** — all optional, all asked about explicitly
 - **A local-dev env report** for developers who need real credentials to run the app on their own machine
 - **Teardown guidance** for decommissioning everything it created
+- **Security audit & incident response** (`references/security-audit.md`, `references/incident-response.md`) for an existing instance — this skill provisioned it or not: persistence/compromise checks, security-group-vs-listening-port exposure cross-checks, database access-control checks, SSH posture, exposed-admin-panel checks, dependency-vulnerability checks, and — if something active turns up — containment, a stopgap watchdog, and entry-point investigation. Trigger phrases include "why is my site down, can you check the server," not just an explicit audit request.
 
 See `SKILL.md` for the full step-by-step flow, and `references/` for the reasoning and exact commands behind each piece.
 

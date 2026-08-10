@@ -29,7 +29,7 @@ npx @raheelsoft/agent-skills -y                Assume "yes" to any prompt (non-i
 
 | Skill | What it does |
 |---|---|
-| [`app-pipeline-setup`](skills/app-pipeline-setup/) | Provisions AWS infra and a CI/CD pipeline for a Node.js app (backend or frontend), deploying to EC2 via SSM RunCommand — see its own [README](skills/app-pipeline-setup/README.md) for the full feature list. |
+| [`app-pipeline-setup`](skills/app-pipeline-setup/) | Provisions AWS infra and a CI/CD pipeline for a Node.js app (backend or frontend), deploying to EC2 via SSM RunCommand. Also does security audits and incident response on an existing instance (compromise/persistence checks, exposure checks, containment) — see its own [README](skills/app-pipeline-setup/README.md) for the full feature list. |
 
 ## Adding a skill to this repo
 

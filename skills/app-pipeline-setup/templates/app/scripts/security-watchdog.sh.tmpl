@@ -1,0 +1,43 @@
+#!/bin/bash
+# Stopgap containment while a confirmed compromise's real fix (a dependency
+# upgrade, closing an exposed port) is pending review/deployment — see
+# references/incident-response.md, step 5. This does not close the entry
+# point; it only limits how much damage a recurrence does before the real
+# fix ships. Remove it once that fix is live:
+#   crontab -u root -r
+#   rm /usr/local/bin/security-watchdog.sh /var/log/security-watchdog.log
+#
+# Install via ROOT's crontab specifically, not the app user's — the app
+# user's own crontab is exactly where a real persistence mechanism was
+# found living in the incident this template is drawn from. Script itself
+# should be root-owned, mode 700, so a still-partially-compromised app
+# user can't read or tamper with it.
+#
+# No placeholders — this ships as-is. Kills anything executing from /tmp
+# (the general, most-defensible signal: nothing legitimate runs a
+# long-lived process from a world-writable path) and removes the specific
+# files known malicious from a prior finding on this box, if given.
+set -euo pipefail
+
+LOGFILE=/var/log/security-watchdog.log
+
+for pid_dir in /proc/[0-9]*; do
+  pid=$(basename "$pid_dir")
+  exe=$(readlink "$pid_dir/exe" 2>/dev/null || true)
+  if [[ "$exe" == /tmp/* ]]; then
+    echo "$(date -Is) [WATCHDOG] killing pid $pid running from $exe" >> "$LOGFILE"
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+done
+
+# ___KNOWN_MALICIOUS_FILES___: space-separated absolute paths from this
+# incident's own findings (e.g. "/tmp/dashboard /tmp/v.json"), or leave
+# empty to skip this and rely on the /tmp-exec check above alone.
+for f in ___KNOWN_MALICIOUS_FILES___; do
+  if [ -f "$f" ]; then
+    echo "$(date -Is) [WATCHDOG] removing known malicious file $f" >> "$LOGFILE"
+    rm -f "$f"
+  fi
+done
+
+exit 0

@@ -1,6 +1,6 @@
 ---
 name: app-pipeline-setup
-description: Provisions AWS infra and a CI/CD pipeline (AWS CodePipeline or GitHub Actions) for a Node.js app (a NestJS/Express-style backend or any Node-servable frontend — Next.js, Nuxt, SvelteKit, Remix, a custom server, not just Next.js), public or private repo (a per-app SSH deploy key is generated on-box for private repos, see references/deploy-key-setup.md), single-package or monorepo, deploying to an EC2 instance via SSM RunCommand instead of the CodeDeploy agent, with an automatic release/rollback pattern (concurrency-safe, no overlapping deploys), a zero-downtime pm2 cluster-mode restart by default for both frontend and backend (asked explicitly, not assumed — see references/zero-downtime-restarts.md), optional managed RDS database, automated Postgres backups to a private S3 bucket (scheduled pg_dump, encrypted, auto-expiring, proven restorable) for local-Postgres/external database setups, S3 bucket(s), CloudWatch alarms/notifications, continuous uptime monitoring via Route53 health checks, a staging environment with its own correctly-labeled Parameter Store tree, optional HTTP Basic Auth gating on a path (e.g. API docs public on dev, restricted on prod — see references/basic-auth-gating.md), a combined-host path-based routing option for a frontend+backend pair sharing one instance and one domain (the lowest-cost two-app shape — see templates/app/nginx-combined.conf.tmpl), automatic Route53 DNS record creation when the domain is on AWS (or a records-to-add report for GoDaddy/Cloudflare/Namecheap/other external providers), a static-export-to-S3+CloudFront alternative for frontends that don't actually need a server, a local-dev env report (S3 creds, DB connection info) for developers who need to run the app on their own machine, rough monthly cost estimates, and teardown guidance for decommissioning. Use when the user says "set up a pipeline for this app", "deploy this to AWS", "bootstrap infra for this project", "tear down"/"decommission" one previously set up, or asks to turn manual AWS deploy work into a repeatable pipeline. Hard rule — always confirm with the user before creating any new AWS resource, showing exactly what will be created; never invent this rule away even mid-troubleshooting.
+description: Provisions AWS infra and a CI/CD pipeline (AWS CodePipeline or GitHub Actions) for a Node.js app (a NestJS/Express-style backend or any Node-servable frontend — Next.js, Nuxt, SvelteKit, Remix, a custom server, not just Next.js), public or private repo (a per-app SSH deploy key is generated on-box for private repos, see references/deploy-key-setup.md), single-package or monorepo, deploying to an EC2 instance via SSM RunCommand instead of the CodeDeploy agent, with an automatic release/rollback pattern (concurrency-safe, no overlapping deploys), a zero-downtime pm2 cluster-mode restart by default for both frontend and backend (asked explicitly, not assumed — see references/zero-downtime-restarts.md), optional managed RDS database, automated Postgres backups to a private S3 bucket (scheduled pg_dump, encrypted, auto-expiring, proven restorable) for local-Postgres/external database setups, S3 bucket(s), CloudWatch alarms/notifications, continuous uptime monitoring via Route53 health checks, a staging environment with its own correctly-labeled Parameter Store tree, optional HTTP Basic Auth gating on a path (e.g. API docs public on dev, restricted on prod — see references/basic-auth-gating.md), a combined-host path-based routing option for a frontend+backend pair sharing one instance and one domain (the lowest-cost two-app shape — see templates/app/nginx-combined.conf.tmpl), automatic Route53 DNS record creation when the domain is on AWS (or a records-to-add report for GoDaddy/Cloudflare/Namecheap/other external providers), a static-export-to-S3+CloudFront alternative for frontends that don't actually need a server, a local-dev env report (S3 creds, DB connection info) for developers who need to run the app on their own machine, rough monthly cost estimates, teardown guidance for decommissioning, and a security-audit/incident-response flow (references/security-audit.md, references/incident-response.md) for checking or cleaning up an existing instance — reachable-process/persistence checks, security-group-vs-listening-port exposure cross-checks, database access-control checks, SSH posture, exposed-admin-panel checks, and dependency-vulnerability checks, plus containment steps (kill/clean/stopgap watchdog/find-the-entry-point) if something active turns up. Use when the user says "set up a pipeline for this app", "deploy this to AWS", "bootstrap infra for this project", "tear down"/"decommission" one previously set up, "why is my site down, can you check the server", "audit/check the security of this instance", or asks to turn manual AWS deploy work into a repeatable pipeline. Hard rule — always confirm with the user before creating any new AWS resource, showing exactly what will be created; never invent this rule away even mid-troubleshooting.
 ---
 
 # App Pipeline Setup
@@ -21,6 +21,14 @@ one is relevant to.
 If the user is asking to **decommission/tear down** something this skill
 previously created, rather than create something new, that's a different
 flow entirely — go straight to `references/teardown.md` instead of Step 1.
+
+If the user is asking to **check, audit, or investigate the security** of
+an instance — including "why is my site down, can you check the server,"
+which very often turns into exactly this — that's also a different flow:
+go straight to `references/security-audit.md`. It applies to any
+instance reachable via SSM/SSH, not just ones this skill provisioned. If
+the audit turns up an active compromise (not just an exposure), switch to
+`references/incident-response.md` for containment and follow-up.
 
 ## Step 1 — Preconditions
 
@@ -99,7 +107,10 @@ question per call either):
 - Infra scope: **provision a brand-new EC2 instance** vs **target an
   existing instance ID** (skip Step 4 entirely if existing — and if the
   existing instance already hosts a sibling app for the same product, see
-  Step 2c's combined-host question below)
+  Step 2c's combined-host question below). Targeting an existing instance
+  means inheriting whatever's already on it, good or bad — a quick pass
+  through `references/security-audit.md` before adding a new app to one
+  is worth doing, not just assumed safe because it's already running.
 - **Is the repo private?** If yes, Step 8's initial checkout needs a
   per-app SSH deploy key set up first — see `references/deploy-key-setup.md`
   for why this is needed regardless of which CI mechanism was just chosen
