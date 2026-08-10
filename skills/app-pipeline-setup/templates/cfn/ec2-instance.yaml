@@ -108,6 +108,15 @@ Resources:
     Properties:
       GroupDescription: !Sub '${AppName} app host — HTTP/HTTPS, SSH only if a CIDR was given'
       VpcId: !Ref VpcId
+      # Deliberately never add a rule for the app's own port (3000/3001/etc.)
+      # or a database port (5432/6379) here, even for "just debugging" —
+      # traffic to the app always goes through nginx's 80/443 reverse proxy,
+      # and a database is reached over localhost (same box) or the app's own
+      # SG (RDS, see rds-instance.yaml's AppInstanceSecurityGroupId param),
+      # never directly from the internet. A real, unrelated production
+      # incident involved a box with exactly this SG mistake (app + Postgres
+      # ports opened straight to 0.0.0.0/0, bypassing nginx and pg_hba
+      # entirely) under active brute force — see references/secure-defaults.md.
       SecurityGroupIngress:
         - !If
           - HasSshCidr
@@ -269,6 +278,14 @@ Resources:
           # --- optional local Postgres/Redis ---
           if [ "${!NEEDS_POSTGRES}" = "true" ]; then
             apt-get install -y postgresql
+            # Explicit, not just inherited from today's Ubuntu default: force
+            # listen_addresses to localhost so Postgres is unreachable off-box
+            # even if the SG above is ever hand-edited later. This SG never
+            # opens 5432 in the first place, so this is defense in depth, not
+            # the only thing standing between this database and the internet.
+            PG_CONF_DIR="$(find /etc/postgresql -mindepth 1 -maxdepth 1 -type d | head -1)/main"
+            sed -i "s/^#\?listen_addresses.*/listen_addresses = 'localhost'/" "${!PG_CONF_DIR}/postgresql.conf"
+            systemctl restart postgresql
           fi
           if [ "${!NEEDS_REDIS}" = "true" ]; then
             apt-get install -y redis-server

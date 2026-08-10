@@ -20,6 +20,7 @@ Point Claude Code at a repo and say "set up a pipeline for this app," "deploy th
 - **S3 buckets, CloudWatch alarms, SNS notifications, continuous uptime monitoring, a staging environment** — all optional, all asked about explicitly
 - **A local-dev env report** for developers who need real credentials to run the app on their own machine
 - **Teardown guidance** for decommissioning everything it created
+- **Secure-by-default infra** (`references/secure-defaults.md`): security group never exposes the app or database port, local Postgres hardened to localhost-only, a pre-provisioning dependency-vulnerability check surfaced before you confirm, an active recommendation to gate admin-panel-shaped apps behind Basic Auth/IP-allowlist
 - **Security audit & incident response** (`references/security-audit.md`, `references/incident-response.md`) for an existing instance — this skill provisioned it or not: persistence/compromise checks, security-group-vs-listening-port exposure cross-checks, database access-control checks, SSH posture, exposed-admin-panel checks, dependency-vulnerability checks, and — if something active turns up — containment, a stopgap watchdog, and entry-point investigation. Trigger phrases include "why is my site down, can you check the server," not just an explicit audit request.
 
 See `SKILL.md` for the full step-by-step flow, and `references/` for the reasoning and exact commands behind each piece.
@@ -27,6 +28,9 @@ See `SKILL.md` for the full step-by-step flow, and `references/` for the reasoni
 ## Security posture
 
 - No inbound SSH by default — administration goes through SSM Session Manager; opening port 22 is an explicit, non-default choice
+- The security group never opens the app's own port or a database port — the app is only reached through nginx, a database only over localhost or its own security group rule; local Postgres is also forced to `listen_addresses = 'localhost'` explicitly, not left to an inherited OS default (`references/secure-defaults.md`)
+- `npm audit` runs before anything is provisioned, and its `high`/`critical` count is carried into the confirmation gate so a deploy with known unpatched CVEs is a knowing decision, not a silent one
+- An app that's itself an admin panel/dashboard/CMS gets an active recommendation — not just a neutral ask — to gate the whole thing behind Basic Auth or an IP allowlist
 - Least-privilege IAM throughout — every policy is scoped to specific resource ARNs, not wildcards, and the GitHub OIDC trust policy is scoped to one repo + branch
 - Secrets never pass through chat, tool output, or command logs unredacted — Parameter Store is the source of truth, fetched fresh on every deploy
 - A pre-flight check catches an `AppName` that collides with an existing, unrelated stack before anything gets created or accidentally updated

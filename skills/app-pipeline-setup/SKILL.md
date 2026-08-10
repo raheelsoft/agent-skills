@@ -1,6 +1,6 @@
 ---
 name: app-pipeline-setup
-description: Provisions AWS infra and a CI/CD pipeline (AWS CodePipeline or GitHub Actions) for a Node.js app (a NestJS/Express-style backend or any Node-servable frontend — Next.js, Nuxt, SvelteKit, Remix, a custom server, not just Next.js), public or private repo (a per-app SSH deploy key is generated on-box for private repos, see references/deploy-key-setup.md), single-package or monorepo, deploying to an EC2 instance via SSM RunCommand instead of the CodeDeploy agent, with an automatic release/rollback pattern (concurrency-safe, no overlapping deploys), a zero-downtime pm2 cluster-mode restart by default for both frontend and backend (asked explicitly, not assumed — see references/zero-downtime-restarts.md), optional managed RDS database, automated Postgres backups to a private S3 bucket (scheduled pg_dump, encrypted, auto-expiring, proven restorable) for local-Postgres/external database setups, S3 bucket(s), CloudWatch alarms/notifications, continuous uptime monitoring via Route53 health checks, a staging environment with its own correctly-labeled Parameter Store tree, optional HTTP Basic Auth gating on a path (e.g. API docs public on dev, restricted on prod — see references/basic-auth-gating.md), a combined-host path-based routing option for a frontend+backend pair sharing one instance and one domain (the lowest-cost two-app shape — see templates/app/nginx-combined.conf.tmpl), automatic Route53 DNS record creation when the domain is on AWS (or a records-to-add report for GoDaddy/Cloudflare/Namecheap/other external providers), a static-export-to-S3+CloudFront alternative for frontends that don't actually need a server, a local-dev env report (S3 creds, DB connection info) for developers who need to run the app on their own machine, rough monthly cost estimates, teardown guidance for decommissioning, and a security-audit/incident-response flow (references/security-audit.md, references/incident-response.md) for checking or cleaning up an existing instance — reachable-process/persistence checks, security-group-vs-listening-port exposure cross-checks, database access-control checks, SSH posture, exposed-admin-panel checks, and dependency-vulnerability checks, plus containment steps (kill/clean/stopgap watchdog/find-the-entry-point) if something active turns up. Use when the user says "set up a pipeline for this app", "deploy this to AWS", "bootstrap infra for this project", "tear down"/"decommission" one previously set up, "why is my site down, can you check the server", "audit/check the security of this instance", or asks to turn manual AWS deploy work into a repeatable pipeline. Hard rule — always confirm with the user before creating any new AWS resource, showing exactly what will be created; never invent this rule away even mid-troubleshooting.
+description: Provisions AWS infra and a CI/CD pipeline (AWS CodePipeline or GitHub Actions) for a Node.js app (a NestJS/Express-style backend or any Node-servable frontend — Next.js, Nuxt, SvelteKit, Remix, a custom server, not just Next.js), public or private repo (a per-app SSH deploy key is generated on-box for private repos, see references/deploy-key-setup.md), single-package or monorepo, deploying to an EC2 instance via SSM RunCommand instead of the CodeDeploy agent, with an automatic release/rollback pattern (concurrency-safe, no overlapping deploys), a zero-downtime pm2 cluster-mode restart by default for both frontend and backend (asked explicitly, not assumed — see references/zero-downtime-restarts.md), optional managed RDS database, automated Postgres backups to a private S3 bucket (scheduled pg_dump, encrypted, auto-expiring, proven restorable) for local-Postgres/external database setups, S3 bucket(s), CloudWatch alarms/notifications, continuous uptime monitoring via Route53 health checks, a staging environment with its own correctly-labeled Parameter Store tree, optional HTTP Basic Auth gating on a path (e.g. API docs public on dev, restricted on prod — see references/basic-auth-gating.md), secure-by-default infra (security group never opens the app or database port, local Postgres forced to listen on localhost, a pre-provisioning npm audit pass surfaced before the confirmation gate, an active recommendation to gate an admin-panel-shaped app behind Basic Auth/IP-allowlist — see references/secure-defaults.md), a combined-host path-based routing option for a frontend+backend pair sharing one instance and one domain (the lowest-cost two-app shape — see templates/app/nginx-combined.conf.tmpl), automatic Route53 DNS record creation when the domain is on AWS (or a records-to-add report for GoDaddy/Cloudflare/Namecheap/other external providers), a static-export-to-S3+CloudFront alternative for frontends that don't actually need a server, a local-dev env report (S3 creds, DB connection info) for developers who need to run the app on their own machine, rough monthly cost estimates, teardown guidance for decommissioning, and a security-audit/incident-response flow (references/security-audit.md, references/incident-response.md) for checking or cleaning up an existing instance — reachable-process/persistence checks, security-group-vs-listening-port exposure cross-checks, database access-control checks, SSH posture, exposed-admin-panel checks, and dependency-vulnerability checks, plus containment steps (kill/clean/stopgap watchdog/find-the-entry-point) if something active turns up. Use when the user says "set up a pipeline for this app", "deploy this to AWS", "bootstrap infra for this project", "tear down"/"decommission" one previously set up, "why is my site down, can you check the server", "audit/check the security of this instance", or asks to turn manual AWS deploy work into a repeatable pipeline. Hard rule — always confirm with the user before creating any new AWS resource, showing exactly what will be created; never invent this rule away even mid-troubleshooting.
 ---
 
 # App Pipeline Setup
@@ -39,6 +39,15 @@ the audit turns up an active compromise (not just an exposure), switch to
   the app being deployed. If not, ask for the path.
 - Note whether `package-lock.json` exists in the target repo — this decides
   `npm ci` (lockfile present) vs `npm install` (absent) throughout.
+- Run `npm audit` (or `npm audit --omit=dev` if noise from dev-only tooling
+  isn't relevant to what's about to be internet-facing) on the target repo
+  and tell the user the `high`/`critical` count now, before provisioning
+  anything — a real production compromise's most defensible root cause,
+  once other theories were ruled out, was exactly this: known, unpatched
+  `high`/`critical` CVEs in the app about to go live. This doesn't block
+  the setup (a decision to patch first or deploy now and patch after is
+  the user's to make), but it must not go unmentioned before Step 3's
+  confirmation gate — carry the count into that manifest.
 - Check for existing deploy artifacts: `appspec.yml`, `buildspec.yml`,
   `.github/workflows/deploy.yml`, or any of
   `scripts/{before_install,after_install,application_start,validate_service}.sh`.
@@ -155,7 +164,11 @@ question per call either):
   backups unless the next question opts in), **managed RDS Postgres**
   (recommended for anything beyond a throwaway/staging app — see
   `references/rds-database.md`), or **external/already have one** (just
-  need the connection string field)
+  need the connection string field). Local Postgres/Redis is never reachable
+  from outside the box under this skill's defaults — bound to localhost, no
+  security-group rule for 5432/6379 — and that's a hard invariant, not a
+  setting to loosen for "just temporary remote debugging" even if asked; use
+  an SSM port-forward session instead (see `references/secure-defaults.md`).
 - Automated database backups (only ask if Database above is **local
   Postgres/Redis** or **external** — skip for **none**, and for **RDS**
   point out it already has its own `BackupRetentionPeriod`, no separate
@@ -185,6 +198,16 @@ question per call either):
   9's normal secrets flow instead (see `references/basic-auth-gating.md`).
   Ask this per environment, not once for the whole app — expect different
   answers for prod vs dev/staging.
+  - If the app being deployed **is itself** an admin/internal panel (not
+    just an API with one restricted path) — an admin dashboard, a CMS, an
+    ops console — don't just ask this neutrally: actively recommend gating
+    the whole thing behind Basic Auth and/or an IP allowlist (`satisfy any;
+    allow <cidr>; deny all;` alongside `auth_basic`, see
+    `references/basic-auth-gating.md`), and say why: a real production
+    compromise's most likely entry point was exactly this shape — a fully
+    public admin panel running an outdated framework version with known
+    CVEs. Still their call to decline, but don't let it default to "public,
+    no gate" without at least surfacing the recommendation.
 
 **Batch 4 — operational (whenever any new infra is being created, EC2 or
 static-site):**
@@ -263,7 +286,14 @@ about to be created — not a vague "can I use AWS" ask, a concrete list:
 - EC2 instance (**exact instance type and region**) + security group, if
   new infra was chosen — whether SSH is open (and to which CIDR) or fully
   closed, and whether it gets a stable Elastic IP or the subnet's dynamic
-  one (say which was chosen, don't just assume Elastic IP)
+  one (say which was chosen, don't just assume Elastic IP). State the
+  security group's scope plainly regardless: only 80/443 (and 22 if a CIDR
+  was given) — never the app's own port or a database port, see
+  `references/secure-defaults.md`.
+- Dependency vulnerability check (Step 1's `npm audit` pass) — surface the
+  result here too if it found anything `high`/`critical`, not just at Step
+  1 where it's easy to scroll past, so the user's yes is actually informed
+  by it
 - RDS instance (**exact instance class**, MultiAZ or not, backup retention),
   if a managed database was chosen
 - IAM roles: instance role, CodeBuild build/deploy roles or the GitHub OIDC
@@ -360,7 +390,13 @@ one-time confirmation click before alerts start delivering.
 
 ### 5b. Database
 - **Local Postgres/Redis**: already handled by Step 4's
-  `NeedsPostgres`/`NeedsRedis` params — nothing further here.
+  `NeedsPostgres`/`NeedsRedis` params, including the `listen_addresses`
+  hardening baked into the template's UserData. Worth one quick check over
+  SSM rather than assuming it took effect — `grep listen_addresses
+  /etc/postgresql/*/main/postgresql.conf` should show `localhost`, and `ss
+  -tlnp | grep 5432` should show it bound to `127.0.0.1`, not `0.0.0.0` —
+  cheap to confirm now, expensive to discover later (see
+  `references/secure-defaults.md`).
 - **Managed RDS**: deploy `templates/cfn/rds-instance.yaml`
   (`references/rds-database.md` has the full flow):
   ```
