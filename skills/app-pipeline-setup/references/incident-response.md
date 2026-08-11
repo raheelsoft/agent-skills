@@ -87,13 +87,13 @@ real code/infra change that needs review and can't happen immediately,
 and the compromise has already recurred once, don't just wait — put a
 watchdog in place so a second recurrence doesn't cause another outage
 while the real fix is in progress. Render
-`templates/app/scripts/security-watchdog.sh.tmpl` (no placeholders — ask
-first whether it should target the exact known-malicious pattern from
-this incident, or the more general "anything executing from `/tmp`"
-default) and install it via a **root** crontab entry, deliberately not
-the app user's — the app user's own crontab is exactly where the original
-persistence lived, so don't put the fix in the same place the attacker
-would look first:
+`templates/app/scripts/security-watchdog.sh.tmpl` (one placeholder,
+`___KNOWN_MALICIOUS_FILES___` — ask first whether it should target the
+exact known-malicious pattern from this incident, or the more general
+"anything executing from `/tmp`" default) and install it via a **root**
+crontab entry, deliberately not the app user's — the app user's own
+crontab is exactly where the original persistence lived, so don't put the
+fix in the same place the attacker would look first:
 ```bash
 crontab -u root -l 2>/dev/null   # check what's already there first, don't clobber it
 echo '*/2 * * * * /usr/local/bin/security-watchdog.sh' | crontab -u root -
@@ -104,11 +104,28 @@ partially compromised) app user can't read or tamper with it:
 chmod 700 /usr/local/bin/security-watchdog.sh
 chown root:root /usr/local/bin/security-watchdog.sh
 ```
+Before it kills or removes anything, the script dumps forensic evidence
+to `/root/security-watchdog-dumps/` (root-only, created automatically) —
+the binary, `cmdline`/`environ`/`status`, open file descriptors (including
+a copy of any `/tmp` file still open, which catches companion files like
+a config or log the malware wrote that aren't in the known-malicious
+list), and the full parent process chain. This has to happen before the
+kill, not after — `/proc/$pid/*` stops existing the moment the process
+dies. If the user wants to study a recurrence rather than just contain
+it, this is already there without any extra setup; point them at the
+latest timestamped subdirectory. Mention this evidence trail accumulates
+over time (one subdirectory per kill) — worth a periodic glance so it
+doesn't just quietly grow forever.
+
 Tell the user explicitly this is a stopgap, not a fix, and give the exact
-two-line removal command for once the real fix ships — an undocumented
-standing cron job left behind after the real issue is patched is its own
-small, low-grade version of the confusing-undocumented-infra problem this
-whole skill exists to avoid.
+removal command for once the real fix ships — an undocumented standing
+cron job (and evidence directory) left behind after the real issue is
+patched is its own small, low-grade version of the confusing-undocumented-
+infra problem this whole skill exists to avoid:
+```bash
+crontab -u root -r
+rm -rf /usr/local/bin/security-watchdog.sh /var/log/security-watchdog.log /root/security-watchdog-dumps
+```
 
 ## 6. Widen the check — don't stop at the one instance
 

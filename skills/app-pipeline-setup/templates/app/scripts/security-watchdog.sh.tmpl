@@ -5,7 +5,7 @@
 # point; it only limits how much damage a recurrence does before the real
 # fix ships. Remove it once that fix is live:
 #   crontab -u root -r
-#   rm /usr/local/bin/security-watchdog.sh /var/log/security-watchdog.log
+#   rm -rf /usr/local/bin/security-watchdog.sh /var/log/security-watchdog.log /root/security-watchdog-dumps
 #
 # Install via ROOT's crontab specifically, not the app user's — the app
 # user's own crontab is exactly where a real persistence mechanism was
@@ -13,19 +13,71 @@
 # should be root-owned, mode 700, so a still-partially-compromised app
 # user can't read or tamper with it.
 #
-# No placeholders — this ships as-is. Kills anything executing from /tmp
-# (the general, most-defensible signal: nothing legitimate runs a
-# long-lived process from a world-writable path) and removes the specific
-# files known malicious from a prior finding on this box, if given.
+# One placeholder (___KNOWN_MALICIOUS_FILES___) — everything else ships
+# as-is. Kills anything executing from /tmp (the general, most-defensible
+# signal: nothing legitimate runs a long-lived process from a
+# world-writable path) and removes the specific files known malicious from
+# a prior finding on this box, if given.
+#
+# Before killing or removing anything, dumps forensic evidence to
+# DUMPROOT (root-only, /proc/$pid/* stops existing the moment the process
+# dies, so this has to happen first): the binary itself, its
+# cmdline/environ/status, its open file descriptors — including a copy of
+# any /tmp file it still has open, which catches companion files (a
+# config, a log the malware wrote) that aren't in the known-malicious list
+# below because nobody knew their names in advance — and its full parent
+# process chain, often the single most revealing artifact since it shows
+# what actually spawned the process (e.g. the app's own runtime, which
+# would confirm an RCE-via-app theory directly rather than by inference).
 set -euo pipefail
 
 LOGFILE=/var/log/security-watchdog.log
+DUMPROOT=/root/security-watchdog-dumps
+mkdir -p "$DUMPROOT"
+chmod 700 "$DUMPROOT"
+
+dump_process() {
+  local pid="$1" pid_dir="$2" ts dump
+  ts=$(date -Is)
+  dump="$DUMPROOT/${ts}_pid${pid}"
+  mkdir -p "$dump/open_files"
+  chmod 700 "$dump"
+
+  cp -f "$pid_dir/exe" "$dump/exe_binary" 2>/dev/null || true
+  cp -f "$pid_dir/cmdline" "$dump/cmdline" 2>/dev/null || true
+  cp -f "$pid_dir/environ" "$dump/environ" 2>/dev/null || true
+  cp -f "$pid_dir/status" "$dump/status" 2>/dev/null || true
+  cp -f "$pid_dir/stat" "$dump/stat" 2>/dev/null || true
+  readlink "$pid_dir/cwd" > "$dump/cwd.txt" 2>/dev/null || true
+  ls -la "$pid_dir/fd" > "$dump/open_fds.txt" 2>/dev/null || true
+  ss -tnp 2>/dev/null | grep "pid=$pid" > "$dump/network_connections.txt" || true
+
+  for fd in "$pid_dir"/fd/*; do
+    target=$(readlink "$fd" 2>/dev/null) || continue
+    case "$target" in
+      /tmp/*) cp -f "$target" "$dump/open_files/$(basename "$target")" 2>/dev/null || true ;;
+    esac
+  done
+
+  {
+    p=$(awk '/^PPid:/{print $2}' "$pid_dir/status" 2>/dev/null)
+    depth=0
+    while [ -n "$p" ] && [ "$p" != "0" ] && [ "$depth" -lt 10 ]; do
+      echo "pid=$p $(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null || echo '<gone>')"
+      p=$(awk '/^PPid:/{print $2}' "/proc/$p/status" 2>/dev/null)
+      depth=$((depth + 1))
+    done
+  } > "$dump/parent_chain.txt"
+
+  echo "$dump"
+}
 
 for pid_dir in /proc/[0-9]*; do
   pid=$(basename "$pid_dir")
   exe=$(readlink "$pid_dir/exe" 2>/dev/null || true)
   if [[ "$exe" == /tmp/* ]]; then
-    echo "$(date -Is) [WATCHDOG] killing pid $pid running from $exe" >> "$LOGFILE"
+    dump=$(dump_process "$pid" "$pid_dir")
+    echo "$(date -Is) [WATCHDOG] killing pid $pid running from $exe (evidence: $dump)" >> "$LOGFILE"
     kill -9 "$pid" 2>/dev/null || true
   fi
 done
@@ -35,7 +87,12 @@ done
 # empty to skip this and rely on the /tmp-exec check above alone.
 for f in ___KNOWN_MALICIOUS_FILES___; do
   if [ -f "$f" ]; then
-    echo "$(date -Is) [WATCHDOG] removing known malicious file $f" >> "$LOGFILE"
+    ts=$(date -Is)
+    dump="$DUMPROOT/${ts}_file_$(basename "$f")"
+    mkdir -p "$dump"
+    chmod 700 "$dump"
+    cp -f "$f" "$dump/" 2>/dev/null || true
+    echo "$ts [WATCHDOG] removing known malicious file $f (evidence: $dump)" >> "$LOGFILE"
     rm -f "$f"
   fi
 done
