@@ -9,17 +9,17 @@ the new name, via plain AWS CLI calls.
 ## Scope: the AWS-level shape only, never Step 2's own questions
 
 Discovery is for learning how resources are wired, named, and scoped in
-this account — not for answering questions this skill would otherwise
-ask. Confirmed as a real failure mode, not a hypothetical: a live run
-found the sibling deployment used Docker and silently carried that into
-the new environment as "matching the pattern," without ever asking Step
-2b's process-model question. That's the exact mistake this section exists
-to prevent. Process model (pm2 vs Docker), database choice, SSH policy,
-and every other Step 2 interview question get asked exactly the same way
-regardless of what the discovered sibling happens to use — "the existing
-setup already does X" is context to mention when asking, never a
-substitute for asking. If the sibling's config disagrees with what the
-user answers in Step 2, the user's answer wins; replicate *that* choice's
+this account — never for answering or skipping a question this skill
+would otherwise ask. Every Step 2 interview question (process model,
+database choice, SSH policy, and everything else in it) gets asked
+exactly the same way regardless of what a discovered sibling happens to
+be configured with — its configuration is context to mention when asking,
+never a substitute for asking. (Confirmed as a real failure mode, not a
+hypothetical: a live run let a discovered sibling's Docker setup silently
+answer Step 2b's process-model question instead of asking it — that's the
+exact mistake this section exists to prevent, for any question, not just
+that one.) If the sibling's config disagrees with what the user answers
+in Step 2, the user's answer wins; replicate *that* choice's
 shape, not the sibling's.
 
 ## The method: discover, then replicate

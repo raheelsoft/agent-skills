@@ -137,21 +137,22 @@ user's yes is informed by it.
 
 **Matching the account's infra-creation style is not the same as matching
 its configuration choices — don't let the first one silently answer the
-second.** Confirmed as a real failure mode, not a hypothetical: a live run
-of this skill correctly asked the CFN-vs-imperative question above, then
-found the existing sibling deployment used Docker and *silently* carried
-that into the new environment as if it were part of "matching the
-pattern" — without ever asking Step 2b's own process-model question. It
-isn't part of the pattern this question is about. Discovering a sibling
+second.** This question is about *how* resources get created (CFN vs
+direct CLI calls) — it says nothing about *what* configuration a resource
+should have, and answering it must never be treated as if it also
+answered any of Step 2's own questions (process model, database choice,
+SSH policy, or anything else in the interview). Discovering a sibling
 resource's configuration (`references/imperative-provisioning.md`'s
 discover-and-replicate method) is scoped strictly to the AWS-level
 mechanical shape — how resources are wired, named, and scoped — never to
-answering or skipping any of Step 2's own interview questions. Ask Step
-2b's process-model question (pm2 vs Docker), the database question, the
-SSH-policy question, and every other Step 2 question exactly the same way
-regardless of which path this question landed on, and regardless of what
-the discovered sibling happens to use. "The existing setup already does
-X" is context to mention when asking, never a substitute for asking.
+answering or skipping an interview question. Ask every Step 2 question
+exactly the same way regardless of which path this question landed on,
+and regardless of what a discovered sibling happens to be configured
+with — its configuration is context to mention when asking, never a
+substitute for asking. (Confirmed as a real failure mode, not a
+hypothetical: a live run got this right for the CFN-vs-imperative choice
+itself, then let a discovered sibling's Docker setup silently answer
+Step 2b's separate process-model question instead of asking it.)
 
 ### 2a. App type first, then (frontend only) the static-export analysis
 
@@ -196,10 +197,9 @@ question per call either):
 - Process model: **pm2** (default) vs **Docker** (only offer this if the
   repo already has a `Dockerfile`/`docker-compose.yml` — see
   `references/docker-option.md`; don't scaffold one to enable this path).
-  Ask this even when Step 2a-pre2 chose imperative provisioning to match
-  an existing hand-built pattern that happens to use Docker — matching the
-  account's infra-*creation* style doesn't answer this question, see
-  2a-pre2's guardrail note.
+  Ask this regardless of what Step 2a-pre2 decided or what a discovered
+  sibling resource happens to use — see 2a-pre2's guardrail note, which
+  applies to this question the same as every other one in Step 2.
 - Infra scope: **provision a brand-new EC2 instance** vs **target an
   existing instance ID** (skip Step 4 entirely if existing — and if the
   existing instance already hosts a sibling app for the same product, see
