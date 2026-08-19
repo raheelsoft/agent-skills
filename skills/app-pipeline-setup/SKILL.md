@@ -135,6 +135,24 @@ created. Choosing imperative provisioning is not a way to skip that gate,
 and the manifest should say plainly which mechanism is being used so the
 user's yes is informed by it.
 
+**Matching the account's infra-creation style is not the same as matching
+its configuration choices — don't let the first one silently answer the
+second.** Confirmed as a real failure mode, not a hypothetical: a live run
+of this skill correctly asked the CFN-vs-imperative question above, then
+found the existing sibling deployment used Docker and *silently* carried
+that into the new environment as if it were part of "matching the
+pattern" — without ever asking Step 2b's own process-model question. It
+isn't part of the pattern this question is about. Discovering a sibling
+resource's configuration (`references/imperative-provisioning.md`'s
+discover-and-replicate method) is scoped strictly to the AWS-level
+mechanical shape — how resources are wired, named, and scoped — never to
+answering or skipping any of Step 2's own interview questions. Ask Step
+2b's process-model question (pm2 vs Docker), the database question, the
+SSH-policy question, and every other Step 2 question exactly the same way
+regardless of which path this question landed on, and regardless of what
+the discovered sibling happens to use. "The existing setup already does
+X" is context to mention when asking, never a substitute for asking.
+
 ### 2a. App type first, then (frontend only) the static-export analysis
 
 Before asking anything else, determine the app type — **NestJS/Node API
@@ -177,7 +195,11 @@ question per call either):
 - CI mechanism: **AWS CodePipeline** vs **GitHub Actions**
 - Process model: **pm2** (default) vs **Docker** (only offer this if the
   repo already has a `Dockerfile`/`docker-compose.yml` — see
-  `references/docker-option.md`; don't scaffold one to enable this path)
+  `references/docker-option.md`; don't scaffold one to enable this path).
+  Ask this even when Step 2a-pre2 chose imperative provisioning to match
+  an existing hand-built pattern that happens to use Docker — matching the
+  account's infra-*creation* style doesn't answer this question, see
+  2a-pre2's guardrail note.
 - Infra scope: **provision a brand-new EC2 instance** vs **target an
   existing instance ID** (skip Step 4 entirely if existing — and if the
   existing instance already hosts a sibling app for the same product, see

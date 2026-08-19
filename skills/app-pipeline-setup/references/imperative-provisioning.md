@@ -6,6 +6,22 @@ full set of templates mirroring the 14 CloudFormation ones; it's a
 method — discover the existing pattern, replicate its exact shape under
 the new name, via plain AWS CLI calls.
 
+## Scope: the AWS-level shape only, never Step 2's own questions
+
+Discovery is for learning how resources are wired, named, and scoped in
+this account — not for answering questions this skill would otherwise
+ask. Confirmed as a real failure mode, not a hypothetical: a live run
+found the sibling deployment used Docker and silently carried that into
+the new environment as "matching the pattern," without ever asking Step
+2b's process-model question. That's the exact mistake this section exists
+to prevent. Process model (pm2 vs Docker), database choice, SSH policy,
+and every other Step 2 interview question get asked exactly the same way
+regardless of what the discovered sibling happens to use — "the existing
+setup already does X" is context to mention when asking, never a
+substitute for asking. If the sibling's config disagrees with what the
+user answers in Step 2, the user's answer wins; replicate *that* choice's
+shape, not the sibling's.
+
 ## The method: discover, then replicate
 
 1. **Find a sibling resource of the same kind that already works.** If
