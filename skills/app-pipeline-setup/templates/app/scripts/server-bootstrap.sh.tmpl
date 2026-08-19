@@ -5,13 +5,13 @@
 # used by every app on this box.
 #
 # Rendered via scripts/render.sh and run over SSM RunCommand (SKILL.md
-# Step 4b) — deliberately NOT CloudFormation UserData. UserData only runs
-# once at instance creation and can't be safely re-invoked, which breaks
-# two things this skill needs: retrying after a resize (references/
+# Step 4b) — deliberately NOT CloudFormation UserData, which only runs
+# once at instance creation and can't be safely re-invoked. Two things
+# this skill needs depend on that: retrying after a resize (references/
 # server-bootstrap.md's resize-and-retry contract), and re-running against
-# an existing instance to add a capability for a second app (see gotchas.md's
-# "Reusing an existing instance for a second app" entry — no longer a
-# limitation once bootstrap can be safely re-run).
+# an existing instance to add a capability for a second app (see
+# gotchas.md's "Bootstrapping the server via CloudFormation UserData
+# doesn't survive a resize or a second app").
 #
 # Every step below is written to be safe to re-run — a retry must not
 # duplicate work, fail on "already exists," or leave the box in a worse

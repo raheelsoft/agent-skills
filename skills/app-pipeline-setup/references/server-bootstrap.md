@@ -53,9 +53,10 @@ re-run.
 
 2. Render `server-bootstrap.sh.tmpl` with this run's values (`AppName`,
    `NodeMajorVersion`, `NvmVersion`, `NeedsPostgres`, `NeedsRedis`,
-   `EnableDocker`, `SwapSizeGB`, `OsUser` — same names as the old CFN
-   parameters, just consumed here instead of by CloudFormation) and push
-   it over SSM RunCommand (`AWS-RunShellScript`).
+   `EnableDocker`, `SwapSizeGB`, `OsUser` — Step 2's interview answers,
+   consumed directly by the render step rather than passed through
+   CloudFormation) and push it over SSM RunCommand
+   (`AWS-RunShellScript`).
 
 3. **Delegate the run to a subagent** — it sends the command, polls
    `get-command-invocation` until done, and reports back. This keeps the

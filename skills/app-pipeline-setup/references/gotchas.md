@@ -137,12 +137,11 @@ it's now technically safe to.
 Two different situations, two different right answers:
 - **CloudFormation resource creation** (`ec2-instance.yaml`'s `Instance`,
   and every other stack this skill deploys): `aws cloudformation deploy`
-  blocks natively until the stack settles — no separate poll loop needed
-  for the AWS-resource-creation part itself. This template deliberately
-  has no `CreationPolicy`/`cfn-signal` (removed along with UserData, see
-  `references/server-bootstrap.md`) — there's no longer anything on the
-  box for CloudFormation to wait on, since bootstrap isn't part of
-  instance creation anymore.
+  blocks natively until the stack settles — no separate poll loop needed.
+  This template has no `CreationPolicy`/`cfn-signal` — there's nothing on
+  the box for CloudFormation itself to wait on; bootstrap isn't part of
+  instance creation (see `references/server-bootstrap.md` for why it lives
+  over SSM instead).
 - **SSM registration** (Step 4, after the CFN deploy returns) and **SSM
   command completion** (Step 4b's bootstrap, and every app deploy via
   `pipeline.yaml`/`deploy.yml.tmpl`): hand-rolled loops, deliberately —
@@ -155,10 +154,9 @@ Two different situations, two different right answers:
 The lesson isn't "always prefer AWS's native wait mechanism" or "always
 hand-roll polling" — it's checking whether the native mechanism's actual
 behavior (timeout budget, configurability) fits the real wait time needed,
-case by case. Notably, this used to split one way (CFN native wait for
-bootstrap, hand-rolled for deploy) and now doesn't — both bootstrap and
-deploy hand-roll their polling, for the same reason: neither one fits
-inside a fixed, non-configurable timeout budget.
+case by case. Bootstrap and deploy both hand-roll their polling here, for
+the same reason: neither one fits inside a fixed, non-configurable timeout
+budget.
 
 ## Test a hook-script change through the exact real execution wrapper, not an approximation
 `app-pipeline-deploy.sh` and everything it calls (`before_install.sh`

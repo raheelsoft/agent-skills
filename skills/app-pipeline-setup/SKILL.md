@@ -385,13 +385,13 @@ instead. Everything in Steps 4-12 is EC2/pm2-path only.
 
 ## Step 4b — Bootstrap the instance over SSM (only after Step 4's instance is `Online`)
 
-Everything that used to be baked into `ec2-instance.yaml`'s UserData
-(nvm/Node/pm2, nginx, certbot, AWS CLI v2, optional Postgres/Redis/Docker,
-the CloudWatch Agent, and the two shared
+Everything the box needs (nvm/Node/pm2, nginx, certbot, AWS CLI v2,
+optional Postgres/Redis/Docker, the CloudWatch Agent, and the two shared
 `app-pipeline-deploy.sh`/`app-pipeline-rollback.sh` scripts) is installed
-here instead, over SSM RunCommand — not CloudFormation UserData. Full
-reasoning, the subagent report contract, and the resize-and-retry rule
-below are in `references/server-bootstrap.md`; this is the short version:
+here, over SSM RunCommand — deliberately not CloudFormation UserData,
+which can't be safely retried (see `references/server-bootstrap.md` for
+why). Full reasoning, the subagent report contract, and the
+resize-and-retry rule below are in that doc; this is the short version:
 
 1. Render `templates/app/scripts/server-bootstrap.sh.tmpl` with this run's
    `AppName`, `NodeMajorVersion` (default `24`), `NvmVersion` (default
