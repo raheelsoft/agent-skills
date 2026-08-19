@@ -72,6 +72,22 @@ the audit turns up an active compromise (not just an exposure), switch to
   (staging/dev) to it, not starting fresh. See Step 2's first question
   below before assuming a greenfield setup; `references/staging-environment.md`
   has the full existing-infra flow.
+- Check whether the **account's existing infra** (not just this app's repo)
+  is CloudFormation-managed at all:
+  ```
+  aws cloudformation list-stacks --query "StackSummaries[?StackStatus!='DELETE_COMPLETE']"
+  aws ec2 describe-instances --filters Name=instance-state-name,Values=running --query 'length(Reservations[])'
+  ```
+  An empty stack list alongside real running infra means this account was
+  built by hand (console or ad-hoc CLI), not as CloudFormation stacks.
+  Provisioning this skill's usual way (always CFN) onto an account like
+  that creates a split-brain: one piece managed declaratively, everything
+  else managed by hand forever after. Don't decide either way here — this
+  is a signal to carry into Step 2a-pre2 below, which turns it into an
+  explicit question. A fresh account with nothing running yet, or an
+  account where `list-stacks` isn't empty, needs no question — CFN as
+  normal in both cases (nothing to be inconsistent with in the first case,
+  already consistent in the second).
 
 ## Step 2 — Interview
 
@@ -87,6 +103,37 @@ normally (new EC2 instance, new pipeline, new Parameter Store tree, per
 Step 8: never silently render this skill's own generic hook scripts over
 whatever's already in `scripts/*.sh`. Skip straight to Step 2a once
 answered.
+
+### 2a-pre2. CloudFormation vs matching existing hand-built infra (only if Step 1 flagged it)
+
+Only fires when Step 1 found running infra with an empty CloudFormation
+stack list — skip entirely otherwise, no question to ask. Ask via
+`AskUserQuestion`, plainly, before Step 3's manifest is even drafted:
+**provision this via CloudFormation, this skill's normal approach** (a new
+piece managed declaratively while everything else in the account stays
+hand-built — a real, permanent inconsistency, not a one-time cost) **vs
+match the account's existing pattern via direct AWS CLI calls** (stays
+consistent with dev/prod/whatever's already there; `references/
+imperative-provisioning.md` has the method — and its own real cost:
+`describe-stacks`/`get-template` gives the CFN path a durable, free record
+of what was created and how; the imperative path has no equivalent unless
+it's written down by hand, and teardown later means manual, symmetric
+`delete-*` calls instead of one `delete-stack`). Recommend the second
+option by default — matching an account's established operating pattern
+beats introducing a second one for a single new piece — but state both
+real costs plainly and let the user make the call explicitly, not a
+default to assume silently. Never fall back to imperative provisioning
+without this question firing first, and never skip the question because
+"it's probably fine" — an account's operating pattern isn't something to
+infer from a hunch.
+
+This choice changes *how* the resources in Step 3's manifest get created —
+CFN stacks vs individual CLI calls — but not the confirmation gate itself.
+Whichever path is chosen, Step 3 still applies exactly as written: the
+full resource list, cost estimate, and an explicit yes before anything is
+created. Choosing imperative provisioning is not a way to skip that gate,
+and the manifest should say plainly which mechanism is being used so the
+user's yes is informed by it.
 
 ### 2a. App type first, then (frontend only) the static-export analysis
 
