@@ -12,11 +12,37 @@ pre_build, build) — CodeBuild does not guarantee exported vars persist
 across phase boundaries. If a build fails with a Node-version-looking error,
 check `node -v` near the top of the log first.
 
+## Bootstrapping the server via CloudFormation UserData doesn't survive a resize or a second app
+Installing nvm/Node/pm2/nginx/Postgres directly in `ec2-instance.yaml`'s
+UserData looks like the obvious approach, and it's what this skill did at
+first — but UserData is a **one-shot script**: it runs once at instance
+creation and CloudFormation has no way to re-invoke it. That surfaced as
+two separate real failures, not a hypothetical:
+
+1. An instance too small for the Node build it needed to run had no safe
+   path forward — resize the instance and the bootstrap that already
+   half-ran (or OOM-killed partway through) never runs again. There was no
+   "just try again on a bigger box."
+2. Targeting an existing instance for a second app that needed Postgres,
+   when the box was never provisioned with it, silently didn't get it —
+   nothing re-ran, and the gap wasn't obvious until the second app failed
+   to start.
+
+Fixed by moving all of it out of UserData entirely, into
+`templates/app/scripts/server-bootstrap.sh.tmpl`, rendered and run over
+SSM RunCommand (Step 4b) instead — every step written idempotent
+specifically so it's safe to retry after a resize or re-run against a live
+instance. `ec2-instance.yaml` itself now provisions bare compute only
+(instance, security group, IAM role, alarms, Elastic IP) — no
+`CreationPolicy`, no `cfn-signal`, nothing installed as part of resource
+creation. Full mechanism, the resize-and-retry rule, and the subagent
+report contract that decides whether a resize is even warranted are in
+`references/server-bootstrap.md`.
+
 ## Small instances OOM on a Node build
 t3.micro-class instances (~900MB RAM) hit `FATAL ERROR: Reached heap limit`
 building anything non-trivial. Fixed by: a swap file (provisioned by
-`templates/app/scripts/server-bootstrap.sh.tmpl`, run over SSM — not
-CloudFormation UserData, see `references/server-bootstrap.md`) plus
+`server-bootstrap.sh.tmpl`, see above) plus
 `NODE_OPTIONS=--max-old-space-size=...` in `after_install.backend.sh.tmpl`.
 If this comes back, check the swap file is still mounted (`swapon --show`)
 and the instance type wasn't downsized. The same signal (`dmesg | grep -i
@@ -92,18 +118,15 @@ check: an unexpected **existing** stack under a name this run didn't
 expect to already own is a stop-and-ask moment, not something to `deploy`
 straight over.
 
-## Reusing an existing instance for a second app CAN pick up a new capability now
-Previously a real limitation: the old UserData-based bootstrap only ran
-once, at instance creation, so a second app needing Postgres (when the box
-was never provisioned with it) silently wouldn't get it. That's resolved
-now that bootstrap runs over SSM instead of UserData
-(`references/server-bootstrap.md`) — `server-bootstrap.sh.tmpl` is
-idempotent by design, so re-running it against a live instance with
-`NeedsPostgres=true` (or a different `NodeMajorVersion`, etc.) safely adds
-the missing piece without disturbing what's already there. nginx itself
-already handled multiple domains/apps on one box fine (each gets its own
-`sites-available/<domain>` file, no collision) — this closes the one gap
-that was specific to one-time bootstrap steps. Still worth being deliberate
+## Reusing an existing instance for a second app can pick up a new capability
+A second app needing Postgres, when the box was never provisioned with it
+(the failure mode `server-bootstrap.sh.tmpl`'s idempotency was built to
+fix — see the bootstrap entry above): re-running the script against a live
+instance with `NeedsPostgres=true` (or a different `NodeMajorVersion`,
+etc.) safely adds the missing piece without disturbing what's already
+there. nginx itself already handled multiple domains/apps on one box fine
+(each gets its own `sites-available/<domain>` file, no collision) — this
+was the one remaining gap, and it's closed. Still worth being deliberate
 about it though: re-running the script is a real change to a live,
 in-use instance (an `apt-get install` and a `systemctl restart postgresql`
 on a box another app is already running on) — treat it the same as any

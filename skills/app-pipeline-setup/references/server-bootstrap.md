@@ -1,36 +1,38 @@
 # Server bootstrap — SSM-driven, not CloudFormation UserData
 
-## Why the split
+## Why bootstrap lives here and not in CloudFormation UserData
 
-CloudFormation's job is provisioning (create the AWS resources), not
-configuration (install and configure things inside them). The original
-version of this template did both — `ec2-instance.yaml`'s UserData
-installed nginx/Node/pm2/Postgres/etc. and blocked `aws cloudformation
-deploy` on a `cfn-signal` until bootstrap finished. That worked, but
-UserData is a **one-shot script**: it runs once at instance creation and
-does not re-run on a stack update (changing an instance's properties later
-is a stop/start, not a fresh boot). That one-shot nature broke two things
-this skill needs:
+Installing nginx/Node/pm2/Postgres/etc. directly in `ec2-instance.yaml`'s
+UserData, blocking `aws cloudformation deploy` on a `cfn-signal` until it
+finished, looks like the obvious approach — CloudFormation's own docs lead
+you straight there. It's also the wrong place for it: CloudFormation's job
+is provisioning (create the AWS resources), not configuration (install and
+configure things inside them), and UserData is a **one-shot script** — it
+runs once at instance creation and cannot be re-invoked by a stack update
+(changing an instance's properties later is a stop/start, not a fresh
+boot). Building the first real instance this way surfaced exactly the two
+failures that one-shot nature guarantees eventually happen:
 
-- **Retrying after a resize.** If bootstrap fails because the instance is
-  too small, there's no way to just "try again" on a bigger box — UserData
-  already ran (or half-ran) and won't run again.
-- **Adding a capability to an existing instance.** Targeting an existing
-  instance for a second app that needs Postgres, when the box was never
-  provisioned with it — UserData for that instance is long gone. (This
-  used to be a documented limitation — see `references/gotchas.md`'s
-  "Reusing an existing instance for a second app" — that limitation is now
-  resolved: server-bootstrap.sh.tmpl can be safely re-run against a live
-  instance to add a capability, exactly because it's idempotent.)
+- **No way to retry after a resize.** An instance too small for its Node
+  build has nowhere to go — UserData already ran (or OOM-killed partway
+  through), and there's no "just try again on a bigger box." See
+  `references/gotchas.md`'s "Bootstrapping the server via CloudFormation
+  UserData doesn't survive a resize or a second app."
+- **No way to add a capability to an existing instance.** Targeting an
+  existing instance for a second app that needs Postgres, when the box was
+  never provisioned with it — UserData for that instance is long gone, so
+  the gap is silent until the second app fails to start.
 
-So: `ec2-instance.yaml` now provisions only the instance, security group,
-IAM role, EBS volume, alarms, and Elastic IP — no `CreationPolicy`, no
-`cfn-signal`, no UserData. Everything else (nvm/Node/pm2, nginx, certbot,
-AWS CLI v2, optional Postgres/Redis/Docker, the CloudWatch Agent, and the
-two shared `app-pipeline-deploy.sh`/`app-pipeline-rollback.sh` scripts)
-lives in `templates/app/scripts/server-bootstrap.sh.tmpl`, rendered via
-`scripts/render.sh` and run over SSM RunCommand — the same mechanism this
-skill already uses for deploys, not a new pattern.
+The fix: `ec2-instance.yaml` now provisions only the instance, security
+group, IAM role, EBS volume, alarms, and Elastic IP — no `CreationPolicy`,
+no `cfn-signal`, no UserData. Everything else (nvm/Node/pm2, nginx,
+certbot, AWS CLI v2, optional Postgres/Redis/Docker, the CloudWatch Agent,
+and the two shared `app-pipeline-deploy.sh`/`app-pipeline-rollback.sh`
+scripts) lives in `templates/app/scripts/server-bootstrap.sh.tmpl`,
+rendered via `scripts/render.sh` and run over SSM RunCommand — the same
+mechanism this skill already uses for deploys, not a new pattern — with
+every step written idempotent specifically so it can be safely retried or
+re-run.
 
 ## The flow (SKILL.md Step 4b)
 
