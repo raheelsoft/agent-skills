@@ -73,4 +73,4 @@ scripts/render.sh            The placeholder-substitution engine every template 
 
 ## Status
 
-Currently used as a Claude Code skill. Packaging this as a standalone `npx` CLI (usable outside Claude Code) is planned but not yet done.
+Published as part of the [`agent-skills`](https://github.com/raheelsoft/agent-skills) package — install with `npx @raheelsoft/agent-skills install app-pipeline-setup`.
