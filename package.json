@@ -1,6 +1,6 @@
 {
   "name": "@raheelsoft/agent-skills",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Install Claude Code skills from this collection via npx — copies a skill into ~/.claude/skills/.",
   "bin": {
     "agent-skills": "bin/cli.js"
