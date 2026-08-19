@@ -52,6 +52,17 @@ the audit turns up an active compromise (not just an exposure), switch to
   `high`/`critical` count plus package names — the full JSON tree is noisy
   and doesn't need to sit in the main thread's context to make this
   decision.
+  - **Provisioning more than one repo in this run** (e.g. a frontend+backend
+    pair going in together, or several independent apps requested in the
+    same conversation): each repo's codebase audit — this `npm audit` pass,
+    and Step 2a's static-site blocker scan where it applies — is completely
+    independent of the others. Delegate each repo to its own subagent and
+    run them in parallel rather than working through repos one at a time;
+    same pattern as `references/security-audit.md`'s per-instance sweep.
+    Each still reports back just its own count/blockers, and each repo
+    still gets its own full Step 2 interview and Step 3 confirmation gate —
+    parallelizing the audit doesn't parallelize the resource-creation
+    decisions themselves.
 - Check for existing deploy artifacts: `appspec.yml`, `buildspec.yml`,
   `.github/workflows/deploy.yml`, or any of
   `scripts/{before_install,after_install,application_start,validate_service}.sh`.
