@@ -3,8 +3,9 @@
 Every deploy (CodePipeline or GitHub Actions) ultimately runs
 `/usr/local/bin/app-pipeline-deploy.sh <app-dir> <branch>` on the instance
 over SSM. That script is installed once per instance (by
-`templates/cfn/ec2-instance.yaml`'s UserData), not per app — every app
-hosted on the box shares the same copy.
+`templates/app/scripts/server-bootstrap.sh.tmpl`, itself run over SSM —
+see `references/server-bootstrap.md`), not per app — every app hosted on
+the box shares the same copy.
 
 ## Directory layout, per app
 

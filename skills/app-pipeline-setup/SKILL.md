@@ -47,7 +47,11 @@ the audit turns up an active compromise (not just an exposure), switch to
   `high`/`critical` CVEs in the app about to go live. This doesn't block
   the setup (a decision to patch first or deploy now and patch after is
   the user's to make), but it must not go unmentioned before Step 3's
-  confirmation gate — carry the count into that manifest.
+  confirmation gate — carry the count into that manifest. Delegate the
+  actual `npm audit` run to a subagent and have it report back just the
+  `high`/`critical` count plus package names — the full JSON tree is noisy
+  and doesn't need to sit in the main thread's context to make this
+  decision.
 - Check for existing deploy artifacts: `appspec.yml`, `buildspec.yml`,
   `.github/workflows/deploy.yml`, or any of
   `scripts/{before_install,after_install,application_start,validate_service}.sh`.
@@ -83,7 +87,10 @@ those questions even apply:
 
 - Search the repo for static-export blockers (API routes, middleware,
   `getServerSideProps`, uncontrolled ISR, unoptimized `next/image` usage,
-  Server Actions).
+  Server Actions). Delegate this scan to an `Explore`-type subagent — it's
+  exactly the kind of broad, read-only codebase search that agent type is
+  for — and have it report back the specific blockers found (or "none"),
+  not a dump of every file it read.
 - If none found, or the ones found are genuinely minimal to fix (see the
   reference doc's exact bar for "minimal"), ask via `AskUserQuestion`:
   **convert to static export + deploy on S3+CloudFront** vs **deploy on
@@ -341,7 +348,10 @@ instead. Everything in Steps 4-12 is EC2/pm2-path only.
    public subnet within it.
 2. Deploy `templates/cfn/ec2-instance.yaml` (add `--tags Project=<value>`
    from Step 2's Batch 4 answer — CloudFormation stack-level tags propagate
-   to every taggable resource the stack creates automatically):
+   to every taggable resource the stack creates automatically). This
+   template provisions bare compute only — instance, security group, IAM
+   role, alarms, Elastic IP — nothing gets installed on the box yet; that's
+   Step 4b below, not this deploy:
    ```
    aws cloudformation deploy --region <region> \
      --stack-name <app-name>-instance \
@@ -349,21 +359,22 @@ instead. Everything in Steps 4-12 is EC2/pm2-path only.
      --capabilities CAPABILITY_NAMED_IAM \
      --tags Project=<project-tag-value> \
      --parameter-overrides AppName=<app-name> VpcId=<vpc> SubnetId=<subnet> \
-       InstanceType=<type> NeedsPostgres=<true|false> NeedsRedis=<true|false> \
-       EnableDocker=<true|false> SshCidr=<cidr-or-empty> \
+       InstanceType=<type> SshCidr=<cidr-or-empty> \
        AssignElasticIp=<true|false, per Step 2's answer> \
        NotificationTopicArn=<arn-or-empty, from Step 5b if created>
    ```
-3. **No separate polling step needed** — `aws cloudformation deploy` itself
-   blocks until UserData finishes and signals success via `cfn-signal`
-   (`CreationPolicy` on the `Instance` resource), or fails the stack
-   outright if bootstrap errors or exceeds `BootstrapTimeoutMinutes`
-   (default 20). The command above simply doesn't return until bootstrap
-   is actually done — that's the wait, not something to add on top of it.
-   If it's ever useful to check bootstrap status independently (debugging,
-   or after the fact), `/home/<os-user>/.app-pipeline-bootstrap-complete`
-   still gets touched at the end as a manual-inspection marker, but it's
-   not the primary mechanism.
+3. This deploy returns as soon as the instance/SG/IAM resources exist — it
+   does **not** wait for the box to be ready to receive commands. Poll for
+   SSM registration before moving on:
+   ```
+   aws ssm describe-instance-information --filters Key=InstanceIds,Values=<id> \
+     --query 'InstanceInformationList[0].PingStatus' --output text
+   ```
+   Wait for `Online` — normally under a minute on the Ubuntu AMI this
+   template uses (SSM Agent ships pre-installed and running). If it never
+   comes online within a few minutes, that's a real problem (bad AMI,
+   SG/IAM misconfiguration) to surface directly, not something to retry
+   blindly.
 4. Read the stack outputs (`InstanceId`, `PublicIp`, `SecurityGroupId`) —
    needed for every later step, including the RDS/S3 stacks below. Use
    `PublicIp` everywhere "the instance's public IP" is needed (it's always
@@ -371,6 +382,40 @@ instead. Everything in Steps 4-12 is EC2/pm2-path only.
    subnet's auto-assigned dynamic IP); `ElasticIp` is a separate output
    that only exists when `AssignElasticIp=true`, for the rare case
    something specifically needs to confirm the IP is guaranteed stable.
+
+## Step 4b — Bootstrap the instance over SSM (only after Step 4's instance is `Online`)
+
+Everything that used to be baked into `ec2-instance.yaml`'s UserData
+(nvm/Node/pm2, nginx, certbot, AWS CLI v2, optional Postgres/Redis/Docker,
+the CloudWatch Agent, and the two shared
+`app-pipeline-deploy.sh`/`app-pipeline-rollback.sh` scripts) is installed
+here instead, over SSM RunCommand — not CloudFormation UserData. Full
+reasoning, the subagent report contract, and the resize-and-retry rule
+below are in `references/server-bootstrap.md`; this is the short version:
+
+1. Render `templates/app/scripts/server-bootstrap.sh.tmpl` with this run's
+   `AppName`, `NodeMajorVersion` (default `24`), `NvmVersion` (default
+   `v0.39.7`), `NeedsPostgres`, `NeedsRedis`, `EnableDocker` (Step 2's
+   answers), `SwapSizeGB` (default `2`), `OsUser` (default `ubuntu`).
+2. Delegate the run to a subagent: send the rendered script over SSM
+   RunCommand (`AWS-RunShellScript`), poll `get-command-invocation` until
+   done, and return a structured report — `outcome`, and on failure a
+   `category` (`likely-undersized`/`script-error`/`permission-error`/
+   `network-error`/`unknown`) backed by an actual signal (e.g. `dmesg`
+   showing the OOM killer fired), plus the evidence and a log reference.
+   The subagent reports; it never decides what happens next — that stays
+   in the main thread.
+3. On `succeeded`, continue to Step 5.
+4. On `failed` with `category: likely-undersized`: **ask**, quoting the
+   evidence and the cost delta from `references/cost-estimates.md` — e.g.
+   "install failed, OOM killer fired on t3.micro — resize to t3.small
+   (~+$8/mo) and retry?" Only on an explicit yes, resize (preview via
+   `--no-execute-changeset` first, confirm it's an in-place update on
+   `InstanceType` alone) and re-run this same script once — it's
+   idempotent, safe to retry. If it fails again, stop and say so plainly;
+   don't offer a second resize.
+5. On `failed` with any other category: report the evidence, no resize
+   question — that's not what the category means.
 
 ## Step 5 — Provision database and notifications (only if requested)
 
@@ -389,9 +434,9 @@ pipeline/GitHub Actions setup. Tell the user the email subscription needs a
 one-time confirmation click before alerts start delivering.
 
 ### 5b. Database
-- **Local Postgres/Redis**: already handled by Step 4's
-  `NeedsPostgres`/`NeedsRedis` params, including the `listen_addresses`
-  hardening baked into the template's UserData. Worth one quick check over
+- **Local Postgres/Redis**: already handled by Step 4b's
+  `NeedsPostgres`/`NeedsRedis` values, including the `listen_addresses`
+  hardening in `server-bootstrap.sh.tmpl`. Worth one quick check over
   SSM rather than assuming it took effect — `grep listen_addresses
   /etc/postgresql/*/main/postgresql.conf` should show `localhost`, and `ss
   -tlnp | grep 5432` should show it bound to `127.0.0.1`, not `0.0.0.0` —

@@ -36,8 +36,9 @@ exactly the ones to design out here.
 ## Database
 
 - **Local Postgres binds to localhost, explicitly, not by inherited
-  default.** `ec2-instance.yaml`'s UserData forces `listen_addresses =
-  'localhost'` in `postgresql.conf` right after install, rather than relying
+  default.** `server-bootstrap.sh.tmpl` (run over SSM, not CloudFormation
+  UserData — see `references/server-bootstrap.md`) forces `listen_addresses
+  = 'localhost'` in `postgresql.conf` right after install, rather than relying
   on whatever a given Ubuntu version ships as its own default — a default
   that could change, and shouldn't be the only thing standing between the
   database and the internet anyway. Combined with the security-group rule

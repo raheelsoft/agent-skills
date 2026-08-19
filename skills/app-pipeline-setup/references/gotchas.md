@@ -14,10 +14,16 @@ check `node -v` near the top of the log first.
 
 ## Small instances OOM on a Node build
 t3.micro-class instances (~900MB RAM) hit `FATAL ERROR: Reached heap limit`
-building anything non-trivial. Fixed by: a swap file (provisioned in
-`templates/cfn/ec2-instance.yaml`) plus `NODE_OPTIONS=--max-old-space-size=...`
-in `after_install.backend.sh.tmpl`. If this comes back, check the swap file
-is still mounted (`swapon --show`) and the instance type wasn't downsized.
+building anything non-trivial. Fixed by: a swap file (provisioned by
+`templates/app/scripts/server-bootstrap.sh.tmpl`, run over SSM — not
+CloudFormation UserData, see `references/server-bootstrap.md`) plus
+`NODE_OPTIONS=--max-old-space-size=...` in `after_install.backend.sh.tmpl`.
+If this comes back, check the swap file is still mounted (`swapon --show`)
+and the instance type wasn't downsized. The same signal (`dmesg | grep -i
+"killed process"` for the OOM killer, or `free -m` showing swap exhausted)
+is what Step 4b's bootstrap-failure report uses to decide whether a
+resize-and-retry question is actually warranted — see
+`references/server-bootstrap.md`'s subagent report contract.
 
 ## Why SSM-triggered deploy instead of real CodeDeploy
 Both `appspec.yml` and the four hook scripts are written in exactly the
@@ -86,40 +92,50 @@ check: an unexpected **existing** stack under a name this run didn't
 expect to already own is a stop-and-ask moment, not something to `deploy`
 straight over.
 
-## Reusing an existing instance for a second app doesn't re-run bootstrap
-`ec2-instance.yaml`'s UserData (Node version, swap size, Postgres/Redis,
-Docker, CloudWatch Agent config) only runs once, at instance creation. If
-Step 4 targets an **existing** instance for a second app, none of that
-re-runs — a second app needing a different Node major version, or
-Postgres when the box was never provisioned with it, silently won't get
-it. nginx itself handles multiple domains/apps on one box fine (each gets
-its own `sites-available/<domain>` file, no collision) — it's specifically
-the one-time bootstrap steps that don't extend to a second app's needs.
-If the second app's requirements don't already match what the box was
-bootstrapped with, treat it as a new instance instead of fighting this.
+## Reusing an existing instance for a second app CAN pick up a new capability now
+Previously a real limitation: the old UserData-based bootstrap only ran
+once, at instance creation, so a second app needing Postgres (when the box
+was never provisioned with it) silently wouldn't get it. That's resolved
+now that bootstrap runs over SSM instead of UserData
+(`references/server-bootstrap.md`) — `server-bootstrap.sh.tmpl` is
+idempotent by design, so re-running it against a live instance with
+`NeedsPostgres=true` (or a different `NodeMajorVersion`, etc.) safely adds
+the missing piece without disturbing what's already there. nginx itself
+already handled multiple domains/apps on one box fine (each gets its own
+`sites-available/<domain>` file, no collision) — this closes the one gap
+that was specific to one-time bootstrap steps. Still worth being deliberate
+about it though: re-running the script is a real change to a live,
+in-use instance (an `apt-get install` and a `systemctl restart postgresql`
+on a box another app is already running on) — treat it the same as any
+other infra-affecting action, not something to do silently just because
+it's now technically safe to.
 
 ## Real waits vs hand-rolled polling loops — pick deliberately, don't default to either
 Two different situations, two different right answers:
-- **EC2 bootstrap completion** (`ec2-instance.yaml`): uses a real
-  CloudFormation mechanism — `cfn-signal` (installed via pip, since Ubuntu
-  doesn't ship it like Amazon Linux does) + `CreationPolicy.ResourceSignal`
-  on the `Instance` resource. `aws cloudformation deploy` blocks natively
-  until bootstrap signals success or failure — no separate poll loop
-  needed, and a genuine bootstrap failure properly fails the stack instead
-  of leaving a "successfully created" instance that never finished
-  setting up.
-- **SSM command completion during an app deploy** (`pipeline.yaml`,
-  `deploy.yml.tmpl`): a hand-rolled loop, deliberately — `aws ssm wait
-  command-executed` exists but its delay/max-attempts budget is fixed and
-  far shorter than a real build+deploy can legitimately take, with no CLI
-  flag to override it. The hand-rolled loop here is keyed off
-  `DeployTimeoutMinutes` for exactly that reason, not an oversight that
-  should get "fixed" by swapping in the built-in waiter.
+- **CloudFormation resource creation** (`ec2-instance.yaml`'s `Instance`,
+  and every other stack this skill deploys): `aws cloudformation deploy`
+  blocks natively until the stack settles — no separate poll loop needed
+  for the AWS-resource-creation part itself. This template deliberately
+  has no `CreationPolicy`/`cfn-signal` (removed along with UserData, see
+  `references/server-bootstrap.md`) — there's no longer anything on the
+  box for CloudFormation to wait on, since bootstrap isn't part of
+  instance creation anymore.
+- **SSM registration** (Step 4, after the CFN deploy returns) and **SSM
+  command completion** (Step 4b's bootstrap, and every app deploy via
+  `pipeline.yaml`/`deploy.yml.tmpl`): hand-rolled loops, deliberately —
+  `aws ssm wait command-executed` exists but its delay/max-attempts budget
+  is fixed and far shorter than a real bootstrap or build+deploy can
+  legitimately take, with no CLI flag to override it. The deploy loop is
+  keyed off `DeployTimeoutMinutes` for exactly that reason, not an
+  oversight that should get "fixed" by swapping in the built-in waiter.
 
 The lesson isn't "always prefer AWS's native wait mechanism" or "always
 hand-roll polling" — it's checking whether the native mechanism's actual
 behavior (timeout budget, configurability) fits the real wait time needed,
-case by case.
+case by case. Notably, this used to split one way (CFN native wait for
+bootstrap, hand-rolled for deploy) and now doesn't — both bootstrap and
+deploy hand-roll their polling, for the same reason: neither one fits
+inside a fixed, non-configurable timeout budget.
 
 ## Test a hook-script change through the exact real execution wrapper, not an approximation
 `app-pipeline-deploy.sh` and everything it calls (`before_install.sh`

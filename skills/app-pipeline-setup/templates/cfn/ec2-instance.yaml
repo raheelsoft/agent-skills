@@ -1,17 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Single EC2 instance for hosting one or more Node apps behind nginx, fully
-  bootstrapped via UserData (nvm/Node, pm2, nginx, certbot, AWS CLI v2, swap,
-  CloudWatch Agent for disk/mem metrics + centralized pm2 log shipping,
-  optional local Postgres/Redis/Docker) — replaces doing this bootstrap by
-  hand over SSM one command at a time. Also installs two shared, app-agnostic
-  scripts used by every app hosted on this box:
-  /usr/local/bin/app-pipeline-deploy.sh (fetch -> new release directory ->
-  symlink swap -> validate -> auto-rollback-on-failure -> prune old
-  releases) and /usr/local/bin/app-pipeline-rollback.sh (relink `current` to
-  the previous release). CI (CodePipeline or GitHub Actions) triggers the
-  former over SSM RunCommand instead of a real CodeDeploy agent (see
-  references/gotchas.md for why).
+  Bare compute for hosting one or more Node apps behind nginx — this
+  template owns only actual AWS resource properties (instance, security
+  group, IAM role, EBS volume, alarms, Elastic IP). It does NOT install
+  anything on the box: nvm/Node, pm2, nginx, certbot, AWS CLI v2, swap,
+  the CloudWatch Agent, optional local Postgres/Redis/Docker, and the two
+  shared /usr/local/bin/app-pipeline-deploy.sh /
+  app-pipeline-rollback.sh scripts are all installed afterward, over SSM
+  RunCommand, by templates/app/scripts/server-bootstrap.sh.tmpl (SKILL.md
+  Step 4b) — deliberately not CloudFormation UserData, since UserData only
+  runs once at creation and can't be safely retried after a resize or
+  re-run against an existing instance. See references/server-bootstrap.md
+  for the full reasoning. CI (CodePipeline or GitHub Actions) triggers the
+  deploy script over SSM RunCommand instead of a real CodeDeploy agent
+  (see references/gotchas.md for why).
 
 Parameters:
   AppName:
@@ -29,7 +31,7 @@ Parameters:
   InstanceType:
     Type: String
     Default: t3.micro
-    Description: t3.micro (~908MB RAM) needs the swap file + NODE_OPTIONS heap cap below to survive a Node build — fine for small apps, size up for anything heavier. Always ask the user explicitly rather than defaulting silently.
+    Description: t3.micro (~908MB RAM) needs the swap file (set up by server-bootstrap.sh.tmpl) plus the NODE_OPTIONS heap cap (set in after_install.backend.sh.tmpl) to survive a Node build — fine for small apps, size up for anything heavier. Always ask the user explicitly rather than defaulting silently. See references/server-bootstrap.md for what happens if this turns out to be too small (resize is always a question, never automatic).
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id
@@ -51,29 +53,6 @@ Parameters:
     Type: Number
     Default: 20
     Description: GiB. The default 8GB Ubuntu root volume fills up fast under repeated npm/build churn.
-  SwapSizeGB:
-    Type: Number
-    Default: 2
-  NodeMajorVersion:
-    Type: String
-    Default: '24'
-  NvmVersion:
-    Type: String
-    Default: v0.39.7
-    Description: Pinned rather than always installing nvm's latest release, for reproducible bootstraps — but nvm releases periodically add support for newer Node majors before older nvm versions know about them. If NodeMajorVersion is very new and `nvm install` fails to find it, this is usually why — check nvm-sh/nvm's releases for a newer NvmVersion.
-  NeedsPostgres:
-    Type: String
-    Default: 'false'
-    AllowedValues: ['true', 'false']
-  NeedsRedis:
-    Type: String
-    Default: 'false'
-    AllowedValues: ['true', 'false']
-  EnableDocker:
-    Type: String
-    Default: 'false'
-    AllowedValues: ['true', 'false']
-    Description: Installs Docker + the Compose plugin, for apps that deploy via a Dockerfile/docker-compose.yml instead of bare pm2. See references/docker-option.md.
   NotificationTopicArn:
     Type: String
     Default: ''
@@ -82,13 +61,6 @@ Parameters:
     Type: String
     Default: ''
     Description: S3 bucket ARN from templates/cfn/db-backup.yaml, if automated database backups were requested. Leave blank to skip. Grants this instance's role s3:PutObject on that bucket only — no read/list/delete — see references/db-backups.md.
-  OsUser:
-    Type: String
-    Default: ubuntu
-  BootstrapTimeoutMinutes:
-    Type: Number
-    Default: 20
-    Description: How long `aws cloudformation deploy` waits for UserData to finish (via cfn-signal) before failing the stack outright. Raise if EnableDocker/NeedsPostgres/NeedsRedis are all true (more apt installs) or the region's package mirrors are known to be slow.
   AssignElasticIp:
     Type: String
     Default: 'true'
@@ -201,17 +173,15 @@ Resources:
       Roles:
         - !Ref InstanceRole
 
-  # CreationPolicy + the UserData's own cfn-signal call (see below) make
-  # `aws cloudformation deploy` block until bootstrap actually finishes or
-  # fails — a real await instead of returning immediately and requiring a
-  # separate hand-rolled poll loop for a marker file (see SKILL.md Step 4,
-  # and references/gotchas.md for the reasoning).
+  # No CreationPolicy/cfn-signal, deliberately — this resource's own
+  # readiness (EC2 status checks) is all CloudFormation needs to wait for.
+  # `aws cloudformation deploy` returning is NOT "the box is ready to
+  # bootstrap" — SKILL.md Step 4b polls SSM registration
+  # (PingStatus: Online) separately before running
+  # server-bootstrap.sh.tmpl over SSM RunCommand. See
+  # references/server-bootstrap.md for the full reasoning.
   Instance:
     Type: AWS::EC2::Instance
-    CreationPolicy:
-      ResourceSignal:
-        Timeout: !Sub 'PT${BootstrapTimeoutMinutes}M'
-        Count: 1
     Properties:
       ImageId: !Ref LatestAmiId
       InstanceType: !Ref InstanceType
@@ -228,235 +198,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Ref AppName
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          set -euo pipefail
-          exec > /var/log/app-pipeline-bootstrap.log 2>&1
-
-          NODE_MAJOR="${NodeMajorVersion}"
-          NVM_VERSION="${NvmVersion}"
-          NEEDS_POSTGRES="${NeedsPostgres}"
-          NEEDS_REDIS="${NeedsRedis}"
-          ENABLE_DOCKER="${EnableDocker}"
-          SWAP_GB="${SwapSizeGB}"
-          OS_USER="${OsUser}"
-
-          apt-get update -y
-
-          # --- cfn-signal: not preinstalled on Ubuntu (unlike Amazon Linux)
-          # — installed first, before anything else that could fail, so a
-          # failure signal can actually be sent even if something early
-          # breaks. Lets the CreationPolicy above turn this UserData script
-          # into a real await for `aws cloudformation deploy` instead of a
-          # fire-and-forget that needs a separate poll loop to know when
-          # (or whether) bootstrap actually finished.
-          apt-get install -y python3-pip
-          pip3 install --break-system-packages aws-cfn-bootstrap
-          trap 'cfn-signal --exit-code 1 --stack "${AWS::StackName}" --resource Instance --region "${AWS::Region}" || true' ERR
-
-          # --- swap: small instances OOM on a default-heap Node build without this ---
-          fallocate -l "${!SWAP_GB}G" /swapfile
-          chmod 600 /swapfile
-          mkswap /swapfile
-          swapon /swapfile
-          echo '/swapfile none swap sw 0 0' >> /etc/fstab
-
-          # --- nginx + certbot + git (not preinstalled on the Ubuntu base
-          # AMI, unlike some distros — app-pipeline-deploy.sh's git fetch
-          # and Step 8's initial clone both depend on it) + apache2-utils
-          # (htpasswd, for optional HTTP Basic Auth on a path — see Step 11
-          # and references/deploy-key-setup.md's sibling doc on Basic Auth
-          # gating in SKILL.md) ---
-          apt-get install -y nginx certbot python3-certbot-nginx git apache2-utils
-
-          # --- AWS CLI v2 ---
-          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
-          unzip -q /tmp/awscliv2.zip -d /tmp
-          /tmp/aws/install
-
-          # --- optional local Postgres/Redis ---
-          if [ "${!NEEDS_POSTGRES}" = "true" ]; then
-            apt-get install -y postgresql
-            # Explicit, not just inherited from today's Ubuntu default: force
-            # listen_addresses to localhost so Postgres is unreachable off-box
-            # even if the SG above is ever hand-edited later. This SG never
-            # opens 5432 in the first place, so this is defense in depth, not
-            # the only thing standing between this database and the internet.
-            PG_CONF_DIR="$(find /etc/postgresql -mindepth 1 -maxdepth 1 -type d | head -1)/main"
-            sed -i "s/^#\?listen_addresses.*/listen_addresses = 'localhost'/" "${!PG_CONF_DIR}/postgresql.conf"
-            systemctl restart postgresql
-          fi
-          if [ "${!NEEDS_REDIS}" = "true" ]; then
-            apt-get install -y redis-server
-          fi
-
-          # --- optional Docker (see references/docker-option.md) ---
-          if [ "${!ENABLE_DOCKER}" = "true" ]; then
-            apt-get install -y docker.io docker-compose-v2
-            usermod -aG docker "${!OS_USER}"
-            systemctl enable --now docker
-          fi
-
-          # --- nvm + Node + pm2, installed under the app user (not root) ---
-          su - "${!OS_USER}" -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${!NVM_VERSION}/install.sh | bash"
-          su - "${!OS_USER}" -c "export NVM_DIR=\"\$HOME/.nvm\"; source \"\$NVM_DIR/nvm.sh\"; nvm install ${!NODE_MAJOR}; npm install -g pm2"
-
-          mkdir -p "/home/${!OS_USER}/apps"
-          chown -R "${!OS_USER}:${!OS_USER}" "/home/${!OS_USER}/apps"
-
-          # --- CloudWatch Agent: disk/mem metrics + centralized pm2 log shipping ---
-          curl -fsSL "https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb" -o /tmp/amazon-cloudwatch-agent.deb
-          dpkg -i -E /tmp/amazon-cloudwatch-agent.deb
-
-          mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
-          cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWAGENT'
-          {
-            "metrics": {
-              "namespace": "AppPipeline/${AppName}",
-              "append_dimensions": { "InstanceId": "${!aws:InstanceId}" },
-              "metrics_collected": {
-                "disk": { "measurement": ["used_percent"], "resources": ["/"], "drop_device": true },
-                "mem": { "measurement": ["mem_used_percent"] }
-              }
-            },
-            "logs": {
-              "logs_collected": {
-                "files": {
-                  "collect_list": [
-                    {
-                      "file_path": "/home/${OsUser}/.pm2/logs/*.log",
-                      "log_group_name": "/app-pipeline/${AppName}/pm2",
-                      "log_stream_name": "{instance_id}"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-          CWAGENT
-
-          /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
-
-          # --- shared deploy/rollback entrypoints, installed once, used by every app on this box ---
-          cat > /usr/local/bin/app-pipeline-deploy.sh <<'DEPLOY_SCRIPT'
-          #!/bin/bash
-          set -euo pipefail
-          APP_DIR="$1"
-          BRANCH="$2"
-
-          # Two overlapping deploys (e.g. two rapid pushes with no CI-level
-          # concurrency guard, or a manual re-run racing a real trigger)
-          # would otherwise race on the same repo/ checkout, release
-          # directory, and `current` symlink. Serialize instead of
-          # corrupting a deploy — wait up to 20 minutes for any in-progress
-          # deploy on this app to finish before starting.
-          exec 9>"$APP_DIR/.deploy.lock"
-          if ! flock -w 1200 9; then
-            echo "Timed out waiting for a previous deploy of $APP_DIR to finish." >&2
-            exit 1
-          fi
-
-          # If a private-repo SSH deploy key was set up for this app (see
-          # references/deploy-key-setup.md — a one-time step before the
-          # very first clone), use it for every git operation below; a
-          # public-repo app with no key present falls through unaffected —
-          # its origin remote is a plain HTTPS URL and needs no credential.
-          if [ -f "$APP_DIR/.ssh/deploy_key" ]; then
-            export GIT_SSH_COMMAND="ssh -i $APP_DIR/.ssh/deploy_key -o UserKnownHostsFile=$APP_DIR/.ssh/known_hosts -o IdentitiesOnly=yes"
-          fi
-
-          cd "$APP_DIR/repo"
-          git fetch --all --prune
-          git reset --hard "origin/$BRANCH"
-          SHA="$(git rev-parse --short HEAD)"
-
-          RELEASE_DIR="$APP_DIR/releases/$SHA"
-          mkdir -p "$RELEASE_DIR"
-          rsync -a --delete --exclude='.git' "$APP_DIR/repo/" "$RELEASE_DIR/"
-
-          # Parameter Store is the source of truth for env vars, not this
-          # box (see SKILL.md Step 9 / references/env-parameter-store.md) —
-          # .env is regenerated fresh on every deploy, one line per
-          # parameter under /<app-name>/<environment>/, never a static file
-          # someone has to remember to edit in place. APP_NAME is derived
-          # from APP_DIR's basename, which is already named after it by
-          # convention throughout this skill. APP_ENV comes from a small
-          # marker file written once during Step 8's initial checkout
-          # (defaults to "prod" when absent, so a single-environment app
-          # set up before this file existed keeps working unchanged) —
-          # never hardcode an environment name here; see
-          # references/staging-environment.md for why a hardcoded literal
-          # here is a real, previously-hit prod-secret-leak-onto-staging
-          # failure mode, not just a style preference.
-          #
-          # Written straight to the file via redirection only — never
-          # echoed to stdout, which SSM/CodeBuild persist indefinitely (see
-          # references/gotchas.md). The AWS CLI auto-paginates
-          # get-parameters-by-path, so this returns every parameter under
-          # the path regardless of count, not just the first page.
-          APP_NAME="$(basename "$APP_DIR")"
-          APP_ENV="prod"
-          [ -f "$APP_DIR/.environment" ] && APP_ENV="$(cat "$APP_DIR/.environment")"
-          : > "$APP_DIR/.env"
-          aws ssm get-parameters-by-path --region "$AWS_REGION" --path "/$APP_NAME/$APP_ENV/" \
-            --with-decryption --recursive --query 'Parameters[].[Name,Value]' --output text | \
-            while IFS=$'\t' read -r param_name param_value; do
-              printf '%s=%s\n' "${!param_name##*/}" "$param_value" >> "$APP_DIR/.env"
-            done
-          chmod 600 "$APP_DIR/.env"
-
-          ln -sf "$APP_DIR/.env" "$RELEASE_DIR/.env"
-
-          cd "$RELEASE_DIR"
-          bash scripts/before_install.sh
-          bash scripts/after_install.sh
-
-          ln -sfn "$RELEASE_DIR" "$APP_DIR/current"
-
-          cd "$APP_DIR/current"
-          bash scripts/application_start.sh
-
-          if ! bash scripts/validate_service.sh; then
-            echo "Validation failed for $SHA -- rolling back." >&2
-            /usr/local/bin/app-pipeline-rollback.sh "$APP_DIR" || true
-            exit 1
-          fi
-
-          CURRENT_TARGET="$(readlink -f "$APP_DIR/current")"
-          find "$APP_DIR/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | tail -n +6 | cut -d' ' -f2- | while IFS= read -r dir; do
-            [ "$(readlink -f "$dir")" = "$CURRENT_TARGET" ] && continue
-            rm -rf "$dir"
-          done
-
-          echo "==> Deploy of $SHA complete."
-          DEPLOY_SCRIPT
-          chmod +x /usr/local/bin/app-pipeline-deploy.sh
-
-          cat > /usr/local/bin/app-pipeline-rollback.sh <<'ROLLBACK_SCRIPT'
-          #!/bin/bash
-          set -euo pipefail
-          APP_DIR="$1"
-
-          # Release dir names are git short-SHAs (no spaces/globs/newlines),
-          # so ls -t is safe here and simpler than a find+sort equivalent.
-          # shellcheck disable=SC2012
-          PREV="$(ls -1dt "$APP_DIR"/releases/*/ | sed -n '2p')"
-          if [ -z "$PREV" ]; then
-            echo "No previous release to roll back to." >&2
-            exit 1
-          fi
-
-          ln -sfn "$PREV" "$APP_DIR/current"
-          cd "$APP_DIR/current"
-          bash scripts/application_start.sh
-          bash scripts/validate_service.sh
-          echo "==> Rolled back to $(basename "$PREV")."
-          ROLLBACK_SCRIPT
-          chmod +x /usr/local/bin/app-pipeline-rollback.sh
-
-          touch /home/"${!OS_USER}"/.app-pipeline-bootstrap-complete
-          cfn-signal --exit-code 0 --stack "${AWS::StackName}" --resource Instance --region "${AWS::Region}"
 
   DiskSpaceAlarm:
     Type: AWS::CloudWatch::Alarm

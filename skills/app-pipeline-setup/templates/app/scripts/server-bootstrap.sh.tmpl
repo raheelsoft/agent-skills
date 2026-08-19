@@ -1,0 +1,254 @@
+#!/bin/bash
+# Server bootstrap — installs nginx/certbot/git, AWS CLI v2, nvm/Node/pm2,
+# optional Postgres/Redis/Docker, the CloudWatch Agent, and the two shared
+# deploy/rollback entrypoints (app-pipeline-deploy.sh, app-pipeline-rollback.sh)
+# used by every app on this box.
+#
+# Rendered via scripts/render.sh and run over SSM RunCommand (SKILL.md
+# Step 4b) — deliberately NOT CloudFormation UserData. UserData only runs
+# once at instance creation and can't be safely re-invoked, which breaks
+# two things this skill needs: retrying after a resize (references/
+# server-bootstrap.md's resize-and-retry contract), and re-running against
+# an existing instance to add a capability for a second app (see gotchas.md's
+# "Reusing an existing instance for a second app" entry — no longer a
+# limitation once bootstrap can be safely re-run).
+#
+# Every step below is written to be safe to re-run — a retry must not
+# duplicate work, fail on "already exists," or leave the box in a worse
+# state than before the retry. If you add a step here, it needs the same
+# property: check before creating, or use a naturally-idempotent command
+# (apt-get install, a heredoc overwrite) — never a bare create-or-fail call.
+set -euo pipefail
+exec > /var/log/app-pipeline-bootstrap.log 2>&1
+echo "==> Bootstrap started $(date -Is)"
+
+APP_NAME="___APP_NAME___"
+NODE_MAJOR="___NODE_MAJOR_VERSION___"
+NVM_VERSION="___NVM_VERSION___"
+NEEDS_POSTGRES="___NEEDS_POSTGRES___"
+NEEDS_REDIS="___NEEDS_REDIS___"
+ENABLE_DOCKER="___ENABLE_DOCKER___"
+SWAP_GB="___SWAP_SIZE_GB___"
+OS_USER="___OS_USER___"
+
+apt-get update -y
+
+# --- swap: small instances OOM on a default-heap Node build without this
+# (references/gotchas.md's "Small instances OOM on a Node build"). Guarded
+# so a retry doesn't try to swapon an already-active file or double-append
+# fstab.
+if ! swapon --show | grep -q '/swapfile'; then
+  fallocate -l "${SWAP_GB}G" /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+# --- nginx + certbot + git (not preinstalled on the Ubuntu base AMI) +
+# apache2-utils (htpasswd, for optional HTTP Basic Auth on a path — see
+# SKILL.md and references/deploy-key-setup.md). apt-get install is
+# naturally idempotent — a no-op on an already-installed package, no guard
+# needed. ---
+apt-get install -y nginx certbot python3-certbot-nginx git apache2-utils
+
+# --- AWS CLI v2 ---
+if ! command -v aws >/dev/null 2>&1; then
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+  unzip -q /tmp/awscliv2.zip -d /tmp
+  /tmp/aws/install
+fi
+
+# --- optional local Postgres/Redis ---
+if [ "$NEEDS_POSTGRES" = "true" ]; then
+  apt-get install -y postgresql
+  # Explicit, not just inherited from today's Ubuntu default: force
+  # listen_addresses to localhost so Postgres is unreachable off-box even
+  # if the security group is ever hand-edited later. The security group
+  # never opens 5432 in the first place, so this is defense in depth, not
+  # the only thing standing between this database and the internet.
+  PG_CONF_DIR="$(find /etc/postgresql -mindepth 1 -maxdepth 1 -type d | head -1)/main"
+  sed -i "s/^#\?listen_addresses.*/listen_addresses = 'localhost'/" "$PG_CONF_DIR/postgresql.conf"
+  systemctl restart postgresql
+fi
+if [ "$NEEDS_REDIS" = "true" ]; then
+  apt-get install -y redis-server
+fi
+
+# --- optional Docker (see references/docker-option.md) ---
+if [ "$ENABLE_DOCKER" = "true" ]; then
+  apt-get install -y docker.io docker-compose-v2
+  usermod -aG docker "$OS_USER"
+  systemctl enable --now docker
+fi
+
+# --- nvm + Node + pm2, installed under the app user (not root). Only the
+# nvm install itself needs a guard — it re-clones on every run otherwise;
+# `nvm install <version>` and `npm install -g pm2` are already no-ops when
+# the requested version is already current. ---
+if ! su - "$OS_USER" -c '[ -s "$HOME/.nvm/nvm.sh" ]'; then
+  su - "$OS_USER" -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | bash"
+fi
+su - "$OS_USER" -c "export NVM_DIR=\"\$HOME/.nvm\"; source \"\$NVM_DIR/nvm.sh\"; nvm install ${NODE_MAJOR}; npm install -g pm2"
+
+mkdir -p "/home/$OS_USER/apps"
+chown -R "$OS_USER:$OS_USER" "/home/$OS_USER/apps"
+
+# --- CloudWatch Agent: disk/mem metrics + centralized pm2 log shipping ---
+curl -fsSL "https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb" -o /tmp/amazon-cloudwatch-agent.deb
+dpkg -i -E /tmp/amazon-cloudwatch-agent.deb
+
+mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+# Heredoc stays quoted ('CWAGENT') deliberately: ${aws:InstanceId} below is
+# the CloudWatch Agent's OWN placeholder syntax, resolved by the agent
+# itself at start time, not a shell variable — an unquoted heredoc would
+# make bash try (and fail) to parse it as parameter expansion. APP_NAME
+# and OS_USER are baked in at render time instead, via the ___...___
+# placeholders above, so this file needs no bash interpolation at all.
+cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWAGENT'
+{
+  "metrics": {
+    "namespace": "AppPipeline/___APP_NAME___",
+    "append_dimensions": { "InstanceId": "${aws:InstanceId}" },
+    "metrics_collected": {
+      "disk": { "measurement": ["used_percent"], "resources": ["/"], "drop_device": true },
+      "mem": { "measurement": ["mem_used_percent"] }
+    }
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/home/___OS_USER___/.pm2/logs/*.log",
+            "log_group_name": "/app-pipeline/___APP_NAME___/pm2",
+            "log_stream_name": "{instance_id}"
+          }
+        ]
+      }
+    }
+  }
+}
+CWAGENT
+
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
+# --- shared deploy/rollback entrypoints, installed once, used by every app
+# on this box. Heredoc-to-file is naturally idempotent — a re-run just
+# overwrites with identical content. ---
+cat > /usr/local/bin/app-pipeline-deploy.sh <<'DEPLOY_SCRIPT'
+#!/bin/bash
+set -euo pipefail
+APP_DIR="$1"
+BRANCH="$2"
+
+# Two overlapping deploys (e.g. two rapid pushes with no CI-level
+# concurrency guard, or a manual re-run racing a real trigger) would
+# otherwise race on the same repo/ checkout, release directory, and
+# `current` symlink. Serialize instead of corrupting a deploy — wait up
+# to 20 minutes for any in-progress deploy on this app to finish before
+# starting.
+exec 9>"$APP_DIR/.deploy.lock"
+if ! flock -w 1200 9; then
+  echo "Timed out waiting for a previous deploy of $APP_DIR to finish." >&2
+  exit 1
+fi
+
+# If a private-repo SSH deploy key was set up for this app (see
+# references/deploy-key-setup.md — a one-time step before the very first
+# clone), use it for every git operation below; a public-repo app with no
+# key present falls through unaffected — its origin remote is a plain
+# HTTPS URL and needs no credential.
+if [ -f "$APP_DIR/.ssh/deploy_key" ]; then
+  export GIT_SSH_COMMAND="ssh -i $APP_DIR/.ssh/deploy_key -o UserKnownHostsFile=$APP_DIR/.ssh/known_hosts -o IdentitiesOnly=yes"
+fi
+
+cd "$APP_DIR/repo"
+git fetch --all --prune
+git reset --hard "origin/$BRANCH"
+SHA="$(git rev-parse --short HEAD)"
+
+RELEASE_DIR="$APP_DIR/releases/$SHA"
+mkdir -p "$RELEASE_DIR"
+rsync -a --delete --exclude='.git' "$APP_DIR/repo/" "$RELEASE_DIR/"
+
+# Parameter Store is the source of truth for env vars, not this box (see
+# SKILL.md Step 9 / references/env-parameter-store.md) — .env is
+# regenerated fresh on every deploy, one line per parameter under
+# /<app-name>/<environment>/, never a static file someone has to remember
+# to edit in place. APP_NAME is derived from APP_DIR's basename, which is
+# already named after it by convention throughout this skill. APP_ENV
+# comes from a small marker file written once during Step 8's initial
+# checkout (defaults to "prod" when absent, so a single-environment app
+# set up before this file existed keeps working unchanged) — never
+# hardcode an environment name here; see references/staging-environment.md
+# for why a hardcoded literal here is a real, previously-hit
+# prod-secret-leak-onto-staging failure mode, not just a style preference.
+#
+# Written straight to the file via redirection only — never echoed to
+# stdout, which SSM/CodeBuild persist indefinitely (see
+# references/gotchas.md). The AWS CLI auto-paginates
+# get-parameters-by-path, so this returns every parameter under the path
+# regardless of count, not just the first page.
+APP_NAME="$(basename "$APP_DIR")"
+APP_ENV="prod"
+[ -f "$APP_DIR/.environment" ] && APP_ENV="$(cat "$APP_DIR/.environment")"
+: > "$APP_DIR/.env"
+aws ssm get-parameters-by-path --region "$AWS_REGION" --path "/$APP_NAME/$APP_ENV/" \
+  --with-decryption --recursive --query 'Parameters[].[Name,Value]' --output text | \
+  while IFS=$'\t' read -r param_name param_value; do
+    printf '%s=%s\n' "${param_name##*/}" "$param_value" >> "$APP_DIR/.env"
+  done
+chmod 600 "$APP_DIR/.env"
+
+ln -sf "$APP_DIR/.env" "$RELEASE_DIR/.env"
+
+cd "$RELEASE_DIR"
+bash scripts/before_install.sh
+bash scripts/after_install.sh
+
+ln -sfn "$RELEASE_DIR" "$APP_DIR/current"
+
+cd "$APP_DIR/current"
+bash scripts/application_start.sh
+
+if ! bash scripts/validate_service.sh; then
+  echo "Validation failed for $SHA -- rolling back." >&2
+  /usr/local/bin/app-pipeline-rollback.sh "$APP_DIR" || true
+  exit 1
+fi
+
+CURRENT_TARGET="$(readlink -f "$APP_DIR/current")"
+find "$APP_DIR/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | tail -n +6 | cut -d' ' -f2- | while IFS= read -r dir; do
+  [ "$(readlink -f "$dir")" = "$CURRENT_TARGET" ] && continue
+  rm -rf "$dir"
+done
+
+echo "==> Deploy of $SHA complete."
+DEPLOY_SCRIPT
+chmod +x /usr/local/bin/app-pipeline-deploy.sh
+
+cat > /usr/local/bin/app-pipeline-rollback.sh <<'ROLLBACK_SCRIPT'
+#!/bin/bash
+set -euo pipefail
+APP_DIR="$1"
+
+# Release dir names are git short-SHAs (no spaces/globs/newlines), so ls
+# -t is safe here and simpler than a find+sort equivalent.
+# shellcheck disable=SC2012
+PREV="$(ls -1dt "$APP_DIR"/releases/*/ | sed -n '2p')"
+if [ -z "$PREV" ]; then
+  echo "No previous release to roll back to." >&2
+  exit 1
+fi
+
+ln -sfn "$PREV" "$APP_DIR/current"
+cd "$APP_DIR/current"
+bash scripts/application_start.sh
+bash scripts/validate_service.sh
+echo "==> Rolled back to $(basename "$PREV")."
+ROLLBACK_SCRIPT
+chmod +x /usr/local/bin/app-pipeline-rollback.sh
+
+touch "/home/$OS_USER/.app-pipeline-bootstrap-complete"
+echo "==> Bootstrap complete $(date -Is)"
