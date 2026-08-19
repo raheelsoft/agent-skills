@@ -11,7 +11,11 @@ to contain first, investigate second.
 If the finding is actively consuming resources or is confirmed malicious
 (not just suspicious), containing it is time-sensitive enough to act on
 immediately once confirmed — don't let confirmation work (step 2 below)
-delay stopping active harm:
+delay stopping active harm. Do this in the main thread, even if the
+finding came from a subagent's audit sweep (`references/security-audit.md`)
+— that subagent's job stopped at reporting `active_compromise: true`; the
+kill/contain decision and the commands themselves happen here, visibly, not
+inside a delegated agent:
 ```bash
 kill -9 <pid>
 rm -f <the dropped files>
@@ -135,9 +139,16 @@ reachable instance) before considering the incident closed — a real
 incident's second and third findings were on completely different,
 previously-unmentioned instances, found only because the check was run
 account-wide instead of stopping at the one instance that was reported
-down. Don't silently skip an instance that isn't reachable (no SSM
-registration, no key available) — say so explicitly in the report; an
-unchecked instance is a gap, not a clean result.
+down. This is exactly the case `security-audit.md`'s subagent-per-instance
+pattern is for: one subagent per instance, run in parallel, each reporting
+back its own `active_compromise`/findings independently — don't run each
+instance's sweep serially from the main thread when they can fan out.
+Don't silently skip an instance that isn't reachable (no SSM registration,
+no key available) — say so explicitly in the report; an unchecked instance
+is a gap, not a clean result. If any subagent reports `active_compromise:
+true` on a *different* instance than the one already being handled,
+that's a second incident, not a footnote — contain it the same way (step 1
+above), in the main thread, before considering the sweep complete.
 
 ## 7. Report and hand off
 

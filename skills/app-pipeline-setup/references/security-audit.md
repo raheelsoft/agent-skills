@@ -14,6 +14,41 @@ sweep of "everything else this account can reach" turned up two more
 live, unrelated, actively-exploited exposures nobody had asked about.
 Don't stop at the first finding — work through the whole list.
 
+## Running this — delegate the investigation, keep containment in the main thread
+
+Sections 1-6 below are read-only investigation across a lot of SSM output
+(log tails, configs, `npm audit`, process listings) — delegate the whole
+per-instance sweep to a subagent rather than running each command from the
+main thread. For more than one instance (see incident-response.md's "Widen
+the check"), run one subagent per instance, in parallel — each one blind
+to what the others find, reporting back independently.
+
+The subagent's job is investigation and reporting, nothing else — it
+returns a structured finding list, not a recommendation or an action:
+
+```
+instance_id:        i-0123...
+reachable:          true | false — SSM/SSH access. false means say so in
+                     the final report, not skip the instance silently.
+active_compromise:  true | false — did section 1 find something actively
+                     executing right now, not just a historical/config
+                     exposure? This is the signal that decides whether
+                     incident-response.md's containment step applies.
+findings:           one entry per finding, each with: section (1-6),
+                     severity (info | exposure | confirmed-active),
+                     summary, and the actual evidence (log lines, config
+                     content) — not just "looks risky."
+```
+
+`active_compromise` is the one field the main thread acts on directly. If
+it's `true`, switch to `references/incident-response.md` **in the main
+thread**, not inside the subagent — containment (killing a process,
+removing a file) is a real, consequential action on a live box, and it
+belongs in the visible flow of the conversation, not buried in a
+delegated agent's internal trace. The subagent that found it doesn't
+decide to contain it; it just makes sure the finding — and the urgency —
+actually reaches the main thread.
+
 ## 0. Access
 
 - SSM first (`aws ssm describe-instance-information`) — if the instance
@@ -156,10 +191,15 @@ one, not the other way around.
 
 ## Reporting
 
-Structure the report by severity, not by instance — a critical finding on
-an unimportant-sounding box outranks a clean sweep of five others. For
-each finding: what it is, evidence (not just "looks risky" — the actual
-log lines/config), and whether it's confirmed exploited or just exposed.
+Merge every subagent's findings into one report structured by severity,
+not by instance or by which subagent found it — a critical finding on an
+unimportant-sounding box outranks a clean sweep of five others. Carry each
+finding's evidence through as-is (not just "looks risky" — the actual log
+lines/config), and whether it's confirmed exploited or just exposed. Say
+plainly which instances (if any) came back `reachable: false` — an
+unchecked instance is a gap, not a clean result, and it's easy to lose
+that fact once everything's merged into one report.
+
 Don't fix anything found on infrastructure outside what was explicitly
 asked about (a second app, a different client sharing the same AWS
 account) without asking first — flag it and wait, per Step 3's
