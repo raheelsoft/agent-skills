@@ -118,7 +118,12 @@ conversion are defined there): the tracker's own estimate when the ticket carrie
 repos, flags, unclear, novelty, claudeDir }'` from the ticket alone (`source:
 "pipeline"`; `focusedHours`, `days`, `points`, `basis`), written to the tracker's
 estimate field and named in the pickup comment; `round` (1,
-or the `round=` given); `stackedOn` or `dependsOn`; one repo row each. Then
+or the `round=` given); `stackedOn` or `dependsOn`; one repo row each — its `path` (the
+repo's checkout) and `worktree` written as **absolute** paths, the expansion of
+`<.claude>`, never the `<repo-name>` / `.claude/work/<id>/wt/<repo-name>` forms that
+read from the working directory this agent happens to sit in (`skills/README.md` § Definitions,
+`<.claude>`; § Work directory): every later stage reads the row from a different
+directory, and a relative one names a worktree that isn't there. Then
 `state.mjs log <workdir> start-ticket done
 "picked up; <branch> in <repo-name>" <ticket link>` and comment on the ticket that it
 is picked up (branch). The next stage is `/tp-triage <id>` — no coding here.

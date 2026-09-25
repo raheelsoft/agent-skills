@@ -100,6 +100,26 @@ describe('doctor.mjs', () => {
     rm(r2);
   });
 
+  it('finds a repo an older ticket recorded with a relative path, and reads that row\'s base', () => {
+    // A row's paths are absolute (README § Definitions, `<.claude>`); records written before that was spelled
+    // out hold "<repo-name>". Resolved against this script's cwd the repo is lost — it is neither discovered
+    // (nothing checks its remote) nor matched in baseOf (the base the ticket recorded is ignored). Resolved
+    // against the project folder around <.claude> it is found. The checkout sits one level deeper than the
+    // fallback scan reaches, so only the recorded path can produce it.
+    const r4 = tmp('doctor-'); const c4 = install(r4);
+    const repo = repoWithRemote(join(r4, 'nested'), 'svc');
+    hooksFor(repo);
+    git(repo, ['push', '-q', 'origin', 'main:develop']); // a base only the recorded row names
+    const t = pickedUp(c4, { id: 'T-9', repos: [{ name: 'svc', path: 'nested/svc', branch: 'feat/x' }] });
+    const tj = readJson(t, 'ticket.json'); tj.repos[0].base = 'develop'; writeJson(t, 'ticket.json', tj);
+
+    const d = doctor('run', c4).json; // no --repos: the repos come from what the tickets recorded
+    assert.equal(byName(d, 'repo svc')?.status, 'ok', JSON.stringify(d.checks.map((x) => [x.name, x.status, x.detail])));
+    assert.match(byName(d, 'repo svc').detail, /svc\.git · base develop/);
+    assert.equal(byName(d, 'repos'), undefined, 'the "no git checkout found" warning is for an install with none');
+    rm(r4);
+  });
+
   it('fresh reports missing, stale and failing preflights; add appends or replaces a check', () => {
     const r3 = tmp('doctor-'); const c3 = install(r3);
     let f = doctor('fresh', c3);

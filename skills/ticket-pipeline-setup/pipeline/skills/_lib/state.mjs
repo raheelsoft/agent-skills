@@ -34,7 +34,7 @@
 import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync, statSync, unlinkSync, mkdirSync, renameSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { join, basename, dirname, resolve } from 'node:path';
+import { join, basename, dirname, resolve, isAbsolute } from 'node:path';
 import { status as dayStatus } from './day.mjs';
 import { offStages } from './setup.mjs';
 
@@ -51,6 +51,19 @@ function nowStamp() {
 
 function isDir(p) {
   try { return statSync(p).isDirectory(); } catch { return false; }
+}
+
+// A path ticket.json recorded, as an absolute one. Every path a skill writes is already absolute
+// (README § Definitions, `<.claude>`); a record from an earlier pickup can hold a relative one, and
+// resolving that against this script's cwd would report a worktree that is there as missing. The bases
+// are the roots such a path was written against — the project folder around `<.claude>`, the `<.claude>`
+// itself, the work directory (`wt/<repo>`) — first one that exists wins; nothing exists → the project
+// folder's reading, so the caller reports a real absolute path.
+function recordedPath(p, workdir) {
+  if (!p || isAbsolute(p)) return p;
+  const claudeDir = resolve(workdir, '..', '..'); // <.claude>/work/<id> -> <.claude>
+  const bases = [dirname(claudeDir), claudeDir, workdir];
+  return bases.map((b) => resolve(b, p)).find(isDir) || resolve(bases[0], p);
 }
 
 function readJson(path, problems) {
@@ -85,6 +98,16 @@ function questionText(q) {
     return (line || JSON.stringify(q)).trim();
   }
   return String(q);
+}
+
+// A count a skill may have written either as the number or as the list itself (plan.json's `steps` and
+// `openQuestions` appear in both shapes): the list's length, a number as it is, '?' for anything else —
+// never "[object Object]" in a question (README § Work directory, plan.json).
+function countOf(v) {
+  if (Array.isArray(v)) return v.length;
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v);
+  return '?';
 }
 
 function parseProgress(workdir, problems) {
@@ -370,10 +393,10 @@ function computeState(workdir) {
     // presents its open findings as the risks the person may accept
     const blocking = (check?.findings || []).filter((f) => f.severity === 'blocking').length;
     const flags = Array.isArray(plan.flags) && plan.flags.length ? plan.flags.map(questionText).join(', ') : 'none';
-    if (plan.status === 'open-questions') wait(planStage, `open questions in plan.md (${plan.openQuestions ?? '?'})`);
+    if (plan.status === 'open-questions') wait(planStage, `open questions in plan.md (${countOf(plan.openQuestions)})`);
     else if (check && !goAhead(answers, ticket?.round)) {
-      if (check.verdict === 'revise' && !check.override) wait(planStage, `approval needed: ${plan.steps ?? '?'} steps, risks: ${flags} — the check still has ${blocking} blocking finding(s); approve as is (go-ahead) or send a change`);
-      else wait(planStage, `approval needed: ${plan.steps ?? '?'} steps, risks: ${flags} — approve (go-ahead) or send a change`);
+      if (check.verdict === 'revise' && !check.override) wait(planStage, `approval needed: ${countOf(plan.steps)} steps, risks: ${flags} — the check still has ${blocking} blocking finding(s); approve as is (go-ahead) or send a change`);
+      else wait(planStage, `approval needed: ${countOf(plan.steps)} steps, risks: ${flags} — approve (go-ahead) or send a change`);
     } else if (plan.status !== 'ready') problems.push(`plan.json status is "${plan.status}"`);
   } else if (plan && plan.status && plan.status !== 'ready') {
     problems.push(`plan.json status is "${plan.status}" (direct work writes a ready plan)`);
@@ -416,9 +439,10 @@ function computeState(workdir) {
       // until this repo's PR is merged — afterwards accept may detach it at the merge commit, so nothing is checked
       const mergeStage = repos.length > 1 ? `merge:${name}` : 'merge';
       if (out.some((s) => s.name === mergeStage && s.status === 'done')) continue;
-      if (!isDir(r.worktree)) { problems.push(`worktree for ${name} missing: ${r.worktree}`); continue; }
+      const path = recordedPath(r.worktree, workdir);
+      if (!isDir(path)) { problems.push(`worktree for ${name} missing: ${r.worktree}`); continue; }
       try {
-        const head = execFileSync('git', ['-C', r.worktree, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim();
+        const head = execFileSync('git', ['-C', path, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim();
         if (head !== r.branch) problems.push(`worktree for ${name} is on "${head}", ticket.json says "${r.branch}"`);
       } catch (e) { problems.push(`worktree for ${name} is not a git checkout: ${r.worktree}`); }
     }
