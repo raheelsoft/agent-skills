@@ -1,0 +1,15 @@
+{
+  "name": "pipeline-office",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Desktop window for the ticket pipeline's virtual office — the same page office/serve.mjs serves, in an Electron shell",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "sim": "electron . --sim"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

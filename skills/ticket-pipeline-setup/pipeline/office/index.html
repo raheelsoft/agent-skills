@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Office</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo" aria-hidden="true"></span><span id="team">Office</span></div>
+  <div class="meta">
+    <button id="inbox-toggle" class="chip chip-btn" type="button" title="every open stop">inbox <span id="inbox-badge" class="count" hidden>0</span></button>
+    <span id="budget" class="chip" title="the last usage reading a spawner recorded (model.mjs pick)">budget: no reading yet</span>
+    <span id="doctor" class="chip" hidden title="the last preflight (/tp-doctor)"></span>
+    <span id="totals" class="chip" hidden title="tokens and cost — today / all time"></span>
+    <button id="alerts" class="chip chip-btn" type="button" title="a desktop notification for every new stop">alerts: off</button>
+    <span id="counts" class="counts"></span>
+    <span id="clock" class="clock"></span>
+    <span id="poll" class="dot" title="polling"></span>
+    <span id="sim" class="badge" hidden>SIM</span>
+  </div>
+</header>
+<div id="offline" class="banner" hidden>office offline — retrying…</div>
+<div id="problems" class="banner warn" hidden></div>
+<main>
+  <section id="inbox" class="panel" hidden>
+    <div class="panel-head"><b>Inbox</b> <small id="inbox-summary"></small><button id="inbox-close" class="linkish" type="button">hide</button></div>
+    <div id="inbox-list" class="inbox-list"></div>
+  </section>
+  <section id="day" class="panel" hidden>
+    <div class="panel-head"><b>Today</b> <small id="day-summary"></small></div>
+    <div class="day-grid">
+      <div>
+        <div id="day-bar" class="bar" title="today's focused hours: planned load vs capacity"><div class="bar-fill"></div><span class="bar-text"></span></div>
+        <table class="day-table"><thead><tr><th>Day</th><th>Date</th><th>Tickets</th><th>Load</th></tr></thead><tbody id="day-days"></tbody></table>
+      </div>
+      <div>
+        <div id="day-tickets" class="day-tickets"></div>
+        <div id="day-why" class="day-why"></div>
+        <div id="day-lists" class="day-lists"></div>
+      </div>
+    </div>
+  </section>
+  <section id="managers" class="lane">
+    <h2>Managers</h2>
+    <div class="desks" data-slot="managers"></div>
+  </section>
+  <div id="rooms"></div>
+  <section id="meeting" class="room meeting" hidden>
+    <div class="sign"><span class="door" aria-hidden="true"></span>Meeting room <small>unassigned</small></div>
+    <div class="desks" data-slot="unassigned"></div>
+  </section>
+</main>
+<footer class="legend">
+  <span><i class="sw working"></i> working</span>
+  <span><i class="sw stopped"></i> stopped — needs a person</span>
+  <span><i class="sw done"></i> done</span>
+  <span><i class="sw gone"></i> gone</span>
+  <span class="hint">click a desk for details · click a ticket for its drawer</span>
+</footer>
+<div id="popover" class="popover" hidden></div>
+<aside id="drawer" class="drawer" hidden aria-label="ticket details">
+  <div class="drawer-head"><b id="drawer-id"></b> <span id="drawer-title"></span><button id="drawer-close" class="linkish" type="button">close</button></div>
+  <div id="drawer-body" class="drawer-body"></div>
+</aside>
+
+<template id="room-tpl">
+  <section class="room">
+    <div class="sign"><span class="door" aria-hidden="true"></span><span class="room-name"></span> <small class="room-count"></small></div>
+    <div class="pods"></div>
+  </section>
+</template>
+<template id="pod-tpl">
+  <div class="pod">
+    <div class="pod-head" tabindex="0" role="button" title="open the ticket's drawer"><b class="pod-id"></b> <span class="pod-title"></span> <span class="pod-next"></span></div>
+    <div class="desks" data-slot="leads"></div>
+    <div class="desks crew" data-slot="crew"></div>
+  </div>
+</template>
+<template id="desk-tpl">
+  <div class="desk" tabindex="0" role="button">
+    <div class="station">
+      <div class="monitor"></div>
+      <div class="avatar"><div class="head"></div><div class="body"></div></div>
+      <div class="fx"></div>
+    </div>
+    <div class="label">
+      <div class="line1"><b class="name"></b> <span class="lvl"></span><span class="rating"></span></div>
+      <div class="line2"><span class="role"></span></div>
+    </div>
+  </div>
+</template>
+<template id="inbox-item-tpl">
+  <div class="inbox-item">
+    <div class="inbox-line1"><span class="kind"></span> <b class="item-id"></b> <span class="item-stage"></span> <span class="item-wait"></span> <a class="item-link" target="_blank" rel="noopener" hidden>ticket ↗</a></div>
+    <div class="item-question"></div>
+    <a class="item-doc" target="_blank" rel="noopener" hidden></a>
+    <div class="item-needs" hidden></div>
+    <div class="item-actions">
+      <button class="copy linkish" type="button">copy resume</button>
+      <button class="answer-toggle linkish" type="button">answer…</button>
+      <span class="item-answer" hidden></span>
+    </div>
+    <form class="answer-form" hidden>
+      <input class="answer-text" type="text" maxlength="4000" autocomplete="off" placeholder="the answer — a token the stop names, or free text">
+      <button type="submit" class="linkish">queue</button>
+      <button type="button" class="answer-cancel linkish">cancel</button>
+      <span class="answer-note"></span>
+    </form>
+  </div>
+</template>
+<script src="app.js"></script>
+</body>
+</html>
