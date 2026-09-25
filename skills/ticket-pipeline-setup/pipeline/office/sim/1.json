@@ -1,0 +1,525 @@
+{
+  "team": "Demo team",
+  "poll": 2500,
+  "linger": 120,
+  "projects": [
+    {
+      "name": "api",
+      "tickets": [
+        "T-101"
+      ]
+    },
+    {
+      "name": "web",
+      "tickets": [
+        "T-101",
+        "T-102"
+      ]
+    }
+  ],
+  "tickets": [
+    {
+      "id": "T-101",
+      "title": "Inline search on the pipeline board",
+      "link": null,
+      "decision": "plan",
+      "complexity": "medium",
+      "next": "triage",
+      "status": "in-progress",
+      "stopped": null,
+      "lastEvent": null,
+      "ageMin": 1,
+      "repos": [
+        "api",
+        "web"
+      ],
+      "prs": [],
+      "worktrees": [],
+      "lock": {
+        "owner": "sess-1",
+        "since": "-300s",
+        "stale": false
+      },
+      "retro": null,
+      "problems": [],
+      "durations": {},
+      "tokens": 0,
+      "stages": [
+        {
+          "name": "start-ticket",
+          "status": "done",
+          "at": "-3600s",
+          "minutes": 4
+        },
+        {
+          "name": "triage",
+          "status": "done",
+          "at": "-3300s",
+          "minutes": 6
+        },
+        {
+          "name": "implement",
+          "status": "in-progress",
+          "at": "-3000s",
+          "minutes": null
+        }
+      ],
+      "blockedBy": [],
+      "unblocked": false,
+      "actual": null,
+      "cost": 3.2,
+      "tokensUnpriced": 0,
+      "tokensPartial": false,
+      "answer": null,
+      "estimate": {
+        "source": "pipeline",
+        "focusedHours": 8,
+        "days": 1.5,
+        "points": 2
+      }
+    },
+    {
+      "id": "T-102",
+      "title": "Copy fix on the login screen",
+      "link": null,
+      "decision": "plan",
+      "complexity": "low",
+      "next": "implement",
+      "status": "in-progress",
+      "stopped": null,
+      "lastEvent": null,
+      "ageMin": 1,
+      "repos": [
+        "web"
+      ],
+      "prs": [],
+      "worktrees": [],
+      "lock": {
+        "owner": "sess-1",
+        "since": "-300s",
+        "stale": false
+      },
+      "retro": null,
+      "problems": [],
+      "durations": {},
+      "tokens": 0,
+      "stages": [
+        {
+          "name": "start-ticket",
+          "status": "done",
+          "at": "-3600s",
+          "minutes": 4
+        },
+        {
+          "name": "triage",
+          "status": "done",
+          "at": "-3300s",
+          "minutes": 6
+        },
+        {
+          "name": "implement",
+          "status": "in-progress",
+          "at": "-3000s",
+          "minutes": null
+        }
+      ],
+      "blockedBy": [],
+      "unblocked": false,
+      "actual": null,
+      "cost": 3.2,
+      "tokensUnpriced": 0,
+      "tokensPartial": false,
+      "answer": null,
+      "estimate": {
+        "source": "pipeline",
+        "focusedHours": 8,
+        "days": 1.5,
+        "points": 2
+      }
+    }
+  ],
+  "agents": [
+    {
+      "id": "T-101:run-ticket:manager",
+      "name": "Morgan",
+      "level": "manager",
+      "role": "manager",
+      "ticket": "T-101",
+      "stage": "run-ticket",
+      "repo": null,
+      "parent": null,
+      "rating": null,
+      "started": "-120s",
+      "updated": "-60s",
+      "left": null,
+      "status": "working",
+      "since": "-60s",
+      "question": null,
+      "projects": []
+    },
+    {
+      "id": "T-102:run-ticket:manager",
+      "name": "Avery",
+      "level": "manager",
+      "role": "manager",
+      "ticket": "T-102",
+      "stage": "run-ticket",
+      "repo": null,
+      "parent": null,
+      "rating": null,
+      "started": "-120s",
+      "updated": "-60s",
+      "left": null,
+      "status": "working",
+      "since": "-60s",
+      "question": null,
+      "projects": []
+    },
+    {
+      "id": "T-101:triage:lead",
+      "name": "Sam",
+      "level": "lead",
+      "role": "lead",
+      "ticket": "T-101",
+      "stage": "triage",
+      "repo": null,
+      "parent": "T-101:run-ticket:manager",
+      "rating": "medium",
+      "started": "-120s",
+      "updated": "-60s",
+      "left": null,
+      "status": "working",
+      "since": "-60s",
+      "question": null,
+      "projects": [
+        "api",
+        "web"
+      ]
+    },
+    {
+      "id": "T-101:triage:engineer",
+      "name": "Alex",
+      "level": "engineer",
+      "role": "triage analyst",
+      "ticket": "T-101",
+      "stage": "triage",
+      "repo": null,
+      "parent": "T-101:triage:lead",
+      "rating": "medium",
+      "started": "-120s",
+      "updated": "-60s",
+      "left": null,
+      "status": "working",
+      "since": "-60s",
+      "question": null,
+      "projects": [
+        "api",
+        "web"
+      ]
+    },
+    {
+      "id": "T-102:implement:lead",
+      "name": "Casey",
+      "level": "lead",
+      "role": "lead",
+      "ticket": "T-102",
+      "stage": "implement",
+      "repo": null,
+      "parent": "T-102:run-ticket:manager",
+      "rating": "low",
+      "started": "-120s",
+      "updated": "-60s",
+      "left": null,
+      "status": "working",
+      "since": "-60s",
+      "question": null,
+      "projects": [
+        "web"
+      ]
+    },
+    {
+      "id": "T-102:implement:engineer",
+      "name": "Jamie",
+      "level": "engineer",
+      "role": "implementer",
+      "ticket": "T-102",
+      "stage": "implement",
+      "repo": null,
+      "parent": "T-102:implement:lead",
+      "rating": "low",
+      "started": "-120s",
+      "updated": "-60s",
+      "left": null,
+      "status": "working",
+      "since": "-60s",
+      "question": null,
+      "projects": [
+        "web"
+      ]
+    }
+  ],
+  "problems": [],
+  "inbox": [],
+  "day": {
+    "date": "2026-09-21",
+    "stale": false,
+    "from": "sprint",
+    "iteration": "Sprint 4",
+    "features": [],
+    "seed": "2026-09-21",
+    "lanes": 3,
+    "band": "ample",
+    "count": null,
+    "stackable": false,
+    "createdAt": "-7200s",
+    "updatedAt": "-60s",
+    "day": {
+      "hours": 8,
+      "focus": 0.65,
+      "perDay": 5.2,
+      "switch": 0.5,
+      "slack": 0.5,
+      "attend": 0.25,
+      "carry": true
+    },
+    "candidates": 5,
+    "tickets": [
+      {
+        "id": "T-101",
+        "title": "Inline search on the pipeline board",
+        "rating": "medium",
+        "after": [],
+        "hours": 8,
+        "hoursSource": "tracker",
+        "hoursWhy": null,
+        "status": "running",
+        "stage": "triage",
+        "question": null,
+        "note": null,
+        "startedAt": "-3600s",
+        "endedAt": null,
+        "day": 1,
+        "endDay": 2,
+        "slices": [
+          {
+            "day": 1,
+            "hours": 5.2
+          },
+          {
+            "day": 2,
+            "hours": 2.8
+          }
+        ]
+      },
+      {
+        "id": "T-102",
+        "title": "Copy fix on the login screen",
+        "rating": "low",
+        "after": [],
+        "hours": 2.5,
+        "hoursSource": "model",
+        "hoursWhy": "2h base for low, +35% debugging, review, verification",
+        "status": "running",
+        "stage": "implement",
+        "question": null,
+        "note": null,
+        "startedAt": "-3000s",
+        "endedAt": null,
+        "day": 2,
+        "endDay": 2,
+        "slices": [
+          {
+            "day": 2,
+            "hours": 2.5
+          }
+        ]
+      },
+      {
+        "id": "T-103",
+        "title": "Export the board as CSV",
+        "rating": "medium",
+        "after": [
+          "T-101"
+        ],
+        "hours": 6,
+        "hoursSource": "model",
+        "hoursWhy": "6h base for medium, +35% debugging, review, verification",
+        "status": "queued",
+        "stage": null,
+        "question": null,
+        "note": null,
+        "startedAt": null,
+        "endedAt": null,
+        "day": 3,
+        "endDay": 4,
+        "slices": [
+          {
+            "day": 3,
+            "hours": 5.2
+          },
+          {
+            "day": 4,
+            "hours": 0.8
+          }
+        ]
+      }
+    ],
+    "batches": [
+      [
+        "T-101",
+        "T-102"
+      ],
+      [
+        "T-103"
+      ]
+    ],
+    "days": [
+      {
+        "day": 1,
+        "date": "2026-09-21",
+        "tickets": [
+          {
+            "id": "T-101",
+            "hours": 5.2
+          }
+        ],
+        "load": 5.2,
+        "capacity": 5.2,
+        "carried": null
+      },
+      {
+        "day": 2,
+        "date": "2026-09-22",
+        "tickets": [
+          {
+            "id": "T-101",
+            "hours": 2.8
+          },
+          {
+            "id": "T-102",
+            "hours": 2.5
+          }
+        ],
+        "load": 5.8,
+        "capacity": 5.2,
+        "carried": null
+      },
+      {
+        "day": 3,
+        "date": "2026-09-23",
+        "tickets": [
+          {
+            "id": "T-103",
+            "hours": 5.2
+          }
+        ],
+        "load": 5.2,
+        "capacity": 5.2,
+        "carried": null
+      },
+      {
+        "day": 4,
+        "date": "2026-09-24",
+        "tickets": [
+          {
+            "id": "T-103",
+            "hours": 0.8
+          }
+        ],
+        "load": 0.8,
+        "capacity": 5.2,
+        "carried": null
+      }
+    ],
+    "carried": [],
+    "inFlight": [],
+    "skipped": [
+      {
+        "id": "T-104",
+        "why": "blocked: T-99 (In Progress)"
+      }
+    ],
+    "undrawn": [],
+    "start": [],
+    "running": [
+      "T-101",
+      "T-102"
+    ],
+    "waiting": [
+      {
+        "id": "T-103",
+        "on": [
+          {
+            "id": "T-101",
+            "status": "running"
+          }
+        ]
+      }
+    ],
+    "stopped": [],
+    "done": [],
+    "failed": [],
+    "closed": [],
+    "finished": false,
+    "why": "all 3 lanes busy (T-101, T-102)"
+  },
+  "budget": {
+    "at": "-240s",
+    "band": "economy",
+    "binding": {
+      "label": "5-hour limit",
+      "percentUsed": 74,
+      "resetsAt": "-0s",
+      "hoursLeft": 1.8,
+      "projected": 96
+    },
+    "windows": [
+      {
+        "label": "5-hour limit",
+        "percentUsed": 74,
+        "band": "economy",
+        "tier": null,
+        "resetsAt": null
+      }
+    ],
+    "tiers": {},
+    "why": "5-hour limit at 74% (96% by reset at this pace)",
+    "ageMin": 4
+  },
+  "doctor": {
+    "at": "-7200s",
+    "ok": true,
+    "ageHours": 2,
+    "counts": {
+      "ok": 9,
+      "warn": 1,
+      "fail": 0
+    },
+    "checks": [
+      {
+        "name": "notify",
+        "status": "warn",
+        "detail": "no chat tool configured",
+        "fix": "/tp-notify setup"
+      }
+    ]
+  },
+  "totals": {
+    "tokens": 4210000,
+    "cost": 18.4,
+    "unpriced": 0,
+    "partial": false,
+    "today": {
+      "tokens": 1230000,
+      "cost": 5.1,
+      "unpriced": 0,
+      "partial": false
+    },
+    "tickets": {
+      "active": 2,
+      "stopped": 0,
+      "done": 3,
+      "closed": 0
+    }
+  }
+}

@@ -30,6 +30,7 @@ npx @raheelsoft/agent-skills -y                Assume "yes" to any prompt (non-i
 | Skill | What it does |
 |---|---|
 | [`app-pipeline-setup`](skills/app-pipeline-setup/) | Provisions AWS infra and a CI/CD pipeline for a Node.js app (backend or frontend), deploying to EC2 via SSM RunCommand. Also does security audits and incident response on an existing instance (compromise/persistence checks, exposure checks, containment) — see its own [README](skills/app-pipeline-setup/README.md) for the full feature list. |
+| [`ticket-pipeline-setup`](skills/ticket-pipeline-setup/) | Installs a ticket pipeline into a project — twenty-one skills and an unattended workflow runner that take a tracker ticket through pickup, triage, planning, implementation, PR, unbiased review, merge, release and acceptance, each stage in its own agent with state on disk. Framework- and tracker-agnostic; includes a day planner, a status board and an inbox — see its own [README](skills/ticket-pipeline-setup/README.md). |
 
 ## Adding a skill to this repo
 

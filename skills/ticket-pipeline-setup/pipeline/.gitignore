@@ -1,0 +1,11 @@
+# per machine / per install — never versioned. Anchored: these are this install's own
+# root-level state and config, not every file that happens to share the name (the
+# simulation bed's tests/fixtures/tracker.json is part of the test suite).
+/work/
+/tiers.json
+/notify.json
+/office.json
+/tracker.json
+/settings.local.json
+.DS_Store
+/office/electron/node_modules/
