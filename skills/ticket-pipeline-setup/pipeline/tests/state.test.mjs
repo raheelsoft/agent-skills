@@ -529,6 +529,33 @@ describe('state — worktrees, prs, lock, retro', () => {
     wt.git(['checkout', '-q', 'feat/t'], wt.worktree);
   });
 
+  it('resolves a relative worktree an older pickup recorded, and still reports one that is nowhere', () => {
+    // Every path a row holds is absolute (README § Definitions, `<.claude>`), but records written before a
+    // pickup did that hold "<repo-name>" / ".claude/work/<id>/wt/<repo-name>". Resolved against this script's
+    // own cwd, a worktree that is there reads as missing — a phantom `problems` entry, which step 0 of a run
+    // treats as an error stop. The recorded path is resolved against the roots it was written against instead.
+    const projectRoot = join(root, 'project');
+    const claudeDir = join(projectRoot, '.claude');
+    mkdirSync(claudeDir, { recursive: true });
+    const w = gitRepoWithWorktree(projectRoot, 'p', 'feat/t'); // <projectRoot>/p-repo, <projectRoot>/p-wt
+
+    // relative to the project folder around <.claude>
+    const rel = pickedUp(claudeDir, { id: 'rel', repos: [{ name: 'p', worktree: 'p-wt', branch: 'feat/t' }] });
+    assert.deepEqual(state('state', rel).json.problems, []);
+
+    // the form a pickup actually wrote: relative to the project folder, pointing into the work directory
+    const rel2 = pickedUp(claudeDir, { id: 'rel2', repos: [{ name: 'p', worktree: '.claude/work/rel2/wt/p', branch: 'feat/other' }] });
+    w.git(['worktree', 'add', '-q', '-b', 'feat/other', join(rel2, 'wt', 'p'), 'HEAD']);
+    assert.deepEqual(state('state', rel2).json.problems, []);
+    // resolved well enough for the branch check to run against it, not just for the directory to be found
+    w.git(['checkout', '-q', '--detach', 'HEAD'], join(rel2, 'wt', 'p'));
+    assert.match(state('state', rel2).json.problems[0], /worktree for p is on "HEAD", ticket\.json says "feat\/other"/);
+
+    // a relative path no root resolves is still missing, and the problem quotes what ticket.json holds
+    const gone = pickedUp(claudeDir, { id: 'gone', repos: [{ name: 'p', worktree: '.claude/work/gone/wt/p', branch: 'feat/t' }] });
+    assert.match(state('state', gone).json.problems[0], /worktree for p missing: \.claude\/work\/gone\/wt\/p/);
+  });
+
   it('--brief keeps only the decision fields a spawner routes on', () => {
     const full = state('state', dir).json;
     const brief = state('state', dir, '--brief').json;

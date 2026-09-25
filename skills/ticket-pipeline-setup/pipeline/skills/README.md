@@ -743,7 +743,9 @@ inbox lists it; `/tp-status` and the state script's `all` ignore every `_`-prefi
 | `wt/<repo-name>/` | start-ticket; accept moves it to the merge commit; a new round re-branches it | the ticket's one worktree per repo, from pickup to the end of the run (§ Worktrees: removed by `/tp-accept`'s `done`, or by `/tp-run-ticket`'s close-out of a closed or parked ticket) |
 
 The `.md` is for people; the `.json` is the contract the next stage and the state
-script read:
+script read. Every filesystem path a record holds — a repo's `path`, its `worktree` — is
+**absolute** (§ Definitions, `<.claude>`), never relative to the directory the writing
+agent happened to run in: the next stage reads the record from somewhere else.
 
 ```
 ticket.json      { id, title, link, round: n, stackedOn: null|{ticket, branch, pr}, dependsOn: null|{ticket, branch},
@@ -751,7 +753,7 @@ ticket.json      { id, title, link, round: n, stackedOn: null|{ticket, branch, p
                    estimate: { source: "tracker"|"pipeline", focusedHours, days, points, basis },
                    actual: null|{ focusedHours, source: "person"|"tracker", at, by },          ← /tp-eod, through state.mjs actual
                    blockedBy: [{ id, state, resolved, soft, checkedAt }],                      ← triage when it parks; state.mjs blockers on every re-check
-                   repos: [{ name, path, worktree, branch, base, conventions, discarded?: "<why>" }] }
+                   repos: [{ name, path, worktree, branch, base, conventions, discarded?: "<why>" }] }   ← path, worktree: absolute
 triage.json      { decision: "direct"|"plan"|"needs-input"|"close"|"blocked", confidence, override, flags: [],
                    questions: [ "<text>" | { text, choices: ["…"], default: "…" } ],   ← the script renders each as one line
                    blockedBy: [ "<id>" ],                                              ← blocked: the tickets that must land first

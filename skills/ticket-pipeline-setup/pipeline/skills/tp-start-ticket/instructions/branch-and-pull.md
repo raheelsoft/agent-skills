@@ -3,6 +3,12 @@
 Run once per target repo identified in SKILL.md step 6. Nothing here touches the user's
 own checkout: the ticket gets its own worktree (`skills/README.md` § Worktrees).
 
+`<repo>` and `<.claude>` stand for absolute paths throughout this file — `<.claude>` is
+resolved once (`skills/README.md` § Definitions, `<.claude>`). Pass them to git that
+way, and record their **expansions** in `ticket.json`'s repo row (`path`, `worktree`),
+not the placeholders and not a path relative to the working directory: the row is read
+by later stages running elsewhere, so a relative one names a worktree that isn't there.
+
 ## 1. Identifying the base branch
 
 Per `skills/README.md` § Definitions (conventions file → recent merged PRs → remote

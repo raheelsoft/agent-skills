@@ -100,22 +100,30 @@ function readTiers(task) {
 const at = (r) => RATINGS.indexOf(r);
 export const higherOf = (a, b) => (at(a) >= at(b) ? a : b);
 
+/** A count a caller may have written either as the number or as the list itself (a plan's `steps`, a diff's `files`,
+ *  a ticket's `criteria`): the list's length, else the number, else 0. An array must never reach a `>=` below — it
+ *  coerces to NaN there and silently fails every threshold, under-rating the work. */
+const countOf = (v) => (Array.isArray(v) ? v.length : Number(v) || 0);
+const SIGNALS = ['flags', 'steps', 'files', 'lines', 'repos', 'criteria', 'round', 'retries'];
+const signalsOf = (s) => Object.fromEntries(SIGNALS.map((k) => [k, countOf(s[k])]));
+
 /** Numeric evidence → rating. The rubric's own judgment wins where it is higher. */
 export function rate(s = {}, thresholds = {}) {
   const th = { ...DEFAULT_THRESHOLDS, ...thresholds };
   const why = [];
   let n = 0;
-  const flags = Array.isArray(s.flags) ? s.flags.length : Number(s.flags) || 0;
+  const { flags, steps, files, lines, repos, criteria, round, retries } = signalsOf(s);
+  const failedAttempt = round > 1 || retries >= 1;
   if (flags) { n += Math.min(3, flags); why.push(`${flags} risk flag(s)`); }
-  if (s.steps >= 6) { n += 2; why.push(`${s.steps} steps`); } else if (s.steps >= 3) { n += 1; why.push(`${s.steps} steps`); }
-  if (s.files >= 15) { n += 2; why.push(`${s.files} files`); } else if (s.files >= 5) { n += 1; why.push(`${s.files} files`); }
-  if (s.lines >= 500) { n += 2; why.push(`${s.lines} lines`); } else if (s.lines >= 150) { n += 1; why.push(`${s.lines} lines`); }
-  if (s.repos > 1) { n += 1; why.push(`${s.repos} repos`); }
-  if (s.criteria >= 5) { n += 1; why.push(`${s.criteria} criteria`); }
+  if (steps >= 6) { n += 2; why.push(`${steps} steps`); } else if (steps >= 3) { n += 1; why.push(`${steps} steps`); }
+  if (files >= 15) { n += 2; why.push(`${files} files`); } else if (files >= 5) { n += 1; why.push(`${files} files`); }
+  if (lines >= 500) { n += 2; why.push(`${lines} lines`); } else if (lines >= 150) { n += 1; why.push(`${lines} lines`); }
+  if (repos > 1) { n += 1; why.push(`${repos} repos`); }
+  if (criteria >= 5) { n += 1; why.push(`${criteria} criteria`); }
   if (s.unclear) { n += 1; why.push('unclear'); }
-  if (s.round > 1 || s.retries >= 1) { n += 2; why.push('after a failed attempt'); }
+  if (failedAttempt) { n += 2; why.push('after a failed attempt'); }
   let rating = n >= th.high ? 'high' : n >= th.medium ? 'medium' : 'low';
-  if (s.mechanical && !(s.round > 1 || s.retries >= 1)) { rating = 'low'; why.push('mechanical: verifiable output'); }
+  if (s.mechanical && !failedAttempt) { rating = 'low'; why.push('mechanical: verifiable output'); }
   return { rating, score: n, why: why.join(', ') || 'no signals' };
 }
 

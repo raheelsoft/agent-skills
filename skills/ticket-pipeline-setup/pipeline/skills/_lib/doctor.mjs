@@ -19,7 +19,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSync, renameSync, unlinkSync, realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join, dirname, resolve, basename } from 'node:path';
+import { join, dirname, resolve, basename, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { status as skillsStatus } from './setup.mjs';
 import { cover as hookCover } from './hooks.mjs';
@@ -32,6 +32,18 @@ const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const readJson = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return undefined; } };
 const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
+
+// A path ticket.json recorded, as an absolute one — the reading state.mjs's worktree check uses. Every path a
+// skill writes is absolute (README § Definitions, `<.claude>`); a record from an earlier pickup can hold a
+// relative one, and resolving that against this script's cwd loses the repo the ticket named — its remote and
+// its recorded base go unchecked. The bases are the roots such a path was written against: the project folder
+// around `<.claude>`, the `<.claude>` itself, the work directory; nothing exists → the project folder's reading.
+function recordedPath(p, workdir) {
+  if (!p || isAbsolute(p)) return p;
+  const claudeDir = resolve(workdir, '..', '..'); // <.claude>/work/<id> -> <.claude>
+  const bases = [dirname(claudeDir), claudeDir, workdir];
+  return bases.map((b) => resolve(b, p)).find(isDir) || resolve(bases[0], p);
+}
 
 function writeAtomic(file, obj) {
   mkdirSync(dirname(file), { recursive: true });
@@ -62,8 +74,12 @@ function repoPaths(claudeDir, given) {
   const fromTickets = new Map();
   if (isDir(work)) for (const n of readdirSync(work)) {
     if (n.startsWith('_')) continue;
-    const t = readJson(join(work, n, 'ticket.json'));
-    for (const r of t?.repos || []) if (r?.path && isDir(r.path)) fromTickets.set(resolve(r.path), r.base || fromTickets.get(resolve(r.path)) || null);
+    const workdir = join(work, n);
+    const t = readJson(join(workdir, 'ticket.json'));
+    for (const r of t?.repos || []) {
+      const p = r?.path && recordedPath(r.path, workdir);
+      if (p && isDir(p)) fromTickets.set(resolve(p), r.base || fromTickets.get(resolve(p)) || null);
+    }
   }
   if (fromTickets.size) return [...fromTickets.keys()];
   const home = dirname(resolve(claudeDir));
@@ -76,8 +92,9 @@ function baseOf(claudeDir, repoPath, timeoutMs = DEFAULTS.timeoutMs) {
   const work = join(claudeDir, 'work');
   if (isDir(work)) for (const n of readdirSync(work)) {
     if (n.startsWith('_')) continue;
-    const t = readJson(join(work, n, 'ticket.json'));
-    const row = (t?.repos || []).find((r) => r?.path && resolve(r.path) === resolve(repoPath) && r.base);
+    const workdir = join(work, n);
+    const t = readJson(join(workdir, 'ticket.json'));
+    const row = (t?.repos || []).find((r) => r?.path && resolve(recordedPath(r.path, workdir)) === resolve(repoPath) && r.base);
     if (row) return row.base;
   }
   const head = cmd(['git', '-C', repoPath, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
