@@ -320,12 +320,12 @@ describe('state — planned tickets and derived waits', () => {
     ARTEFACTS.triage(dir, 'needs-input');
     writeJson(dir, 'triage.json', { decision: 'needs-input', confidence: 'low', override: null, flags: [], questions: [
       { text: 'Scope — re-scope or close?', choices: ['re-scope', 'close'], default: 're-scope' },
-      { question: 'Contract', options: [{ label: 'block on PIK-201' }, { label: 'stub' }] },
+      { question: 'Contract', options: [{ label: 'block on ABC-201' }, { label: 'stub' }] },
       '3. UX — keep manual entry?',
       { odd: true },
     ] });
     const q = state('state', dir).json.stopped.question;
-    assert.equal(q, '1. Scope — re-scope or close? — re-scope | close? Default: re-scope | 2. Contract — block on PIK-201 | stub? | 3. UX — keep manual entry? | 4. {"odd":true}');
+    assert.equal(q, '1. Scope — re-scope or close? — re-scope | close? Default: re-scope | 2. Contract — block on ABC-201 | stub? | 3. UX — keep manual entry? | 4. {"odd":true}');
     assert.doesNotMatch(q, /object Object/);
     writeJson(dir, 'triage.json', { decision: 'needs-input', confidence: 'low', override: null, flags: [], questions: { text: 'one question', default: 'yes' } });
     assert.equal(state('state', dir).json.stopped.question, 'one question Default: yes');

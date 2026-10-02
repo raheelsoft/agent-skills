@@ -47,6 +47,11 @@ tell the user what version is installed before overwriting anything, and never t
 `work/`, `tiers.json`, `notify.json`, `office.json`, `tracker.json` or
 `settings.local.json` — those are the install's own state and configuration.
 
+The bundled `launch.json` holds only the `office` and `office-sim` configurations, which
+assume the session runs in `<target>`. If the project already has `.claude/launch.json`
+(its own dev servers, usually), add those two configurations to it instead of replacing
+it.
+
 The bundled `.gitignore` keeps that state out of version control. If the project
 already has `.claude/.gitignore`, add the missing lines instead of replacing it.
 `pipeline.json` — which skills the project uses — **is** versioned; everything else
