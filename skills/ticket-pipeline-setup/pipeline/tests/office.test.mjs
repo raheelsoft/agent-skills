@@ -1,7 +1,7 @@
 // Unit tests for the office half of skills/_lib/state.mjs: agent join/leave records and the office JSON.
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -64,6 +64,35 @@ describe('agent join', () => {
     assert.equal(state('agent', 'join', work, '{nope').code, 2);
     assert.equal(state('agent', 'join').code, 2);
     assert.equal(state('agent', 'dance', work).code, 2);
+  });
+
+  it('refuses a malformed call before writing anything: no folder is left named after a flag or the JSON it was handed', () => {
+    // in a directory of its own — the folders a bad call used to leave were created in the caller's cwd
+    const cwd = join(root, 'cwd'); mkdirSync(cwd);
+    const run = (...args) => spawnSync(process.execPath, [STATE, ...args], { cwd, encoding: 'utf8' });
+    const rec = JSON.stringify({ id: 'review:151:reviewer:1', level: 'reviewer', stage: 'merge' });
+    for (const [args, why] of [
+      [['agent', 'join', JSON.stringify({ workroot: '<.claude>/work', id: 'review:151:reviewer:1', level: 'reviewer' })], /the first argument is the work root, not the JSON/],
+      [['agent', 'join', rec, 'work'], /the first argument is the work root, not the JSON/],
+      [['agent', 'join', '--id', 'x', '{"id":"x"}'], /not an option \("--id"\)/],
+      [['agent', 'join', '--id', rec], /not an option \("--id"\)/], // a valid payload does not rescue it
+      [['agent', 'join', 'work'], /the second argument is the JSON payload/],
+      [['agent', 'join', 'work', 'x'], /the second argument must be the JSON payload/],
+      [['agent', 'join', 'newroot', '{nope'], /the second argument must be the JSON payload/],
+      [['agent', 'join', 'newroot', JSON.stringify({ id: 'x', level: 'boss', stage: 's' })], /level must be one of/], // a root that does not exist yet is not created for a payload that fails
+      [['agent', 'join', 'newroot', JSON.stringify({ id: 'x', level: 'lead' })], /stage is required/],
+      [['agent', 'leave', 'nowhere', 'x'], /usage: agent leave/],
+    ]) {
+      const r = run(...args);
+      assert.equal(r.status, 2, args.join(' '));
+      assert.match(r.stderr, why, args.join(' '));
+      assert.deepEqual(readdirSync(cwd), [], `${args.join(' ')} left something behind`);
+    }
+    // a valid first call on a path that does not exist yet still works, and creates exactly that work root
+    const ok = run('agent', 'join', 'fresh-root', JSON.stringify({ id: 'first', level: 'lead', stage: 's' }));
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.deepEqual(readdirSync(cwd), ['fresh-root']);
+    assert.equal(readdirSync(join(cwd, 'fresh-root', '_office', 'agents')).length, 1);
   });
 
   it('survives eight parallel joins', async () => {

@@ -809,13 +809,18 @@ function assignName(workroot, record, cfg) {
 
 function agentJoin(workroot, payload) {
   const usage = 'usage: agent join <workroot> \'{ "id", "level", "stage", "role"?, "ticket"?, "repo"?, "parent"?, "rating"? }\'';
+  const refuse = (why) => { console.error(`${usage}\n${why}`); process.exit(2); };
   if (!workroot) { console.error(usage); process.exit(2); }
-  if (!isDir(workroot)) mkdirSync(workroot, { recursive: true }); // a fresh install's first agent joins before any ticket exists
+  // Everything is checked before anything is written: a refused call leaves no trace — no work root named after the JSON it was
+  // handed in the wrong place, no folder called after a flag.
+  if (/^[{[]/.test(workroot)) refuse('the first argument is the work root, not the JSON — the payload is the second argument');
+  if (workroot.startsWith('-')) refuse(`the first argument is the work root, not an option ("${workroot}") — the id goes inside the JSON payload`);
+  if (payload == null || payload === '') refuse('the second argument is the JSON payload, after the work root');
   let p;
-  try { p = typeof payload === 'string' ? JSON.parse(payload) : payload; } catch (e) { console.error(`${usage}\n${e.message}`); process.exit(2); }
-  if (!p || typeof p.id !== 'string' || !/^\S+$/.test(p.id)) { console.error(`${usage}\nid must be a non-empty string without spaces`); process.exit(2); }
-  if (!LEVELS.includes(p.level)) { console.error(`${usage}\nlevel must be one of ${LEVELS.join(', ')}`); process.exit(2); }
-  if (typeof p.stage !== 'string' || !p.stage) { console.error(`${usage}\nstage is required`); process.exit(2); }
+  try { p = typeof payload === 'string' ? JSON.parse(payload) : payload; } catch (e) { refuse(`${e.message}\nthe second argument must be the JSON payload, after the work root`); }
+  if (!p || typeof p.id !== 'string' || !/^\S+$/.test(p.id)) refuse('id must be a non-empty string without spaces');
+  if (!LEVELS.includes(p.level)) refuse(`level must be one of ${LEVELS.join(', ')}`);
+  if (typeof p.stage !== 'string' || !p.stage) refuse('stage is required');
   const cfg = officeConfig(workroot);
   pruneAgents(workroot);
   const prev = readAgents(workroot).find((a) => a.id === p.id);
@@ -834,7 +839,7 @@ function agentJoin(workroot, payload) {
     updated: now,
     left: null,
   };
-  writeAgent(workroot, record);
+  writeAgent(workroot, record); // creates <workroot>/_office/agents, and the work root with it: a fresh install's first agent joins before any ticket exists
   return record;
 }
 

@@ -16,6 +16,10 @@ tool; this agent adds the one that does (the tracker) and reports the table.
 - `repos=<path,path>` → the checkouts to check (default: the ones tickets recorded,
   else the git checkouts around `<.claude>`).
 - `tests=true` → also run the pipeline's own tests (`node --test`).
+- `session=<model>` → the model the invoking context runs on, as the runtime names it;
+  the script warns when it, or the model the project's settings start a session on, is
+  above the ceiling (`skills/README.md` § Models and budget, The ceiling). Absent → only
+  the starting model is checked.
 - `answers=retry` — after fixing what an error stop named (§ Stops).
 - `inline=true` — `skills/README.md` § Definitions (Dedicated agent); this agent's
   rating: `low` (run a script, one lookup, format a table).
@@ -27,7 +31,7 @@ tool; this agent adds the one that does (the tracker) and reports the table.
 "role": "preflight", "stage": "doctor", "rating": "low" }'`.
 
 ### 1. The script
-`node <.claude>/skills/_lib/doctor.mjs run <.claude> [--repos …] [--tests]` — exit 0
+`node <.claude>/skills/_lib/doctor.mjs run <.claude> [--repos …] [--tests] [--session <model>]` — exit 0
 clean, 1 with warnings, 2 with failures; the JSON is the table. Its checks and the
 fix per line are the script's header; `tiers.json.doctor.checks` names the
 project's own commands (the hosting CLI's auth status — README § Install, step 2).

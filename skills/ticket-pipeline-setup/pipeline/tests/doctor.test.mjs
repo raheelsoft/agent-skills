@@ -43,7 +43,7 @@ function install(root, tiers = {}) {
   const c = join(root, '.claude');
   for (const name of [...Object.keys(CATALOGUE), 'tp-setup']) { mkdirSync(join(c, 'skills', name), { recursive: true }); writeFileSync(join(c, 'skills', name, 'SKILL.md'), `---\nname: ${name}\ndescription: x\n---\n`); }
   mkdirSync(join(c, 'work'), { recursive: true });
-  writeJson(c, 'tiers.json', { low: 'a', medium: 'b', high: 'c', prices: { low: 1, medium: 2, high: 3 }, ...tiers });
+  writeJson(c, 'tiers.json', { ceiling: 'c', ladder: ['a', 'b', 'c'], low: 'a', medium: 'b', high: 'c', prices: { low: 1, medium: 2, high: 3 }, ...tiers });
   writeJson(c, 'notify.json', { tool: 'chat', target: '#dev', project: 'p', levels: ['stop'], setAt: 'x' });
   writeJson(c, 'settings.local.json', { permissions: { allow: [`Bash(node ${c}/skills/_lib/*)`, `Bash(node ${c}/office/*)`, 'Bash(node --test *)', 'Bash(git *)'] } });
   return c;
@@ -60,7 +60,7 @@ describe('doctor.mjs', () => {
     assert.equal(r.code, 0, r.stderr + JSON.stringify(r.json?.checks));
     const d = r.json;
     assert.equal(d.ok, true);
-    for (const n of ['node', 'git', 'tiers.json', 'notify', 'work', 'scripts', 'repo api', 'repo web', 'echo check', 'allowlist', 'skills', 'hooks api', 'hooks web']) assert.equal(byName(d, n)?.status, 'ok', n);
+    for (const n of ['node', 'git', 'tiers.json', 'ceiling', 'notify', 'work', 'scripts', 'repo api', 'repo web', 'echo check', 'allowlist', 'skills', 'hooks api', 'hooks web']) assert.equal(byName(d, n)?.status, 'ok', n);
     assert.match(byName(d, 'hooks api').detail, /lint.*enforced by pre-commit/);
     assert.match(byName(d, 'repo api').detail, /api\.git · base main/);
     assert.ok(!d.checks.some((x) => x.status === 'fail' || x.status === 'warn'), JSON.stringify(d.checks.filter((x) => x.status !== 'ok')));
@@ -148,5 +148,73 @@ describe('doctor.mjs', () => {
     const r = doctor('run', tmp('doctor-'));
     assert.equal(r.code, 2);
     assert.match(r.stderr, /not a \.claude directory/);
+  });
+});
+
+describe('doctor.mjs — the ceiling', () => {
+  let root;
+  before(() => { root = tmp('doctor-ceiling-'); });
+  after(() => rm(root));
+  const LADDER = ['fast-model', 'standard-model', 'strongest-model', 'frontier-model']; // fake names; none is a substring of another
+  const CAPPED = { ceiling: 'standard-model', ladder: LADDER, low: 'fast-model', medium: 'standard-model', high: 'standard-model' };
+  /** An install whose tiers.json is `tiers`, and whose settings.local.json also holds `settings`. */
+  const at = (name, tiers, settings = {}) => {
+    const c = install(join(root, name), tiers);
+    writeJson(c, 'settings.local.json', { ...readJson(c, 'settings.local.json'), ...settings });
+    return c;
+  };
+
+  it('warns when tiers.json records no ceiling, and checks nothing against one', () => {
+    const d = doctor('run', at('none', { ceiling: undefined, ladder: undefined })).json;
+    const c = byName(d, 'ceiling');
+    assert.equal(c.status, 'warn');
+    assert.match(c.detail, /no ceiling/);
+    assert.match(c.fix, /\/tp-setup/);
+    assert.equal(byName(d, 'starting model'), undefined);
+    assert.equal(byName(d, 'session model'), undefined);
+  });
+
+  it('passes a ceiling its tiers agree with, and names the models the pipeline uses', () => {
+    const c = byName(doctor('run', at('ok', CAPPED)).json, 'ceiling');
+    assert.equal(c.status, 'ok');
+    assert.match(c.detail, /standard-model — the pipeline uses fast-model, standard-model/);
+  });
+
+  it('warns, with the fix, when a tier is above the ceiling or off the ladder, or the ceiling has no ladder', () => {
+    let c = byName(doctor('run', at('above', { ...CAPPED, high: 'frontier-model' })).json, 'ceiling');
+    assert.equal(c.status, 'warn');
+    assert.match(c.detail, /high=frontier-model is above the ceiling standard-model: it runs on standard-model/);
+    assert.match(c.fix, /model\.mjs tiers .* ceiling=standard-model/);
+    c = byName(doctor('run', at('off', { ...CAPPED, medium: 'custom' })).json, 'ceiling');
+    assert.equal(c.status, 'warn');
+    assert.match(c.detail, /medium=custom is not on the ladder/);
+    c = byName(doctor('run', at('no-ladder', { ceiling: 'standard-model', ladder: undefined })).json, 'ceiling');
+    assert.match(c.detail, /has no ladder/);
+    assert.match(c.fix, /\/tp-setup/, 'with no ladder the script cannot derive the tiers: the interview writes it');
+  });
+
+  it('warns when the model the settings start a session on is above the ceiling, and passes one within it', () => {
+    let d = doctor('run', at('start-above', CAPPED, { model: 'claude-frontier-model-1' })).json;
+    let s = byName(d, 'starting model');
+    assert.equal(s.status, 'warn');
+    assert.match(s.detail, /settings\.local\.json starts sessions on claude-frontier-model-1, above the ceiling standard-model/);
+    assert.match(s.fix, /model\.mjs pin/);
+    d = doctor('run', at('start-ok', CAPPED, { model: 'fast-model' })).json;
+    assert.equal(byName(d, 'starting model').status, 'ok');
+    assert.equal(byName(doctor('run', at('start-none', CAPPED)).json, 'starting model'), undefined, 'no model set: nothing to say');
+    s = byName(doctor('run', at('start-odd', CAPPED, { model: 'best' })).json, 'starting model');
+    assert.equal(s.status, 'warn');
+    assert.match(s.detail, /not on the ladder.*the ceiling cannot be checked for it/);
+  });
+
+  it('warns when the session that invoked it is above the ceiling — only when it is named', () => {
+    const c = at('session', CAPPED);
+    let s = byName(doctor('run', c, '--session', 'claude-frontier-model-5').json, 'session model');
+    assert.equal(s.status, 'warn');
+    assert.match(s.detail, /this session runs on claude-frontier-model-5, above the ceiling standard-model/);
+    assert.match(s.fix, /\/model standard-model/);
+    s = byName(doctor('run', c, '--session', 'claude-standard-model-5-5').json, 'session model');
+    assert.equal(s.status, 'ok');
+    assert.equal(byName(doctor('run', c).json, 'session model'), undefined, 'no session named, none checked');
   });
 });

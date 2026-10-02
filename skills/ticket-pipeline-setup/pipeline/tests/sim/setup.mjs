@@ -42,7 +42,12 @@ export function setup(dir, opts = {}) {
   }
   const real = existsSync(join(SRC, 'tiers.json')) ? JSON.parse(readFileSync(join(SRC, 'tiers.json'), 'utf8')) : {};
   const models = { low: opts.low || real.low || 'low', medium: opts.medium || real.medium || 'medium', high: opts.high || real.high || 'high' };
-  writeFileSync(join(claude, 'tiers.json'), JSON.stringify({ ...models, prices: real.prices || { low: 1, medium: 5, high: 25 }, doctor: { checks: [] } }, null, 2) + '\n');
+  // a ceiling its tiers agree with: the real install's, unless the bed names its own models — then the ladder is those models, smallest first
+  const named = ['low', 'medium', 'high'].some((r) => opts[r]);
+  const ceiling = !named && real.ceiling && Array.isArray(real.ladder)
+    ? { ceiling: real.ceiling, ladder: real.ladder }
+    : { ceiling: models.high, ladder: [...new Set([models.low, models.medium, models.high])] };
+  writeFileSync(join(claude, 'tiers.json'), JSON.stringify({ ...ceiling, ...models, prices: real.prices || { low: 1, medium: 5, high: 25 }, doctor: { checks: [] } }, null, 2) + '\n');
   const fixture = join(claude, 'tracker.fixture.json');
   writeFileSync(fixture, readFileSync(join(SRC, 'tests', 'fixtures', 'tracker.json'), 'utf8'));
   writeFileSync(join(claude, 'tracker.json'), JSON.stringify({ kind: 'fixture', path: fixture }, null, 2) + '\n');

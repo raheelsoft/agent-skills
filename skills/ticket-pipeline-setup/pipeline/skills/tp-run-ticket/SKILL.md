@@ -127,6 +127,12 @@ and the run goes straight to step 9 as a closed ticket. `blocked` → the line c
 the blockers and the run goes to step 9 as a parked ticket.
 
 ### 3. `/tp-plan <id> [answers=…]` — only when triage says plan
+
+**Never answer the plan's approval yourself.** It is the person's, always — whatever
+the rating, however small the change, and even when the invocation's own instructions
+already dictate what the plan says. Relay the stop and end the run there; a go-ahead
+written into `answers.md` by any agent is a breach of this rule, not a shortcut
+(standing instruction, 2026-09-25).
 Line `3/8 plan · <n> steps · risks: <flags> · check <ok|revise>`. Every plan ends in
 the approval stop — the person reads the checked plan itself (the stop's `doc`, open
 risks named: `skills/README.md` § Definitions, Asking the user) and answers

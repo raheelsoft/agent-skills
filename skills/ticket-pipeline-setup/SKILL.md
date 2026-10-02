@@ -55,10 +55,12 @@ listed there is per machine.
 ### 3. Run the interview
 
 Invoke `/tp-setup` (the freshly installed skill, in the invoking context — it asks the
-user questions). It picks which skills the project activates by group, maps the
-runtime's model names to the three tiers it uses, offers to put the project's own gate
-commands into its git hooks, writes `pipeline.json` and `tiers.json`, prints the
-permission lines the selection needs, and ends with the preflight.
+user questions). It picks which skills the project activates by group, asks for the
+largest model the pipeline may use — the **ceiling**, which every agent it spawns stays
+at or below — and derives the three tiers from that answer, offers to start the
+project's sessions on that model, offers to put the project's own gate commands into
+its git hooks, writes `pipeline.json` and `tiers.json`, prints the permission lines the
+selection needs, and ends with the preflight.
 
 If the runtime has not picked up the new skills yet, say so and ask the user to start a
 fresh session before running `/tp-setup`.

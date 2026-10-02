@@ -6,6 +6,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { WORKFLOW } from './helpers.mjs';
+import { pick as modelPick } from '../skills/_lib/model.mjs';
 
 const SOURCE = readFileSync(WORKFLOW, 'utf8');
 
@@ -457,5 +458,40 @@ describe('what the stage agents are told', () => {
     assert.doesNotMatch(r.prompts['close:T-1'][0], /retro/);
     assert.match(r.prompts['close:T-1'][0], /step 9 of the tp-run-ticket skill/);
     assert.match(r.prompts['close:T-1'][0], /durations \/x\/\.claude\/work\/T-1/);
+  });
+});
+
+describe('the ceiling in tiers.json', () => {
+  const LADDER = ['fast-model', 'standard-model', 'strongest-model'];
+  const rated = (next, complexity, extra = {}) => done(next, { complexity, ...extra });
+  /** every stage reports `rating`, so each later agent is spawned on it */
+  const chain = (rating) => ({
+    'start-ticket:T-1': rated('triage', rating), 'triage:T-1': rated('implement', rating, { decision: 'direct' }),
+    'implement:T-1': rated('create-pr', rating), 'create-pr:T-1': rated('merge', rating), 'merge:T-1': rated('release', rating),
+    'release:T-1': rated('accept', rating), 'accept:T-1': rated(null, rating), 'close:T-1': CLOSE,
+  });
+  const STAGES = ['triage:T-1', 'implement:T-1', 'create-pr:T-1', 'merge:T-1', 'release:T-1'];
+
+  it('never spawns a stage agent above the ceiling — the model is lowered to it, the effort stays the rating\'s', async () => {
+    const capped = { ...TIERS, ceiling: 'standard-model', ladder: LADDER }; // `high` names the strongest model, past the ceiling
+    const r = await runWorkflow({ ...A, tiers: capped }, chain('high'));
+    for (const l of STAGES) assert.deepEqual([r.opts[l][0].model, r.opts[l][0].effort], ['standard-model', 'high'], l);
+    assert.deepEqual([r.opts['accept:T-1'][0].model, r.opts['accept:T-1'][0].effort], ['standard-model', 'max'], 'catching work still runs one effort step up');
+    for (const [label, list] of Object.entries(r.opts)) for (const o of list) assert.notEqual(o.model, 'strongest-model', label);
+  });
+
+  it('gives the same model as model.mjs pick, rating by rating, with and without a ceiling', async () => {
+    for (const tiers of [TIERS, { ...TIERS, ceiling: 'standard-model', ladder: LADDER }, { ...TIERS, ceiling: 'strongest-model', ladder: LADDER }, { ...TIERS, ceiling: 'fast-model', ladder: LADDER }]) {
+      for (const rating of ['low', 'medium', 'high']) {
+        const r = await runWorkflow({ ...A, tiers }, chain(rating));
+        assert.equal(r.opts['implement:T-1'][0].model, modelPick({ rating, tiers }).model, `${tiers.ceiling || 'no ceiling'} · ${rating}`);
+      }
+    }
+  });
+
+  it('leaves a model that is not on the ladder alone — it cannot be compared with the ceiling', async () => {
+    const odd = { ...TIERS, ceiling: 'standard-model', ladder: LADDER, high: 'custom-alias' };
+    const r = await runWorkflow({ ...A, tiers: odd }, chain('high'));
+    assert.equal(r.opts['implement:T-1'][0].model, 'custom-alias');
   });
 });

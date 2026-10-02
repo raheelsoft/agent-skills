@@ -67,7 +67,7 @@ invocation that loses it.
 
 | Skill | Group | What it does |
 |---|---|---|
-| `/tp-setup` | — | The integration interview: which skills to activate, the models for the three tiers, the project's gates in its git hooks, the allowlist, the preflight. Always installed. |
+| `/tp-setup` | — | The integration interview: which skills to activate, the largest model the pipeline may use, the project's gates in its git hooks, the allowlist, the preflight. Always installed. |
 | `/tp-run-ticket <ids…>` | ticket pipeline | Runs tickets end to end — one orchestrator agent per ticket, each stage in its own agent — with a run lock, one notification per stop and state on disk so any run resumes; `next count=<n>` picks independent tickets itself. |
 | `/tp-start-ticket <id>` | ticket pipeline | Picks a ticket up: blocked check, assign, in progress, rating and estimate, one worktree and branch per repo, the ticket's work directory. |
 | `/tp-triage <id>` | ticket pipeline | Decides from the code whether the ticket is implemented directly, planned first, needs input, is closed or is blocked — with the evidence. |
@@ -139,9 +139,9 @@ each):
 | — | `/tp-plan-day [<features…>] [count=] [dry=true] [approve=true]` | its agent (+ parallel lookups); the session interviews the person on the proposal, then starts the runs | the day's tickets, ordered by dependency, proposed for review, then fed to `/tp-run-ticket` in parallel; `_day/<date>.json/.md`, the approval stop |
 | — | `/tp-inbox [<id>] [dry=true]` | its agent (the blockers' states read directly); the session interviews and re-invokes | every open stop with its kind and resume command; queued answers, usage pauses past reset and unblocked tickets re-invoked; the rest one interview |
 | — | `/tp-eod [date=]` | its agent; the session asks the actual hours once | `_day/<date>.eod.json/.md` — the day's close; `ticket.json.actual` per finished ticket; one line to the channel |
-| — | `/tp-doctor [repos=] [tests=true]` | its agent (one tracker read) | `_doctor.json` — the preflight: toolchain, remotes, the platform CLI, the tracker, the files, the allowlist, the work directory — each with its fix |
+| — | `/tp-doctor [repos=] [tests=true] [session=<model>]` | its agent (one tracker read) | `_doctor.json` — the preflight: toolchain, remotes, the platform CLI, the tracker, the files, the allowlist, the work directory — each with its fix |
 | — | `/tp-schedule on\|off\|status` | its agent | the runtime's scheduled tasks: a probe, then the morning, advance and end-of-day tasks; `_schedule/tasks.json`, `probe.json` |
-| — | `/tp-setup [all=true \| skills=a,b \| models=… \| status]` | the invoking context — it asks the person | `pipeline.json` (which skills are on), `tiers.json` (the models), the folders of skills that are off moved to `skills/_off/`; the allowlist lines printed |
+| — | `/tp-setup [all=true \| skills=a,b \| ceiling=<model> \| models=… \| status]` | the invoking context — it asks the person | `pipeline.json` (which skills are on), `tiers.json` (the ceiling, the ladder, the three tiers), the folders of skills that are off moved to `skills/_off/`; the allowlist lines printed |
 
 Five ideas carry all of it:
 
@@ -156,9 +156,10 @@ Five ideas carry all of it:
   reasoning, the implementer never the planner's, the reviewer never the author's —
   the review agent knows the PR and the ticket link it carries, never the work
   directory.
-- **The model follows the task** (§ Models and budget): each agent is spawned on the
-  tier its own task's complexity needs, within the account's usage limits, never on the
-  model the session happens to run on.
+- **The model follows the task, under a ceiling you set** (§ Models and budget): each
+  agent is spawned on the tier its own task's complexity needs — never on the model the
+  session happens to run on — within the account's usage limits and never above the
+  largest model you allowed at install.
 - **"Delivered" means a check proved it** — a gate, a test, a request, a criterion
   walked against the environment the release reached.
 
@@ -181,14 +182,16 @@ person's standing instructions, never from a skill.
 2. Run **`/tp-setup`** — the integration interview (`skills/tp-setup/SKILL.md`). It asks,
    one question per group, which skills to activate (§ The skills: the core is
    preselected, `/tp-schedule` is not; a dependency left out is added and named), asks
-   once for the three model names the runtime knows and writes `tiers.json` — the
-   only place a model name is ever written (§ Models and budget) — offers to put each
+   once for **the largest model the pipeline may use** and writes `tiers.json` from it —
+   the only place a model name is ever written (§ Models and budget, The ceiling) — with
+   the offer to start this project's sessions on that model, offers to put each
    repo's own gate commands in its **pre-commit and pre-push hooks**, which is what
    makes those gates free for the pipeline (§ Verification rules), writes
    `pipeline.json`, moves the folders of skills that are off to `skills/_off/`,
    prints the permission lines the selection needs, runs `/tp-notify setup` when
-   notifications are on, and ends with `/tp-doctor`. `/tp-setup all=true` takes everything
-   without asking; `/tp-setup` again changes the selection; `/tp-setup status` shows it.
+   notifications are on, and ends with `/tp-doctor`. `/tp-setup all=true` takes every skill
+   without asking and `ceiling=<model>` answers the ceiling; `/tp-setup` again changes
+   either; `/tp-setup status` shows the selection.
    Have available: `git`; Node 18+ (the scripts); the hosting platform's CLI or tool;
    a connection to your tracker; optionally a chat tool the session can post to.
    The permission lines `/tp-setup` prints — the pipeline's own commands, allowed once so
@@ -239,9 +242,9 @@ writes the first two and prints the allowlist; the rest you set once, or never.
 | File | Written by | Versioned | What it holds |
 |---|---|---|---|
 | `pipeline.json` | `/tp-setup` | yes — the project's choice | which of the skills this project uses; an absent file means all of them |
-| `tiers.json` | `/tp-setup`, then by hand | no — per machine | `low`/`medium`/`high`: the runtime's three model names, **the only place a model name is written**. Also every tunable, each with a working default: `prices` (§ Models and budget), `budget`, `retries`, `compact`, `review`, `day`, `estimate`, `checks`, `doctor`, `gates`, `hooks`, `codegen` |
+| `tiers.json` | `/tp-setup`, then by hand | no — per machine | `ceiling` (the largest model the pipeline may use), `ladder` (the runtime's models, smallest first) and the three tiers `low`/`medium`/`high` derived from them — **the only place a model name is written** (§ Models and budget, The ceiling). Also every tunable, each with a working default: `prices` (§ Models and budget), `budget`, `retries`, `compact`, `review`, `day`, `estimate`, `checks`, `doctor`, `gates`, `hooks`, `codegen` |
 | `notify.json` | `/tp-notify setup` | no — per install | the chat tool and the channel one line per stop goes to; without it notifications are a silent no-op |
-| `settings.local.json` (or your runtime's settings) | you, from the list `/tp-setup` prints | no | the permission allowlist — the commands the skills may run without asking |
+| `settings.local.json` (or your runtime's settings) | you, from the list `/tp-setup` prints; `model` by `/tp-setup` when you accept its offer | no | the permission allowlist — the commands the skills may run without asking — and the `model` a session in this project starts on (§ Models and budget, The ceiling) |
 | `office.json` | you, optional | no | the office's team name, the projects always drawn, the name pools (§ Observability) |
 | `tracker.json` | you, only for a dry run | no | `{ "kind": "fixture", "path": "<abs>" }` — points the skills at the file-backed tracker instead of a real one (§ Simulation) |
 | each repo's **conventions file** (`AGENTS.md`, `CONTRIBUTING.md` or `CLAUDE.md`) | you | yes — it is the repo's | everything project-specific: base branch, branch and commit conventions, merge strategy and who reviews, the gate commands, what a merge triggers, operator follow-ups, environments, test data. The skills carry none of this |
@@ -384,15 +387,18 @@ run does reaches `tests/fixtures/`.
 
 `/tp-doctor` asks whether the install can run a ticket right now — Node and git, every
 repo's remote reachable with the identity it needs, the hosting platform's CLI logged
-in (`tiers.json.doctor.checks`), the tracker answering, `tiers.json`, `notify.json`
+in (`tiers.json.doctor.checks`), the tracker answering, `tiers.json` valid with a
+ceiling its tiers agree with (§ Models and budget, The ceiling), `notify.json`
 and `office.json` valid, the runtime's allowlist complete, the work directory clean
 (no stray file at its root, no stale lock, no orphan worktree) — and prints each
 failure with its fix. It also reports what the repos' hooks enforce (§ Verification
 rules) and whether the active skills match `pipeline.json` (§ Definitions, Active
-skills). `/tp-plan-day` and `/tp-run-ticket` run it by themselves before a run: `node
+skills). The context that invokes it passes the model it runs on (`session=`); that model,
+or the one the project's settings start a session on, being above the ceiling is a
+warning, never a block. `/tp-plan-day` and `/tp-run-ticket` run it by themselves before a run: `node
 <.claude>/skills/_lib/doctor.mjs fresh <.claude>` — exit 0 fresh and clean, nothing to
 do; **exit 1** (no preflight, or older than `doctor.maxAgeHours`, a day) → invoke
-`/tp-doctor` and go on from its table; **exit 2** (the last one failed), or a fresh
+`/tp-doctor session=<the model this context runs on>` and go on from its table; **exit 2** (the last one failed), or a fresh
 `/tp-doctor` reporting a failure → its error form is the invocation's report and nothing
 runs. So an expired credential or a missing key is an error stop *before* a run, not
 inside one; with `/tp-doctor` off for the project (§ Definitions, Active skills) no
@@ -686,7 +692,7 @@ each rule below to the branch it decides, if a picture is the faster way in.
   join|leave`, `office`: skills log
   through it and resume from it, never by re-reading `progress.md` and reasoning) and
   `<.claude>/skills/_lib/model.mjs`
-  (`rate`, `budget`, `pick`, `rounds`, `compact`, `retry`, `estimate`, `tiers` —
+  (`rate`, `budget`, `pick`, `rounds`, `compact`, `retry`, `estimate`, `tiers`, `ceiling`, `pin` —
   § Models and budget) and
   `<.claude>/skills/_lib/day.mjs` (`plan`, `advance`, `status` (the plan with live
   statuses, never written), `eod`, `show`, `lanes` — `/tp-plan-day`'s selection,
@@ -856,6 +862,15 @@ is a stop, never worked around. The commands live in `/tp-start-ticket`'s instru
   <stamp>`) whose task the scheduler reports finished is one; `/tp-inbox` names it, the
   release is still the person's word). Stage skills run by hand do not lock; `/tp-status` shows
   the lock so a hand run into a ticket another session drives is visible first.
+- **Scratch paths are per agent, never per purpose.** Agents running at the same time share
+  the session's scratch directory, so a fixed name — `gates.sh`, `run.log`, `harness.js` —
+  is a collision waiting for two agents to want the same thing at once: the second writes
+  over the first's script and the first runs the wrong gates, against the wrong checkout,
+  and can report a PASS for work it never checked. Every scratch file or directory an agent
+  writes carries something unique to that agent — the PR or ticket id and a timestamp at
+  minimum (`gates-pr163-<stamp>.sh`) — and an agent reads back only paths it wrote. The
+  gate-output directories `gates.mjs` creates are already per-run; this is about everything
+  an agent improvises around them.
 
 ### Stops and notifications
 
@@ -1099,8 +1114,40 @@ acceptance evidence — takes one effort step above its rating.
 | `medium` | standard — `tiers.json.medium` | `medium` | `high` |
 | `high` | strongest — `tiers.json.high` | `high` | `max` |
 
-No skill, script or test names a model: `<.claude>/tiers.json` maps the ratings to the
-runtime's model names (Install step 2) and tunes the rules — `budget: { economy, stop }`
+**The ceiling — the largest model the pipeline may use.** `/tp-setup` asks for it once,
+from the runtime's current models (each family at its latest version), and records it in
+`tiers.json` beside the **ladder** it was chosen from: `ceiling`, and `ladder` — the
+runtime's models, smallest first, as its spawn argument names them (Claude Code's
+aliases follow each family's latest version). Everything the pipeline spawns runs on the
+ladder from its smallest model up to the ceiling, never above it; the three tiers
+follow from it:
+
+- `low` is the smallest model on the ladder, `high` is the ceiling, `medium` is the
+  first step up from the smallest — never above the ceiling.
+- A ceiling that is the smallest model puts it on all three tiers; one that is the
+  second puts it on `medium` and `high`. When tiers share a model the rating still
+  decides the effort, the review rounds, the retries and the estimate, and an
+  escalation (`tier=<next rating>`) raises the effort rather than the model.
+- A ladder with more models than tiers leaves the ones between `medium` and the
+  ceiling unused; name a tier by hand (`model.mjs tiers <.claude> ceiling=<model>
+  medium=<model>`) to use one.
+
+`model.mjs pick` and the unattended runner never return a model above the ceiling — a
+tier edited past it runs on the ceiling and `/tp-doctor` says so — and a per-model usage
+window (Budget, below) applies to every tier that runs on that model. Change the ceiling
+by running `/tp-setup` again; the current one is the preselected answer.
+
+**The session is the runtime's, not the pipeline's.** Agents are spawned on the tiers
+above; the session you talk to runs on whatever model you picked, so the pipeline can ask
+for one within the ceiling and say when it is not. `/tp-setup` offers to start this
+project's sessions on the ceiling (the runtime's `model` setting, written by
+`model.mjs pin` — an initial selection, not a cap), and `/tp-doctor` warns when that
+setting, or the model of the session that invoked it (`session=`), is above the ceiling.
+A hard cap on what a session may select belongs to the runtime: in Claude Code it is
+`availableModels` in an administrator's managed settings, which a project cannot set.
+
+No skill, script or test names a model: `<.claude>/tiers.json` holds the ceiling, the
+ladder and the three tiers (Install step 2) and tunes the rules — `budget: { economy, stop }`
 (percent used; 70 / 90), `thresholds: { medium, high }` (the score `rate` needs; 2 / 4),
 `review` (§ Review scope and rounds), `compact` (rule 7), `retries` (§ Failures and
 escalation), `estimate` and `day` (Estimates, `/tp-plan-day`; `day.start`, `day.end`,
@@ -1116,7 +1163,14 @@ script's header lists its keys and defaults.
   reasons. **The higher of the rubric's rating and `rate`'s wins.**
 - `budget '<reading>' <.claude>/tiers.json` — the usage windows → `ample`, `economy`
   (70 %+, or past half a window and on pace to exhaust it), `stop` (90 %+), with the
-  binding window and its reset; per-model windows are matched to tiers by name.
+  binding window and its reset; a per-model window is matched by name to every tier
+  that runs on that model.
+- `tiers <.claude> ceiling=<model> [ladder=<smallest>,…,<largest>]` — writes the ceiling,
+  the ladder and the three tiers they give; the only writer of a model name.
+  `ceiling '{ claudeDir, session? }'` — what the pipeline may use, what in the files
+  disagrees with it, where the project's starting model and a named session model sit.
+  `pin <.claude>` — the ceiling as the project's starting model, unless that is already
+  within it.
 - `pick '{ rating, catching?, mechanical?, floor?, usage?, claudeDir }'` → `{ action:
   run|economy|stop, rating, model, effort }` — floor, catching step, economy step-down
   and the stops, in one place — and records the reading it was handed in
@@ -1339,6 +1393,17 @@ stops the same way unless a standing instruction says to spend it.
   authorisation and recorded with the doc line and the instruction that authorised it.
   `/tp-accept` is read-only on a live environment, and its evidence carries no personal
   data.
+- **A claim about the codebase is a check, not a recollection.** Code comments, PR
+  descriptions and review findings constantly assert things wider than the diff — "the
+  only caller", "every card with a header", "N such uses", "this selector is (0,2,0)".
+  Each one is settled by a command at the moment it is written, or it is not written:
+  state the reason the change is right and leave the census to whoever needs it. Counts
+  and per-site tallies are the worst of them — cheap to re-derive, stale at the next
+  merge, and a reviewer who takes one on trust inherits the error. A search is evidence
+  only when its pattern can see what it claims to count: a fixed-window lookback for an
+  enclosing element misses a multi-line opening tag, `\b` treats `-` as a word boundary
+  so `foo` matches `foo-bar`, and a `--include` glob needs quoting under zsh. Where a
+  number does earn its place, it carries the command that produced it.
 - "Delivered" means a check proved it — a gate, a test, a request, a query.
 
 ### Unattended runs

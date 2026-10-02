@@ -57,14 +57,18 @@ Individual stages are invocable on their own (`/tp-review <PR>`, `/tp-plan <id>`
   chat, so any run resumes and several run side by side.
 - **One worktree per repo per ticket**, from pickup to the end of the run — your own
   checkout is never touched.
-- **The model follows the task**: each agent is spawned on the tier its own work needs,
-  within your usage budget, and tokens are recorded per stage.
+- **The model follows the task, under a ceiling you set**: each agent is spawned on the
+  tier its own work needs, never above the largest model you allowed at install, within
+  your usage budget, and tokens are recorded per stage.
 
 ## Configuration
 
 `/tp-setup` writes `pipeline.json` (which skills this project uses — versioned) and
-`tiers.json` (the three model names and every tunable — per machine), and prints the
-permission lines to allow. Everything project-specific — base branch, branch and commit
+`tiers.json` (the ceiling, the runtime's models, the three tiers derived from them and
+every tunable — per machine), and prints the permission lines to allow. It asks one
+question about models: the **largest one the pipeline may use**. Pick Sonnet and it works
+with Haiku and Sonnet; pick Opus and it adds Opus; the pipeline's agents never run above
+the answer, and `/tp-doctor` warns when your own session does. Everything project-specific — base branch, branch and commit
 conventions, merge strategy, gate commands, what a merge triggers, environments — lives
 in each repo's own conventions file, never in a skill.
 

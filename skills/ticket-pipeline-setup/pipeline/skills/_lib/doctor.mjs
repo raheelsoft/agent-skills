@@ -4,7 +4,7 @@
 // escalation): the toolchain, the repos and their remotes, the platform CLI's auth, the pipeline's own files, the
 // runtime's allowlist, leftovers in the work directory. Nothing here changes anything — it reports, with a fix per line.
 //
-//   node doctor.mjs run <.claude> [--repos <path,path>] [--tests] -> { at, ok, node, claudeDir, checks: [{ name, status, detail, fix }] }
+//   node doctor.mjs run <.claude> [--repos <path,path>] [--tests] [--session <model>] -> { at, ok, node, claudeDir, checks: [{ name, status, detail, fix }] }
 //                                                                    written to <.claude>/work/_doctor.json; exit 0 clean, 1 warnings, 2 failures
 //   node doctor.mjs fresh <.claude>                               -> { fresh, ok, ageHours, at }; exit 0 fresh and clean, 1 missing or older
 //                                                                    than tiers.json.doctor.maxAgeHours, 2 failing
@@ -12,6 +12,9 @@
 //
 // tiers.json.doctor (defaults): { maxAgeHours: 24, timeoutMs: 8000,
 //                                 checks: [{ name, run: [argv…], expect?: "<substring>" }] }   ← e.g. the hosting CLI's auth status
+// The ceiling (README § Models and budget, The ceiling): `ceiling` says whether tiers.json records one and agrees with it (every tier on the ladder
+// at or below it); `starting model` is the `model` the project's settings start a session on; `session model` is `--session <the model the invoking
+// context runs on>` — a warning when either is above the ceiling, never a block: the pipeline can ask for a session within it, not cap one.
 // Repos: --repos, else the paths every work directory's ticket.json names, else the git checkouts at or one level under
 // the folder that holds <.claude>. Remote reachability is `git ls-remote` with prompts disabled, so a missing key or
 // an expired credential fails here, in seconds, instead of inside a run (§ Remote access failures).
@@ -23,6 +26,7 @@ import { join, dirname, resolve, basename, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { status as skillsStatus } from './setup.mjs';
 import { cover as hookCover } from './hooks.mjs';
+import { ceilingStatus } from './model.mjs';
 import { status as codegenStatus } from './codegen.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -134,15 +138,32 @@ export function run(claudeDir, opts = {}) {
 
   // the pipeline's own files
   const tiersFile = join(claudeDir, 'tiers.json');
-  if (!isFile(tiersFile)) add('tiers.json', 'fail', 'missing', `node ${claudeDir}/skills/_lib/model.mjs tiers ${claudeDir} low=<model> medium=<model> high=<model>`);
+  if (!isFile(tiersFile)) add('tiers.json', 'fail', 'missing', `/tp-setup — it asks for the largest model the pipeline may use; or node ${claudeDir}/skills/_lib/model.mjs tiers ${claudeDir} ceiling=<model> ladder=<smallest>,…,<largest>`);
   else if (!readJson(tiersFile)) add('tiers.json', 'fail', 'not valid JSON', 'fix the file');
   else {
     const missing = RATINGS.filter((r) => typeof tiers[r] !== 'string' || !tiers[r]);
     const b = { economy: 70, stop: 90, ...(tiers.budget || {}) };
-    if (missing.length) add('tiers.json', 'fail', `no model for ${missing.join(', ')}`, `node ${claudeDir}/skills/_lib/model.mjs tiers ${claudeDir} low=… medium=… high=…`);
+    if (missing.length) add('tiers.json', 'fail', `no model for ${missing.join(', ')}`, `/tp-setup — it asks for the largest model the pipeline may use; or node ${claudeDir}/skills/_lib/model.mjs tiers ${claudeDir} ceiling=<model> ladder=<smallest>,…,<largest>`);
     else if (!(Number(b.economy) < Number(b.stop) && Number(b.stop) <= 100)) add('tiers.json', 'fail', `budget.economy (${b.economy}) must be below budget.stop (${b.stop}) ≤ 100`, 'fix tiers.json budget');
     else add('tiers.json', 'ok', `${RATINGS.map((r) => `${r}=${tiers[r]}`).join(' ')}`);
     if (!tiers.prices || !RATINGS.some((r) => Number(tiers.prices[r]) >= 0)) add('prices', 'warn', 'tiers.json has no prices: tokens stay unpriced', 'set tiers.json prices { low, medium, high } (currency per 1M tokens) — README § Models and budget, Cost');
+    // the ceiling: the largest model the pipeline may use, and the models a session is on or starts on
+    const c = ceilingStatus({ tiers, claudeDir, session: opts.session });
+    if (!c.ceiling) add('ceiling', 'warn', 'no ceiling: every model the tiers name is allowed', '/tp-setup — it asks for the largest model the pipeline may use');
+    else if (c.problems.length) add('ceiling', 'warn', c.problems.join('; '), c.allowed
+      ? `node ${claudeDir}/skills/_lib/model.mjs tiers ${claudeDir} ceiling=${c.ceiling} — derives the three tiers again from the ladder in tiers.json`
+      : '/tp-setup — it asks for the ceiling again and writes the ladder with it');
+    else add('ceiling', 'ok', `${c.ceiling} — the pipeline uses ${c.allowed.join(', ')}`);
+    const standing = (name, s, what, fix) => {
+      if (!s) return;
+      if (s.within === true) add(name, 'ok', `${what} ${s.model}, within the ceiling ${c.ceiling}`);
+      else if (s.within === false) add(name, 'warn', `${what} ${s.model}, above the ceiling ${c.ceiling}`, fix);
+      else add(name, 'warn', `${what} ${s.model}, which is not on the ladder (${c.ladder.join(', ')}): the ceiling cannot be checked for it`, fix);
+    };
+    if (c.allowed) {
+      standing('session model', c.session, 'this session runs on', `/model ${c.ceiling} — the pipeline cannot cap a session`);
+      standing('starting model', c.startup, `${c.startup?.file} starts sessions on`, `node ${claudeDir}/skills/_lib/model.mjs pin ${claudeDir}, or edit "model" in ${c.startup?.file}`);
+    }
   }
   const notify = readJson(join(claudeDir, 'notify.json'));
   if (!isFile(join(claudeDir, 'notify.json'))) add('notify', 'warn', 'notify.json missing: the first entry point asks for the channel', '/tp-notify setup');
@@ -290,7 +311,7 @@ if (process.argv[1] && isMain(import.meta.url)) {
   const [, , sub, target, ...rest] = process.argv;
   try {
     switch (sub) {
-      case 'run': { if (!target) throw new Error('usage: doctor.mjs run <.claude> [--repos a,b] [--tests]'); const o = flags(rest); const r = run(target, { repos: o.repos, tests: !!o.tests }); emit(r, r.checks.some((c) => c.status === 'fail') ? 2 : r.checks.some((c) => c.status === 'warn') ? 1 : 0); break; }
+      case 'run': { if (!target) throw new Error('usage: doctor.mjs run <.claude> [--repos a,b] [--tests] [--session <model>]'); const o = flags(rest); const r = run(target, { repos: o.repos, tests: !!o.tests, session: typeof o.session === 'string' ? o.session : undefined }); emit(r, r.checks.some((c) => c.status === 'fail') ? 2 : r.checks.some((c) => c.status === 'warn') ? 1 : 0); break; }
       case 'fresh': { if (!target) throw new Error('usage: doctor.mjs fresh <.claude>'); const r = fresh(target); emit(r, !r.fresh ? 1 : !r.ok ? 2 : 0); break; }
       case 'add': { if (!target || !rest[0]) throw new Error('usage: doctor.mjs add <.claude> \'<check>\''); emit(addCheck(target, rest[0])); break; }
       default: console.error('usage: doctor.mjs run|fresh|add <.claude> …'); process.exit(2);

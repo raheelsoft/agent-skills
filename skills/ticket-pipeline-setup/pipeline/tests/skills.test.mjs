@@ -50,6 +50,7 @@ const OWNERSHIP = [
   { rule: 'the compaction rule', pattern: 'model.mjs compact', owners: [README, 'tp-implement/SKILL.md', 'tp-retro/SKILL.md', 'tp-accept/SKILL.md', 'workflows'] },
   { rule: 'the retry bound (its callers name it; the bound itself is the README\'s)', pattern: 'model.mjs retry', owners: ['tp-create-pr/SKILL.md', 'tp-implement/SKILL.md', 'tp-plan/SKILL.md', 'tp-release/SKILL.md', 'tp-verify/SKILL.md', README] },
   { rule: 'the skill catalogue', pattern: 'setup.mjs apply', owners: ['tp-setup/SKILL.md', README] },
+  { rule: 'the tiers a ceiling gives (the interview asks, the script derives, the README states the rule)', pattern: 'first step up from the smallest', owners: [README] },
   { rule: 'reading the README by reference', pattern: 'ref.mjs', owners: [README] },
   { rule: 'showing a stop\'s document before asking', pattern: 'not a place to read', owners: [README] },
   { rule: 'what an agent costs before it starts', pattern: 'not free before it starts', owners: [README] },
@@ -240,5 +241,39 @@ describe('skills — the catalogue, the README and the folders agree', () => {
         assert.ok(existsSync(join(SKILLS, m[1], 'instructions', m[2])) || existsSync(join(SKILLS, m[1], 'examples', m[2])), `${f} points at ${m[0]}`);
       }
     }
+  });
+});
+
+describe('/tp-setup — the ceiling', () => {
+  const setup = () => text.get('tp-setup/SKILL.md');
+  it('asks once for the largest model, from the runtime, and writes it through model.mjs', () => {
+    assert.match(setup(), /What is\s+the largest model this pipeline may use\?/);
+    assert.match(setup(), /never from memory of which\s+models exist/);
+    assert.match(setup(), /model\.mjs tiers <\.claude> ceiling=<model>/);
+    assert.match(setup(), /model\.mjs pin <\.claude>/);
+    assert.match(setup(), /`ceiling=<model>`/);
+    assert.doesNotMatch(setup(), /three model\s+names/, 'the three names are no longer asked for');
+  });
+
+  it('is the README\'s interview too: the ceiling, the offer for the session, and where the rule is', () => {
+    const readme = text.get(README);
+    assert.match(readme, /asks\s+once for \*\*the largest model the pipeline may use\*\*/);
+    assert.match(readme, /\*\*The ceiling — the largest model the pipeline may use\.\*\*/);
+    assert.match(readme, /\*\*The session is the runtime's, not the pipeline's\.\*\*/);
+    assert.match(readme, /`\/tp-doctor session=<the model this context runs on>`/, 'the entry points hand the doctor their own model');
+  });
+});
+
+describe('skills — no model is named outside tiers.json', () => {
+  it('no skill, script, workflow or office file writes a model name: the ceiling and the ladder are data', () => {
+    const files = [
+      ...ALL.map((f) => join(SKILLS, f)),
+      ...readdirSync(join(SKILLS, '_lib')).filter((f) => f.endsWith('.mjs')).map((f) => join(SKILLS, '_lib', f)),
+      ...readdirSync(join(CLAUDE_DIR, 'workflows')).filter((f) => f.endsWith('.js')).map((f) => join(CLAUDE_DIR, 'workflows', f)),
+      ...['app.js', 'serve.mjs', 'index.html'].map((f) => join(CLAUDE_DIR, 'office', f)).filter(existsSync),
+    ];
+    assert.ok(files.length > 20, `it scans the pipeline (${files.length} files)`);
+    const named = files.filter((f) => /\b(haiku|sonnet|opus|fable)\b/i.test(readFileSync(f, 'utf8')));
+    assert.deepEqual(named, [], 'a model name belongs in tiers.json only (README § Models and budget)');
   });
 });
