@@ -11,7 +11,7 @@ import * as state from '../lib/state/index.mjs';
 const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/(['"`])(?:\\.|(?!\1)[^\\\n])*\1/g, '""');
 
 // Each library folder under lib/ is held to the same budgets: small modules, nothing that prints or exits, no import cycles.
-for (const lib of ['state', 'contract']) {
+for (const lib of ['state', 'contract', 'model', 'day', 'githooks']) {
   const dir = join(PLUGIN_ROOT, 'lib', lib);
   const modules = readdirSync(dir).filter((f) => f.endsWith('.mjs'));
   const source = (f) => readFileSync(join(dir, f), 'utf8');
@@ -43,6 +43,24 @@ for (const lib of ['state', 'contract']) {
     });
   });
 }
+
+describe('every script is small enough to read in one go', () => {
+  it('no lib/*.mjs is over 400 lines, and the few that are command lines with a library behind them say so', () => {
+    for (const f of readdirSync(join(PLUGIN_ROOT, 'lib')).filter((x) => x.endsWith('.mjs'))) {
+      const n = readFileSync(join(PLUGIN_ROOT, 'lib', f), 'utf8').split('\n').length;
+      assert.ok(n <= 400, `lib/${f} is ${n} lines: split it by responsibility, behind a command-line file, as state.mjs and model.mjs are`);
+    }
+  });
+
+  it('model.mjs, day.mjs and hooks.mjs are shims over their libraries: a header, a re-export and the dispatch', () => {
+    for (const [file, lib, max] of [['model.mjs', 'model', 110], ['day.mjs', 'day', 110], ['hooks.mjs', 'githooks', 80]]) {
+      const shim = readFileSync(join(PLUGIN_ROOT, 'lib', file), 'utf8');
+      assert.ok(shim.split('\n').length <= max, `${file} is the command line only (${max} lines at most)`);
+      assert.match(shim, new RegExp(`export \\* from './${lib}/index\\.mjs';`), `${file} re-exports ${lib}/ for whoever imports it`);
+      for (const m of shim.matchAll(/^import .* from '([^']+)';/gm)) assert.match(m[1], new RegExp(`^(node:|\\./${lib}/)`), `${file} imports ${m[1]}: node and its own library only`);
+    }
+  });
+});
 
 describe('the command lines in front of the libraries are shims', () => {
   it('state.mjs imports from state/ and holds no logic of its own', () => {
