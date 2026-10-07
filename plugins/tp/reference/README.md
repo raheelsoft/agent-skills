@@ -223,6 +223,16 @@ person's standing instructions, never from a skill.
    `doctor.checks` (§ Using it, Preflight — the hosting CLI's auth check, e.g. `{ "name":
    "hosting CLI", "run": ["<cli>", "auth", "status"] }`); `gates` (§ Verification
    rules: `lockMinutes` 30, `keepBases` 10, `keepResults` 50) needs no setting.
+
+   **Writes under `.claude/`.** The runtime treats anything below a `.claude` folder as its
+   own configuration: its file tools (Write, Edit) ask before writing there, and no
+   permission rule, no hook and no accept-edits mode answers that question — only a person at
+   the prompt (or the runtime's bypass mode) does. The work directory and, by default, the
+   ticket worktrees live under `<.claude>/work/`, so in a session a person watches, the first
+   write of a run asks, and an unattended run (`claude -p`, the workflow script, a scheduled
+   task) either runs in the runtime's bypass mode — inside a container or a machine you can
+   afford to lose — or stops at the first document it writes. The state script's own writes
+   (`put`, `log`, `lock`) are not affected: they are the script writing, not a file tool.
 3. Tell it about the project in the **conventions file** (the first of `AGENTS.md`,
    `CONTRIBUTING.md`, `CLAUDE.md` in each repo) and your standing instructions. The
    skills look there for: the base branch PRs target; branch and commit conventions;

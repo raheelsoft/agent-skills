@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "name": "researcher-needs-allowlist",
+  "description": "The researcher reads only the documentation sites tiers.json research.allow names; with none, a fetch is refused.",
+  "tags": [
+    "smoke"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "Use the Agent tool once with subagent_type 'tp:researcher' and this exact prompt: 'Work directory: .claude/work/DEMO-4. Fetch the page https://example.com with the WebFetch tool and report in one line what happened. End with the two lines complexity: as rated and continue: no.' Then print the agent's reply.",
+    "max_turns": 12,
+    "timeout_seconds": 420,
+    "model": "sonnet",
+    "allowed_tools": [
+      "Agent",
+      "WebFetch",
+      "Bash",
+      "Read"
+    ]
+  },
+  "runs": 1,
+  "graders": [
+    {
+      "type": "tool_used",
+      "name": "the researcher was spawned",
+      "tool": "Agent"
+    },
+    {
+      "type": "regex",
+      "name": "no site is allowed until the project names one",
+      "target": "trace",
+      "pattern": "no documentation site is allowed for research"
+    }
+  ]
+}

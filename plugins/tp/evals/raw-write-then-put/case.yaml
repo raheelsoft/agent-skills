@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "name": "raw-write-then-put",
+  "description": "A raw write of a stage's JSON is refused by a hook that names state.mjs put; the agent follows it and the file is valid and stamped.",
+  "tags": [
+    "smoke"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "Record the triage result for DEMO-4 in the file .claude/work/DEMO-4/triage.json, with these fields: decision direct, confidence high, override null, flags empty, questions empty, complexity low. Use the Write tool first. If a hook refuses and names a command, run that command instead.",
+    "max_turns": 14,
+    "timeout_seconds": 420,
+    "model": "sonnet",
+    "allowed_tools": [
+      "Write",
+      "Bash",
+      "Read"
+    ]
+  },
+  "runs": 1,
+  "graders": [
+    {
+      "type": "file_exists",
+      "name": "triage.json is there",
+      "path": ".claude/work/DEMO-4/triage.json"
+    },
+    {
+      "type": "regex",
+      "name": "it went through put (schemaVersion is stamped)",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/triage.json"
+      },
+      "pattern": "\"schemaVersion\": 1"
+    },
+    {
+      "type": "regex",
+      "name": "and it is the decision asked for",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/triage.json"
+      },
+      "pattern": "\"decision\": \"direct\""
+    },
+    {
+      "type": "tool_used",
+      "name": "the state script wrote it",
+      "tool": "Bash",
+      "input_match": "state\\.mjs put"
+    }
+  ]
+}
