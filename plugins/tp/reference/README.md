@@ -99,6 +99,11 @@ review and merge by hand; *after the merge* when nothing deploys or a person che
 off unless asked for); *tooling* stands alone. A dependency left out is added by the
 script, and the report says for whom.
 
+Two skills are started by a person and nobody else: `/tp:setup` interviews, and
+`/tp:schedule` creates scheduled tasks. Both are marked `disable-model-invocation`, so no
+agent has their description in its context, no subagent or scheduled prompt can run
+them, and nothing unattended can change the project's configuration or the schedule.
+
 ## How it works
 
 ```mermaid

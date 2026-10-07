@@ -246,6 +246,23 @@ describe('skills — the catalogue, the reference and the folders agree', () => 
     }
   });
 
+  // The keys Claude Code documents for a SKILL.md (code.claude.com/docs/en/skills): a misspelt one (`user_invocable`, which every skill
+  // here once carried) is silently ignored, and the plugin validator does not look.
+  const FRONTMATTER_KEYS = ['name', 'description', 'when_to_use', 'argument-hint', 'arguments', 'disable-model-invocation', 'user-invocable', 'allowed-tools', 'disallowed-tools', 'model', 'effort', 'context', 'agent', 'background', 'hooks', 'paths', 'shell', 'metadata', 'license', 'compatibility'];
+  // The skills only a person starts. `disable-model-invocation` keeps their description out of every agent's context and refuses them to
+  // a subagent or a scheduled task, so it is wrong on anything an orchestrator, a workflow or a scheduled prompt runs.
+  const HUMAN_ONLY = ['setup', 'schedule'];
+  it('every skill\'s frontmatter uses documented keys only, and `disable-model-invocation` is on the human-only skills and no others', () => {
+    for (const f of ALL.filter((x) => x.endsWith('/SKILL.md'))) {
+      const dir = f.slice(0, -'/SKILL.md'.length);
+      const fm = /^---\n([\s\S]*?)\n---/.exec(text.get(f));
+      assert.ok(fm, `${f} has frontmatter`);
+      const keys = [...fm[1].matchAll(/^([A-Za-z_-]+):/gm)].map((m) => m[1]);
+      assert.deepEqual(keys.filter((k) => !FRONTMATTER_KEYS.includes(k)), [], `${f} uses a key the runtime does not document`);
+      assert.equal(/^disable-model-invocation: true$/m.test(fm[1]), HUMAN_ONLY.includes(dir), `${f}: disable-model-invocation belongs on ${HUMAN_ONLY.join(' and ')} only`);
+    }
+  });
+
   it('no skill points at a file that does not exist', () => {
     for (const f of ALL) {
       const dir = f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : '';

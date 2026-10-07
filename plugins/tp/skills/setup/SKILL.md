@@ -2,6 +2,7 @@
 name: setup
 description: Integrates the pipeline into a project through an interview: which skills to activate (by group, dependencies pulled in), the largest model the pipeline may use and the three tiers derived from it, the gates in git hooks; writes pipeline.json and tiers.json, prints the allowlist, ends with the preflight. Use on install, and again to change the selection or the ceiling.
 user-invocable: true
+disable-model-invocation: true
 ---
 
 **Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).

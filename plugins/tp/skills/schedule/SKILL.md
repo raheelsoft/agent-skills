@@ -2,6 +2,7 @@
 name: schedule
 description: Creates, disables or lists the scheduled tasks that run the pipeline unattended on weekdays: a probe first, then the morning (/tp:inbox, /tp:plan-day), advance and end-of-day (/tp:eod) tasks. Use to put the day's routine on a timer.
 user-invocable: true
+disable-model-invocation: true
 ---
 
 **Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
