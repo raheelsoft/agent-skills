@@ -3,7 +3,7 @@
 Every PR goes through review before it merges. This is the author's side; the
 reviewer's side is `/tp:review` (remote mode), which posts the review as a PR comment and
 returns the verdict as its report. The rules of scope, passes and merging are
-`reference/README.md` § Review scope and rounds; this file is how `/tp:merge`'s agent
+`reference/procedures.md` § Review scope and rounds; this file is how `/tp:merge`'s agent
 applies them.
 
 ## Hand-off
@@ -18,10 +18,10 @@ skill's arguments, a review request on the platform — contains **only**:
   tightens the list-unwrapping helper"). Nothing about **how** or **why**;
 - the run facts: the repo's absolute path, its conventions file, any environment
   constraint of this checkout, `checkout=<the ticket's worktree>` (a checkout at the
-  PR's head — a path the reviewer verifies, `reference/README.md` § Worktrees — so its
+  PR's head — a path the reviewer verifies, `reference/work-directory.md` § Worktrees — so its
   gates come from the record `/tp:create-pr`'s `/tp:verify` left for that commit and no
   review worktree is created) and `tier=<rating>` (the ticket's rating raised by the
-  diff, `reference/README.md` § Models and budget) — the reviewer never gets the work
+  diff, `reference/models-and-budget.md` § Models and budget) — the reviewer never gets the work
   directory.
 
 Never included: anything `/tp:review`'s **Unbiased input** rule forbids
@@ -35,7 +35,7 @@ evidence.
    `args: "<pr-url> <ticket link> <neutral what> tier=<rating> checkout=<worktree>
    [mode=<mode>]"`. Its
    dedicated agent receives exactly those arguments, so the hand-off *is* the
-   isolation (its spawn handles a `complexity: higher` report — `reference/README.md`
+   isolation (its spawn handles a `complexity: higher` report — `reference/definitions.md`
    § Definitions, Dedicated agent). Its report — verdict, the posted comment's link
    and the trailer — is the result.
 2. **A reviewer the project or person designates** (only when asked for, or named in
@@ -44,7 +44,7 @@ evidence.
    answer once the verdict is on the PR (reviewed)"` and return; the next invocation
    (`answers=reviewed`) reads the verdict and trailer from the PR thread and continues
    below.
-3. This agent cannot spawn (`reference/README.md` § Definitions, Depth), or `/tp:review` is
+3. This agent cannot spawn (`reference/definitions.md` § Definitions, Depth), or `/tp:review` is
    off for this project (§ Definitions, Active skills), and no reviewer is designated
    → `stopped "review needed: <PR URL> — merge (merge), or send fixes (fix <what>)? (no
    default)"`; the person has it reviewed and answers.
@@ -66,7 +66,7 @@ ticket's, raised by the diff), `files`/`lines` from `git diff --stat
 <remote>/<base>...HEAD`, `history` from `reviews`:
 
 - `merge` → § Merge.
-- `review` → spawn a fresh **fixer** (a writing agent, one job — `reference/README.md`
+- `review` → spawn a fresh **fixer** (a writing agent, one job — `reference/context-management.md`
   § Context management, rules 2 and 9; rated from the items with `model.mjs rate`;
   tools: edit and shell in the ticket's worktree, `git`; office id
   `<id>:<stage>:engineer:<round>` (`<stage>` as logged — `merge:<name>` on a cross-repo ticket), parent `<id>:<stage>:lead`, the join/leave commands; frontier:
@@ -81,14 +81,14 @@ ticket's, raised by the diff), `files`/`lines` from `git diff --stat
   fixes; the worktree is now at the new head, so `checkout=` still holds.
 - `stop` → `stopped "review loop: <why> — merge with the open items ticketed
   (merge), or one more fix round (fix)? (no default)"`; the answers and what follows
-  each are `reference/README.md` § Review scope and rounds. Items the reviewer ticketed
+  each are `reference/procedures.md` § Review scope and rounds. Items the reviewer ticketed
   as pre-existing are not this PR's to fix.
 
 Findings are answered on the PR thread; a finished review agent needs no reply.
 
 ## Merge
 
-Merge only when `reference/README.md` § Review scope and rounds, Merging, allows it
+Merge only when `reference/procedures.md` § Review scope and rounds, Merging, allows it
 (the verdict, the open items, the person's word in that precedence — `merge=ask`
 produces the stop in SKILL.md step 4).
 

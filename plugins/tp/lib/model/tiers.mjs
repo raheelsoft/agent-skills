@@ -1,4 +1,4 @@
-// tiers.mjs — the one writer of a model name: tiers.json from `ceiling=` / `ladder=` / `low=` `medium=` `high=` (README § Models and budget, The ceiling).
+// tiers.mjs — the one writer of a model name: tiers.json from `ceiling=` / `ladder=` / `low=` `medium=` `high=` (reference/models-and-budget.md § Models and budget, The ceiling).
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { RATINGS } from './common.mjs';

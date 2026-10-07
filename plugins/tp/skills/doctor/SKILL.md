@@ -7,7 +7,7 @@ user-invocable: true
 **Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
 
 Catch the environment failure before the run does. Every check here is something a
-stage would otherwise hit mid-task and hand up as an `error:` stop (`reference/README.md`
+stage would otherwise hit mid-task and hand up as an `error:` stop (`reference/failures-and-stops.md`
 § Failures and escalation) — a key not loaded, a CLI logged out, an allowlist rule
 missing, a stray file at the work root. The script does the checks that need no
 tool; this agent adds the one that does (the tracker) and reports the table.
@@ -20,10 +20,10 @@ tool; this agent adds the one that does (the tracker) and reports the table.
 - `tests=true` → also run the pipeline's own tests (`node --test`).
 - `session=<model>` → the model the invoking context runs on, as the runtime names it;
   the script warns when it, or the model the project's settings start a session on, is
-  above the ceiling (`reference/README.md` § Models and budget, The ceiling). Absent → only
+  above the ceiling (`reference/models-and-budget.md` § Models and budget, The ceiling). Absent → only
   the starting model is checked.
 - `answers=retry` — after fixing what an error stop named (§ Stops).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `low` (run a script, one lookup, format a table).
 
 ## Steps
@@ -36,7 +36,7 @@ tool; this agent adds the one that does (the tracker) and reports the table.
 `node <lib>/doctor.mjs run <.claude> [--repos …] [--tests] [--session <model>]` — exit 0
 clean, 1 with warnings, 2 with failures; the JSON is the table. Its checks and the
 fix per line are the script's header; `tiers.json.doctor.checks` names the
-project's own commands (the hosting CLI's auth status — README § Install, step 2).
+project's own commands (the hosting CLI's auth status — reference/using.md § Install, step 2).
 
 ### 2. The tracker
 The one check a script cannot make: one read through the tracker (§ Definitions,
@@ -57,7 +57,7 @@ and the output contract lines.
 
 ## When it runs by itself
 `/tp:plan-day` and `/tp:run-ticket` ask `node <lib>/doctor.mjs fresh
-<.claude>` before a run — the rule and the exit codes are `reference/README.md` § Using
+<.claude>` before a run — the rule and the exit codes are `reference/using.md` § Using
 it, Preflight, which this skill's `fresh` command implements
 (`tiers.json.doctor.maxAgeHours`, 24). A warning never blocks a run; it is listed in
 the office's doctor chip and here.

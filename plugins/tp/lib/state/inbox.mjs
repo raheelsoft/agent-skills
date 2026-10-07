@@ -1,5 +1,5 @@
 // inbox.mjs — every open stop of a work root, oldest first, and the queue of answers for them: answerQueue puts one in, answerTake takes it out for
-// the invocation that resumes the ticket (README § Definitions, Asking the user, Resume).
+// the invocation that resumes the ticket (reference/definitions.md § Definitions, Asking the user, Resume).
 import { existsSync, readdirSync, unlinkSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { modern } from '../setup.mjs';

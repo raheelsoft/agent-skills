@@ -15,7 +15,7 @@ merge request) once there is real work to describe. Stage 1 of `reference/README
 Invoking this skill with a ticket is itself the authorization to assign it, change its
 status and branch for it. Project-specific rules (branch naming, title conventions,
 whether dependent tickets are stacked on one PR) come from the repo's conventions file
-and the person's standing instructions (`reference/README.md` § Definitions, Conventions
+and the person's standing instructions (`reference/definitions.md` § Definitions, Conventions
 file). The blockers'
 states are this agent's own tracker reads — every blocker in one message
 (§ Definitions, Tracker; § Context management, rule 4), plus the hosting CLI's `pr`
@@ -38,7 +38,7 @@ created here (§ Tickets).
   (`instructions/blocked-check.md` § Freshness).
 - `answers=<text>` — the answer to this skill's last stop (§ Stops).
 - `force=true` — re-run a done pickup (§ Definitions, Resume).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `medium` (bounded pickup steps).
 
 ## Steps
@@ -54,7 +54,7 @@ later stage re-runs; the work directory and the `started` line are still written
 
 ### 2. Snapshot the ticket
 Fetch the ticket with its relations (blocked-by / blocks, sub-issues, linked PRs) with
-the tracker (`reference/README.md` § Definitions, Tracker) and keep the result verbatim — every later step reads it
+the tracker (`reference/definitions.md` § Definitions, Tracker) and keep the result verbatim — every later step reads it
 (`instructions/ticket-intake.md` § Reading the snapshot). Cancelled, or closed as a
 duplicate → `stopped "cancelled|duplicate of <id> — nothing to answer; pick another
 ticket"` (reported only; touch nothing).
@@ -103,11 +103,11 @@ The person's own checkout is never involved.
 `instructions/branch-and-pull.md`, once per target repo: fetch, create the worktree at
 `<.claude>/work/<id>/wt/<repo-name>` on the new branch (or on the open stacked
 branch), install dependencies, regenerate generated code — the one checkout the
-ticket keeps for its whole run (`reference/README.md` § Worktrees); a new round
+ticket keeps for its whole run (`reference/work-directory.md` § Worktrees); a new round
 re-branches it. Local only: no push, no PR.
 
 ### 9. Write the work directory
-`reference/README.md` § Work directory: `ticket.md` (title, link, description and
+`reference/work-directory.md` § Work directory: `ticket.md` (title, link, description and
 acceptance criteria verbatim, brief pointers, the repo table) and `ticket.json` —
 `acceptanceCriteria` verbatim as an array or, when the ticket has none, derived from
 its current-vs-expected description with `derived: true` (say so; `/tp:accept` proves
@@ -123,7 +123,7 @@ estimate field and named in the pickup comment; `round` (1,
 or the `round=` given); `stackedOn` or `dependsOn`; one repo row each — its `path` (the
 repo's checkout) and `worktree` written as **absolute** paths, the expansion of
 `<.claude>`, never the `<repo-name>` / `.claude/work/<id>/wt/<repo-name>` forms that
-read from the working directory this agent happens to sit in (`reference/README.md` § Definitions,
+read from the working directory this agent happens to sit in (`reference/definitions.md` § Definitions,
 `<.claude>`; § Work directory): every later stage reads the row from a different
 directory, and a relative one names a worktree that isn't there. Then
 `state.mjs log <workdir> start-ticket done
@@ -142,5 +142,5 @@ soft-blocked ticket (`answers=continue`). Logged on `start-ticket`: assigned to
 someone else (`answers=takeover`), already done (`answers=reopen`), the ticket names
 no repo (`answers=<repos>`), a branch checked out in the person's own copy
 (`answers=retry` once moved — `branch-and-pull.md`). `error: …` — a fetch, worktree
-or install that failed past its fallback (`reference/README.md` § Failures and
+or install that failed past its fallback (`reference/failures-and-stops.md` § Failures and
 escalation): `answers=retry` once the person has done what `needs` names.

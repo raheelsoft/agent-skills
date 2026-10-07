@@ -7,7 +7,7 @@ user-invocable: true
 **Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
 
 The pipeline on a timer. A scheduled run is a fresh session nobody watches
-(`reference/README.md` § Unattended runs, Scheduled runs): it cannot interview anyone,
+(`reference/observability.md` § Unattended runs, Scheduled runs): it cannot interview anyone,
 so it re-invokes only what resumes by itself, prints every stop as its row, and
 leaves the rest in the office inbox and `/tp:inbox`. This skill only creates, disables
 and lists those tasks — through the runtime's scheduler, found with the tool lookup
@@ -21,7 +21,7 @@ and lists those tasks — through the runtime's scheduler, found with the tool l
 - `hours=`, `focus=` — forwarded to the morning task's `/tp:plan-day` (a standing short
   day); the window itself comes from `tiers.json.day` (`start`, `end`,
   `advanceEvery` — § Models and budget).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `low` (a few scheduler calls and a file).
 
 ## Steps

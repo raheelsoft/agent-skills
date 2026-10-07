@@ -1,5 +1,5 @@
 // The skills as a set: every rule has exactly one owner, and a parent skill points at its children instead of
-// restating them (README § Context management, rule 3 and § Definitions). These are guards — a rule copied into a
+// restating them (reference/context-management.md § Context management, rule 3 and § Definitions). These are guards — a rule copied into a
 // second skill fails here, which is the only way the "stated once" convention survives a year of edits.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,9 +11,15 @@ import { CATALOGUE } from '../lib/setup.mjs';
 const SKILLS = join(PLUGIN_ROOT, 'skills');
 const REFERENCE = join(PLUGIN_ROOT, 'reference');
 const LIB = join(PLUGIN_ROOT, 'lib');
-const README = 'README.md';
+// The reference is one document spread over topic files (README.md indexes them; flowcharts.md draws them). A rule is "the reference's"
+// whichever file holds it, so the owner guards below read README.md and the topic files as one text, under this key.
+const REF = 'reference/';
+// flowcharts.md is a map of the rules, not a statement of them: it names commands and files on purpose, and its own
+// tests below keep every reference honest. It is therefore exempt from the one-owner guard.
+const MAP = 'flowcharts.md';
+const refFiles = readdirSync(REFERENCE).filter((n) => n.endsWith('.md') && n !== MAP).sort();
 
-/** Every markdown file a person or an agent reads: the skills' (keyed relative to skills/, `plan-day/SKILL.md`) and the reference's (`README.md`, `flowcharts.md`). */
+/** Every markdown file a person or an agent reads: the skills' (keyed relative to skills/, `plan-day/SKILL.md`), the reference as one (`REF`) and its map. */
 function docs() {
   const out = [];
   const walk = (dir, prefix) => {
@@ -26,38 +32,36 @@ function docs() {
     }
   };
   walk(SKILLS, '');
-  for (const n of readdirSync(REFERENCE)) if (n.endsWith('.md')) out.push(n);
+  out.push(REF, MAP);
   return out;
 }
-const where = (f) => (existsSync(join(SKILLS, f)) ? join(SKILLS, f) : join(REFERENCE, f));
+/** The files behind a key: the reference's topic files for `REF`, the one file otherwise. */
+const pathsOf = (f) => (f === REF ? refFiles.map((n) => join(REFERENCE, n)) : existsSync(join(SKILLS, f)) ? [join(SKILLS, f)] : [join(REFERENCE, f)]);
 const ALL = docs();
-// flowcharts.md is a map of the rules, not a statement of them: it names commands and files on purpose, and its own
-// tests below keep every reference honest. It is therefore exempt from the one-owner guard.
-const MAP = 'flowcharts.md';
-const text = new Map(ALL.map((f) => [f, readFileSync(where(f), 'utf8')]));
+const text = new Map(ALL.map((f) => [f, pathsOf(f).map((p) => readFileSync(p, 'utf8')).join('\n\n')]));
 const holders = (pattern) => ALL.filter((f) => (pattern instanceof RegExp ? pattern.test(text.get(f)) : text.get(f).includes(pattern)));
 
 // rule -> the files allowed to state it. The owner is first; a caller may name the command it runs only where noted.
 const OWNERSHIP = [
-  { rule: 'the gate record (reuse before running)', pattern: 'gates.mjs result get', owners: [README, 'verify/SKILL.md'] },
-  { rule: 'the gate baseline', pattern: 'gates.mjs base ', owners: ['verify/SKILL.md', README] },
-  { rule: 'gates the hooks own', pattern: 'hooks.mjs cover', owners: [README, 'verify/SKILL.md'] },
-  { rule: 'the gate-command resolver (every ecosystem)', pattern: 'hooks.mjs gates', owners: [README, 'verify/SKILL.md'] },
-  { rule: 'generated code (its callers run it; the rule is the README\'s)', pattern: 'codegen.mjs status', owners: [README, 'verify/SKILL.md', 'start-ticket/instructions/branch-and-pull.md'] },
-  { rule: 'writing the hooks', pattern: 'hooks.mjs install', owners: ['setup/SKILL.md', README] },
-  { rule: 'the preflight freshness check', pattern: 'doctor.mjs fresh', owners: [README, 'doctor/SKILL.md'] },
+  { rule: 'the gate record (reuse before running)', pattern: 'gates.mjs result get', owners: [REF, 'verify/SKILL.md'] },
+  { rule: 'the gate baseline', pattern: 'gates.mjs base ', owners: ['verify/SKILL.md', REF] },
+  { rule: 'gates the hooks own', pattern: 'hooks.mjs cover', owners: [REF, 'verify/SKILL.md'] },
+  { rule: 'the gate-command resolver (every ecosystem)', pattern: 'hooks.mjs gates', owners: [REF, 'verify/SKILL.md'] },
+  { rule: 'generated code (its callers run it; the rule is the reference\'s)', pattern: 'codegen.mjs status', owners: [REF, 'verify/SKILL.md', 'start-ticket/instructions/branch-and-pull.md'] },
+  { rule: 'writing the hooks', pattern: 'hooks.mjs install', owners: ['setup/SKILL.md', REF] },
+  { rule: 'the preflight freshness check', pattern: 'doctor.mjs fresh', owners: [REF, 'doctor/SKILL.md'] },
   { rule: 'resolving a blocker (soft-block nuance)', pattern: 'soft-blocking', owners: ['start-ticket/instructions/blocked-check.md'] },
-  { rule: 'recording a blocker re-check', pattern: 'state.mjs blockers <workdir>', owners: ['start-ticket/instructions/blocked-check.md', README] },
+  { rule: 'recording a blocker re-check', pattern: 'state.mjs blockers <workdir>', owners: ['start-ticket/instructions/blocked-check.md', REF] },
   { rule: 'removing a worktree', pattern: 'worktree remove', owners: ['start-ticket/instructions/branch-and-pull.md', 'status/SKILL.md'] },
   { rule: 'creating a worktree', pattern: 'worktree add', owners: ['start-ticket/instructions/branch-and-pull.md', 'review/SKILL.md'] },
-  { rule: 'the review loop controller', pattern: 'model.mjs rounds', owners: [README, 'merge/instructions/review-loop.md', 'review/SKILL.md', 'review/instructions/scope.md'] },
-  { rule: 'the compaction rule', pattern: 'model.mjs compact', owners: [README, 'implement/SKILL.md', 'retro/SKILL.md', 'accept/SKILL.md', 'workflows'] },
-  { rule: 'the retry bound (its callers name it; the bound itself is the README\'s)', pattern: 'model.mjs retry', owners: ['create-pr/SKILL.md', 'implement/SKILL.md', 'plan/SKILL.md', 'release/SKILL.md', 'verify/SKILL.md', README] },
-  { rule: 'the skill catalogue', pattern: 'setup.mjs apply', owners: ['setup/SKILL.md', README] },
-  { rule: 'the tiers a ceiling gives (the interview asks, the script derives, the README states the rule)', pattern: 'first step up from the smallest', owners: [README] },
-  { rule: 'reading the README by reference', pattern: 'ref.mjs', owners: [README] },
-  { rule: 'showing a stop\'s document before asking', pattern: 'not a place to read', owners: [README] },
-  { rule: 'what an agent costs before it starts', pattern: 'not free before it starts', owners: [README] },
+  { rule: 'the review loop controller', pattern: 'model.mjs rounds', owners: [REF, 'merge/instructions/review-loop.md', 'review/SKILL.md', 'review/instructions/scope.md'] },
+  { rule: 'the compaction rule', pattern: 'model.mjs compact', owners: [REF, 'implement/SKILL.md', 'retro/SKILL.md', 'accept/SKILL.md', 'workflows'] },
+  { rule: 'the retry bound (its callers name it; the bound itself is the reference\'s)', pattern: 'model.mjs retry', owners: ['create-pr/SKILL.md', 'implement/SKILL.md', 'plan/SKILL.md', 'release/SKILL.md', 'verify/SKILL.md', REF] },
+  { rule: 'the skill catalogue', pattern: 'setup.mjs apply', owners: ['setup/SKILL.md', REF] },
+  { rule: 'the tiers a ceiling gives (the interview asks, the script derives, the reference states the rule)', pattern: 'first step up from the smallest', owners: [REF] },
+  { rule: 'reading the reference by section', pattern: 'ref.mjs', owners: [REF] },
+  { rule: 'showing a stop\'s document before asking', pattern: 'not a place to read', owners: [REF] },
+  { rule: 'what an agent costs before it starts', pattern: 'not free before it starts', owners: [REF] },
 ];
 
 describe('skills — one owner per rule', () => {
@@ -98,17 +102,17 @@ describe('skills — a parent points at its children', () => {
     }
   });
 
-  it('a skill that can stop says so in its own Stops, and the shared stop order is only in the README', () => {
+  it('a skill that can stop says so in its own Stops, and the shared stop order is only in the reference', () => {
     const order = holders('release the lock');
-    assert.deepEqual(order, [README], `the stop order belongs to the README; also in ${order.filter((f) => f !== README).join(', ')}`);
+    assert.deepEqual(order, [REF], `the stop order belongs to the reference; also in ${order.filter((f) => f !== REF).join(', ')}`);
   });
 });
 
 describe('flowcharts.md — a map that cannot rot quietly', () => {
   const chart = text.get(MAP);
-  it('exists, is linked from the README, and says it is not for agents', () => {
+  it('exists, is linked from the reference\'s README, and says it is not for agents', () => {
     assert.ok(chart, 'reference/flowcharts.md exists');
-    assert.match(text.get(README), /\[`flowcharts\.md`\]\(flowcharts\.md\)/, 'the README links it');
+    assert.match(text.get(REF), /\[`flowcharts\.md`\]\(flowcharts\.md\)/, 'reference/README.md links it');
     assert.match(chart, /Agents do not read this file/);
   });
 
@@ -186,9 +190,9 @@ describe('skills — the namespace, so nothing can be confused with another skil
 
 describe('skills — what a run costs is the number of agents', () => {
   // Measured from this pipeline's own records: a stage agent's floor is 75-130k tokens whatever it does, so the
-  // agent count is the bill. Two rules follow from it and both are easy to lose in an edit (README rule 9, rule 12).
+  // agent count is the bill. Two rules follow from it and both are easy to lose in an edit (reference/context-management.md, rule 9 and rule 12).
   it('rule 12 exists, and every spawned agent is handed it', () => {
-    const readme = text.get(README);
+    const readme = text.get(REF);
     assert.match(readme, /^12\. \*\*Independent commands in one call\.\*\*/m);
     assert.match(readme, /one\n  call rather than one turn each \(rule 12\)/, 'the spawn template in § Definitions hands it over');
     assert.match(readFileSync(join(PLUGIN_ROOT, 'workflows', 'run-ticket-unattended.js'), 'utf8'), /go in ONE call, not a turn each/, "the unattended runner's stage prompts too");
@@ -214,7 +218,7 @@ describe('skills — what a run costs is the number of agents', () => {
         offenders.push(`${f}: ${m[0]}`);
       }
     }
-    assert.deepEqual(offenders, [], `an agent per item of a list costs a floor each (README rule 9): ${offenders.join(', ')}`);
+    assert.deepEqual(offenders, [], `an agent per item of a list costs a floor each (reference/context-management.md, rule 9): ${offenders.join(', ')}`);
   });
 
   it('implement is the only stage that takes an agent per repo', () => {
@@ -227,7 +231,7 @@ describe('skills — what a run costs is the number of agents', () => {
   });
 });
 
-describe('skills — the catalogue, the README and the folders agree', () => {
+describe('skills — the catalogue, the reference and the folders agree', () => {
   it('every skill folder has a SKILL.md with a name matching its folder and a one-sentence description', () => {
     for (const f of ALL) {
       if (!f.endsWith('/SKILL.md')) continue;
@@ -267,8 +271,8 @@ describe('/tp:setup — the ceiling', () => {
     assert.doesNotMatch(setup(), /three model\s+names/, 'the three names are no longer asked for');
   });
 
-  it('is the README\'s interview too: the ceiling, the offer for the session, and where the rule is', () => {
-    const readme = text.get(README);
+  it('is the reference\'s interview too: the ceiling, the offer for the session, and where the rule is', () => {
+    const readme = text.get(REF);
     assert.match(readme, /asks\s+once for \*\*the largest model the pipeline may use\*\*/);
     assert.match(readme, /\*\*The ceiling — the largest model the pipeline may use\.\*\*/);
     assert.match(readme, /\*\*The session is the runtime's, not the pipeline's\.\*\*/);
@@ -279,13 +283,13 @@ describe('/tp:setup — the ceiling', () => {
 describe('skills — no model is named outside tiers.json', () => {
   it('no skill, script, workflow or office file writes a model name: the ceiling and the ladder are data', () => {
     const files = [
-      ...ALL.map((f) => where(f)),
+      ...ALL.flatMap(pathsOf),
       ...readdirSync(LIB).filter((f) => f.endsWith('.mjs')).map((f) => join(LIB, f)),
       ...readdirSync(join(PLUGIN_ROOT, 'workflows')).filter((f) => f.endsWith('.js')).map((f) => join(PLUGIN_ROOT, 'workflows', f)),
       ...['app.js', 'serve.mjs', 'index.html'].map((f) => join(PLUGIN_ROOT, 'office', f)).filter(existsSync),
     ];
     assert.ok(files.length > 20, `it scans the pipeline (${files.length} files)`);
     const named = files.filter((f) => /\b(haiku|sonnet|opus|fable)\b/i.test(readFileSync(f, 'utf8')));
-    assert.deepEqual(named, [], 'a model name belongs in tiers.json only (README § Models and budget)');
+    assert.deepEqual(named, [], 'a model name belongs in tiers.json only (reference/models-and-budget.md § Models and budget)');
   });
 });

@@ -1,5 +1,5 @@
 // agents.mjs — the office's agents: who joins, who leaves, their stable names from the pools in office.json, and the pruning of records nobody refreshed
-// (README § Observability).
+// (reference/observability.md § Observability).
 import { writeFileSync, readdirSync, unlinkSync, mkdirSync, renameSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, basename, dirname, resolve } from 'node:path';

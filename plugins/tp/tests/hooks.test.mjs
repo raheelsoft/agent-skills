@@ -1,4 +1,4 @@
-// hooks.mjs — the repo's git hooks as gate owners (README § Verification rules, Gates the hooks own): what they run,
+// hooks.mjs — the repo's git hooks as gate owners (reference/verification.md § Verification rules, Gates the hooks own): what they run,
 // which gates that covers and at what scope, and the Husky-style hooks written from the project's own commands.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';

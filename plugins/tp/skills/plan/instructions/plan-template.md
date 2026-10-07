@@ -61,5 +61,5 @@ Rules for the planner:
   Steps run sequentially in one working tree; cross-repo work is ordered by repo.
 - Prefer the existing pattern over a new abstraction; if a new one is needed, say why
   the existing one cannot be extended.
-- Plan only checks the implementer may run (`reference/README.md` § Verification rules).
+- Plan only checks the implementer may run (`reference/verification.md` § Verification rules).
 - Keep it as short as the change allows; a small ticket gets a one-screen plan.

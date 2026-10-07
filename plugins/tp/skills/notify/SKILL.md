@@ -11,7 +11,7 @@ a person who isn't watching still hears about it; nothing else does. The message
 line, the channel was chosen once for this project, and when the environment has no
 chat tool the skill is a silent no-op — never an error, never a question. It is one
 tool call, so it runs **in the invoking context** — the agent that stops sends its own
-line; no agent is spawned to send it, or to do nothing (`reference/README.md`
+line; no agent is spawned to send it, or to do nothing (`reference/definitions.md`
 § Definitions, Dedicated agent — the one exception to the rule). Conventions:
 § Observability.
 
@@ -20,7 +20,7 @@ line; no agent is spawned to send it, or to do nothing (`reference/README.md`
 - `<text>` — the message: everything before the first `key=value` token, or a quoted
   string. Written by the caller as `<ticket> · <stage> · <what>` with the link that
   lets the reader act (the PR, the ticket, the work directory's question); no personal
-  data (`reference/README.md` § Personal data).
+  data (`reference/procedures.md` § Personal data).
 - `level=stop|done|error|info` (optional, default `info`) — `stop`: a person must
   answer; `done`: a run finished; `error`: a run failed; `info`: anything else. Which
   levels are sent is the project's choice (setup below); `stop`, `done` and `error` by
@@ -28,7 +28,7 @@ line; no agent is spawned to send it, or to do nothing (`reference/README.md`
 - `setup` (instead of a text) — the one-time configuration; `setup target=<channel>`
   sets or changes the channel without asking.
 - `inline=true` — accepted and meaningless here: both forms always run where they are
-  invoked (`reference/README.md` § Definitions, Dedicated agent) — a send because it is
+  invoked (`reference/definitions.md` § Definitions, Dedicated agent) — a send because it is
   one tool call, `setup` because it may need to ask the person.
 
 ## The configuration — `<.claude>/notify.json`
@@ -50,9 +50,9 @@ report that would have notified says so once. The file is edited by hand or by
 ## Steps
 
 ### Setup — when `notify.json` does not exist
-Run when `reference/README.md` § Observability says (by the invoking context, in the
+Run when `reference/observability.md` § Observability says (by the invoking context, in the
 session), or by hand with `/tp:notify setup`.
-1. **Find the tool.** Use the runtime's tool lookup (`reference/README.md` § Definitions,
+1. **Find the tool.** Use the runtime's tool lookup (`reference/definitions.md` § Definitions,
    Runtime notes) for a tool that posts a message to a channel, chat or team (queries
    such as `send message`, `post message`, `channel`); a tool whose
    description says it sends/posts to a conversation counts, a "draft" or "schedule"

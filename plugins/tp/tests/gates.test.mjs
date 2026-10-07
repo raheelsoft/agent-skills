@@ -1,5 +1,5 @@
 // gates.mjs — the gate baseline (one persistent checkout per repo, outputs cached per base commit) and the gate record
-// (a verify result per head/base pair, reused by every later stage): skills/README.md § Verification rules.
+// (a verify result per head/base pair, reused by every later stage): reference/verification.md § Verification rules.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';

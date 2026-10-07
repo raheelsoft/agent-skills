@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// tracker.mjs — a file-backed tracker (skills/README.md § Definitions, Tracker): the same reads and writes the skills
+// tracker.mjs — a file-backed tracker (reference/definitions.md § Definitions, Tracker): the same reads and writes the skills
 // make against a real tracker, over one JSON file, so the pipeline can be exercised end to end without a tracker
 // account (§ Using it, Simulation). Selected by <.claude>/tracker.json: { "kind": "fixture", "path": "/abs/tracker.json" };
 // without that file the skills use the connected tracker tool and this script is never called.

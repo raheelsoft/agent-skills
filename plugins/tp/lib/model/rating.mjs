@@ -1,4 +1,4 @@
-// rating.mjs — numeric evidence to a rating, low | medium | high (README § Models and budget, Rating).
+// rating.mjs — numeric evidence to a rating, low | medium | high (reference/models-and-budget.md § Models and budget, Rating).
 
 export const DEFAULT_THRESHOLDS = { medium: 2, high: 4 }; // score → rating
 

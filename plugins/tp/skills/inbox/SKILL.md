@@ -7,7 +7,7 @@ user-invocable: true
 **Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
 
 One list of every open stop, and one round of answers for all of them. The state
-script already classifies each stop and names its resume command (`reference/README.md`
+script already classifies each stop and names its resume command (`reference/definitions.md`
 § Definitions, Asking the user); this skill gathers them, re-checks the blockers of
 parked tickets, resumes what needs nobody, and returns the rest as a report the
 session interviews from — in batches, once — before re-invoking each ticket with its
@@ -21,7 +21,7 @@ answer. Nothing is decided here; nothing is answered on anyone's behalf.
 - `date=<YYYY-MM-DD>` → the day plan to advance afterwards (default: today).
 - `dry=true` → list only: nothing is re-invoked, no blocker re-check.
 - `answers=<text>` — the answer to this skill's own error stop (§ Stops).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `medium` (one batch of lookups and a bounded classification), `low` with
   `dry=true`.
 
@@ -75,7 +75,7 @@ and the output contract lines (§ Definitions, Output contract).
 ## Stops
 None of its own for a question — the report *is* the list of questions. `error: …`
 — the state script refusing the work root, a lookup that failed past its fallback
-(`reference/README.md` § Failures and escalation; the state in
+(`reference/failures-and-stops.md` § Failures and escalation; the state in
 `_scratch/inbox-<date>.md`): `answers=retry` once the person has done what `needs`
 names. With `dry=true`, never an error for a missing lookup tool: the list is returned
 without the re-check and says so.

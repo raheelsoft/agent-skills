@@ -1,6 +1,6 @@
 # Contracts of the work directory
 
-Every stage hands the next one JSON files in `<.claude>/work/<id>/` (`reference/README.md` §
+Every stage hands the next one JSON files in `<.claude>/work/<id>/` (`reference/work-directory.md` §
 Work directory). A file a stage wrote wrong costs the next stage a failed run, so each file has a
 schema here, and a script — not the model — checks it: `state.mjs put` before writing,
 `validate.mjs` over what is already there.

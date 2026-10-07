@@ -9,7 +9,7 @@ import { recordAt } from '../lib/gates.mjs';
 
 const lines = (text) => String(text || '').split('\n').map((l) => l.trim()).filter(Boolean);
 
-/** The reply closes the way the output contract says (reference/README.md § Definitions) — or is the error form. */
+/** The reply closes the way the output contract says (reference/definitions.md § Definitions) — or is the error form. */
 export function outputProblem(message) {
   const all = lines(message);
   if (!all.length) return 'your reply is empty';

@@ -17,7 +17,7 @@ commit convention, PR template) come from the repo's conventions file and the pe
 standing instructions — never from this skill. Judgment stays in this skill's dedicated
 agent; it spawns another only for a reading it should not hold itself (the whole
 branch's validation on a creation round; its description only when `/tp:implement` left
-no draft) or a fix (`reference/README.md` § Context management, rule 9), and reuses a
+no draft) or a fix (`reference/context-management.md` § Context management, rule 9), and reuses a
 gate result already recorded for the commit instead of running the gates again
 (§ Verification rules). With a work directory everything runs
 in the ticket's worktree, `ticket.json` and `plan.md` are the inputs, each fact (PR
@@ -29,13 +29,13 @@ and current; a run that ends otherwise logs `stopped` with the reason (§ Stops)
 - `<id>` (optional) — the ticket; its work directory. Without it, the work directory
   whose `ticket.json` names the current branch; none → the current checkout and branch
   are the only inputs and nothing is logged. A ticket whose state is before this stage
-  → the earlier stages run first (`reference/README.md` § Definitions, Entry points).
+  → the earlier stages run first (`reference/definitions.md` § Definitions, Entry points).
 - `repo=<name>` — cross-repo tickets: narrows this run to one repo (stage
   `create-pr:<name>`). **Left out, this one agent covers every repo whose stage is not
   done**, in `ticket.json` order — one PR, one `pr.<repo>.json` and one
   `create-pr:<repo>` stage row each, the steps below run once per repo — because a
   second agent for the second repo would pay an agent's whole floor again to re-read
-  the ticket and the plan this one already holds (`reference/README.md` § Context
+  the ticket and the plan this one already holds (`reference/context-management.md` § Context
   management, rule 9). A stop or an error in one repo ends the run there; the resumed
   invocation starts at the first repo still not done.
 - `update=true` — an update round requested by `/tp:merge` after review fixes: run every
@@ -47,7 +47,7 @@ and current; a run that ends otherwise logs `stopped` with the reason (§ Stops)
   Resume).
 - `continue=true` — start from `checkpoint.create-pr[.<repo>].md`. `force=true` —
   re-run a done stage whose PR is gone (§ Definitions, Resume).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: the ticket's current rating (`state.mjs state` → `complexity`) raised by
   `model.mjs rate` on `git diff --stat <base>...HEAD` (generated code excluded).
 
@@ -208,7 +208,7 @@ do it (change), or keep the approach and stop here (keep)? (no default)"`
 (`answers=change|keep`); an unexpected diff the files can't explain
 (`answers=keep|drop|split`); `hand-off budget spent` (`answers=continue`); `error: …`
 — a push, sync or platform call that failed past its fallback, a gate past its retry
-bound, a sub-agent that returned nothing twice (`reference/README.md` § Failures and
+bound, a sub-agent that returned nothing twice (`reference/failures-and-stops.md` § Failures and
 escalation): `answers=retry` once the person has done what `needs` names. Inside a
 fix round `/tp:merge` requested, the stop is this stage's and the answer comes through
 `/tp:merge <id> answers=…`, which hands it down here (`/tp:merge`'s Input).

@@ -26,7 +26,7 @@ export function recordBlockers(workdir, payload) {
   return { blockedBy: ticket.blockedBy, unblocked };
 }
 
-// record the person's actual hours (README § Models and budget, Estimates) — the one writer of ticket.json.actual
+// record the person's actual hours (reference/models-and-budget.md § Models and budget, Estimates) — the one writer of ticket.json.actual
 export function recordActual(workdir, payload) {
   const usageLine = 'usage: actual <workdir> \'{ "focusedHours": n, "source": "person|tracker", "by": "eod" }\'';
   if (!isDir(workdir)) { throw new CliError(usageLine, 2); }

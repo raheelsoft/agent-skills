@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Deterministic state for the ticket workflow (see skills/README.md).
+// Deterministic state for the ticket workflow (see reference/README.md).
 //
 //   node state.mjs log   <workdir> <stage> <started|done|stopped|note> <summary> [links]
 //   node state.mjs state <workdir>            -> JSON: id, title, link, decision, complexity, estimate, stages, next, stopped, closed, prs, worktrees, lock, retro, lastEvent, problems
@@ -30,7 +30,7 @@
 //
 // Every stop the state reports carries `kind` (question | approval | error | usage | blocked | problem), `doc` (the file the
 // person must read to answer, relative to the WORK ROOT — a plan, named, never inlined), `resumable`, `default`
-// and `resume` — the command that continues the ticket (README § Definitions, Asking the user).
+// and `resume` — the command that continues the ticket (reference/definitions.md § Definitions, Asking the user).
 // The logic is in state/*.mjs (index.mjs is its public API for hooks and tests); this file only parses arguments, prints and exits.
 // No dependencies beyond the sibling scripts (day.mjs for the day board, setup.mjs for the skill selection).
 

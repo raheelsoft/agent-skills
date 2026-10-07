@@ -2,7 +2,7 @@
 
 ## Sync with the base branch
 
-The base branch is `ticket.json`'s, or detected per `reference/README.md` § Definitions, Base branch.
+The base branch is `ticket.json`'s, or detected per `reference/definitions.md` § Definitions, Base branch.
 
 ```bash
 git fetch <remote> <base>
@@ -15,7 +15,7 @@ the repo requires linear history or the user asks — it rewrites commits alread
 remote and the push then needs `--force-with-lease`. If `<remote>/<base>` is already an
 ancestor of `HEAD` (`git merge-base --is-ancestor`), there is nothing to sync — say so
 and move on. After a sync that pulled in new commits, regenerate generated code
-(`reference/README.md` § Toolchain).
+(`reference/procedures.md` § Toolchain).
 
 ## Resolving conflicts
 

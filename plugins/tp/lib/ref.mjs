@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// ref.mjs — read the README by reference (reference/README.md § Context management, rule 10). The README is the one place
-// every rule is stated, and it is long; an agent needs the few sections and items a skill names, never the whole file.
+// ref.mjs — read the reference by reference (context-management.md, rule 10). The reference (README.md and the topic files beside it in
+// reference/) is the one place every rule is stated, and it is long; an agent needs the few sections and items a skill names, never a whole file.
 //
 //   node ref.mjs "<Section>" ["<Section>, <Item>[, <Item>…]" …]
 //        -> each section or item under a `## § …` header, in the order asked
@@ -9,12 +9,13 @@
 // A section is any `##`/`###`/`####` heading, matched by the text before " — " (case-insensitive: "Definitions",
 // "Context management", "Using it", "Commits"). An item inside it is a `- **Name**` bullet (§ Definitions), a `**Name**`
 // paragraph (§ Models and budget, "Estimates"; § Unattended runs, "Scheduled runs"), a numbered rule ("rule 8" or "8")
-// or a sub-heading ("Using it, Preflight") — with everything up to the next item, so a table or list under it comes too.
-// The README is the plugin's own (reference/README.md, next to lib/); a first argument that is a .md path reads that file instead, and
+// ("Install, step 2" reads the numbered item too) or a sub-heading ("Using it, Preflight") — with everything up to the next item, so a table or list under it comes too.
+// The reference is the plugin's own (reference/, next to lib/: README.md, then every topic file, flowcharts.md excepted — section names are unique
+// across them); a first argument that is a .md path reads that one file instead, and
 // one that is a folder (the old `<.claude>` form) is ignored. A name that matches nothing prints the contents and exits 1.
 // No dependencies.
 
-import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -62,7 +63,7 @@ export function parse(text) {
 
 function find(list, query) {
   const q = norm(query);
-  const rule = /^(?:rule\s+)?(\d+)$/.exec(q);
+  const rule = /^(?:rule\s+|step\s+)?(\d+)$/.exec(q); // a numbered item: "rule 8", "step 2" or "8"
   if (rule) return list.find((x) => x.key === rule[1]) || null;
   return list.find((x) => x.key === q) || list.find((x) => x.key.startsWith(q)) || list.find((x) => x.key.includes(q)) || null;
 }
@@ -91,13 +92,18 @@ export function contents(doc) {
   return doc.sections.map((s) => `${'  '.repeat(s.level - 2)}${s.title.split(' — ')[0]}${s.items.filter((i) => i.kind !== 'heading').length ? ` — ${s.items.filter((i) => i.kind !== 'heading').map((i) => (i.kind === 'rule' ? `rule ${i.key}` : i.key)).join(' · ')}` : ''}`).join('\n');
 }
 
-const README = join(dirname(fileURLToPath(import.meta.url)), '..', 'reference', 'README.md');
+const REFERENCE = join(dirname(fileURLToPath(import.meta.url)), '..', 'reference');
+/** The reference as one text: README.md first, then every topic file in name order. flowcharts.md is a picture of it, for people. */
+export function referenceText(dir = REFERENCE) {
+  const files = ['README.md', ...readdirSync(dir).filter((f) => f.endsWith('.md') && f !== 'README.md' && f !== 'flowcharts.md').sort()];
+  return files.map((f) => readFileSync(join(dir, f), 'utf8')).join('\n\n');
+}
 const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
 
 function isMain(url) { try { return realpathSync(process.argv[1]) === fileURLToPath(url); } catch { return false; } }
 if (isMain(import.meta.url)) {
   let [first, ...queries] = process.argv.slice(2);
-  let file = README;
+  let file = null; // null: the whole reference
   if (first && /\.md$/i.test(first)) file = first;
   else if (first && isDir(first)) { /* the old <.claude> argument: nothing to select, the README is the plugin's */ }
   else if (first) queries = [first, ...queries];
@@ -106,7 +112,7 @@ if (isMain(import.meta.url)) {
     process.exit(2);
   }
   let doc;
-  try { doc = parse(readFileSync(file, 'utf8')); } catch (e) { console.error(`cannot read the README: ${e.message}`); process.exit(2); }
+  try { doc = parse(file ? readFileSync(file, 'utf8') : referenceText()); } catch (e) { console.error(`cannot read the reference: ${e.message}`); process.exit(2); }
   if (queries.length === 1 && queries[0] === 'list') { console.log(contents(doc)); process.exit(0); }
   const out = [];
   let missed = false;

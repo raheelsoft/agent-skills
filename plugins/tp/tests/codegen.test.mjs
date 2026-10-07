@@ -1,4 +1,4 @@
-// codegen.mjs — generated code the gates depend on (README § Toolchain). The case this exists for: a schema moves ahead
+// codegen.mjs — generated code the gates depend on (reference/procedures.md § Toolchain). The case this exists for: a schema moves ahead
 // of the generated client, and a type-aware gate reports the mismatch as errors in code nobody touched.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';

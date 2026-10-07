@@ -117,7 +117,7 @@ export function computeState(workdir) {
   };
   if (planned && plan) {
     const answers = existsSync(join(workdir, 'answers.md')) ? readFileSync(join(workdir, 'answers.md'), 'utf8') : '';
-    // every plan waits for the person's approval (README § Using it, When it stops) — a check still saying `revise`
+    // every plan waits for the person's approval (reference/using.md § Using it, When it stops) — a check still saying `revise`
     // presents its open findings as the risks the person may accept
     const blocking = (check?.findings || []).filter((f) => f.severity === 'blocking').length;
     const flags = Array.isArray(plan.flags) && plan.flags.length ? plan.flags.map(questionText).join(', ') : 'none';
@@ -163,7 +163,7 @@ export function computeState(workdir) {
     for (const r of ticket.repos) {
       if (!r?.worktree || !r?.branch) continue;
       const name = r.name || basename(r.path || '');
-      // the worktree lives from pickup to the end of the run (README § Worktrees); it must be on the ticket's branch
+      // the worktree lives from pickup to the end of the run (reference/work-directory.md § Worktrees); it must be on the ticket's branch
       // until this repo's PR is merged — afterwards accept may detach it at the merge commit, so nothing is checked
       const mergeStage = repos.length > 1 ? `merge:${name}` : 'merge';
       if (out.some((s) => s.name === mergeStage && s.status === 'done')) continue;
@@ -184,11 +184,11 @@ export function computeState(workdir) {
     title: ticket?.title || null,
     link: ticket?.link || null,
     decision: triage?.decision || null,
-    // the ticket's current complexity rating: the plan's, else triage's, else the pickup's (skills/README.md § Models)
+    // the ticket's current complexity rating: the plan's, else triage's, else the pickup's (reference/models-and-budget.md § Models and budget)
     complexity: plan?.complexity || triage?.complexity || ticket?.complexity || null,
-    // the person's hours (README § Models and budget, Estimates): triage's refinement, else the pickup's
+    // the person's hours (reference/models-and-budget.md § Models and budget, Estimates): triage's refinement, else the pickup's
     estimate: triage?.estimate || ticket?.estimate || null,
-    // the person's actual hours, when /tp:eod recorded them (README § Models and budget, Estimates)
+    // the person's actual hours, when /tp:eod recorded them (reference/models-and-budget.md § Models and budget, Estimates)
     actual: ticket?.actual && Number(ticket.actual.focusedHours) > 0 ? ticket.actual : null,
     blockedBy,
     unblocked,
@@ -257,7 +257,7 @@ export function rowOf(d) {
       problems: s.problems,
       durations: mins,
       tokens: u.total, cost: u.cost, tokensUnpriced: u.unpriced, tokensPartial: u.partial,
-      // an answer queued for the current stop (office or `state.mjs answer`), taken by the next invocation (README § Definitions, Resume)
+      // an answer queued for the current stop (office or `state.mjs answer`), taken by the next invocation (reference/definitions.md § Definitions, Resume)
       answer: queued && s.stopped && queued.stage === s.stopped.stage && queued.at === s.stopped.at ? { text: queued.answer, queuedAt: queued.queuedAt, by: queued.by } : null,
     };
   } catch (e) {
@@ -278,7 +278,7 @@ export function all(workroot) {
   return ticketDirs(workroot).map(rowOf);
 }
 
-// the fields a spawner routes on (README § Definitions, Dedicated agent; the runner's rows) — never the stage list or the PRs
+// the fields a spawner routes on (reference/definitions.md § Definitions, Dedicated agent; the runner's rows) — never the stage list or the PRs
 export function brief(s) {
   const { id, complexity, next, stopped, closed, unblocked, lock, worktrees, problems } = s;
   return { id, complexity, next, stopped, closed, unblocked, lock, worktrees, problems };

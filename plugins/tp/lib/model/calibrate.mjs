@@ -1,4 +1,4 @@
-// calibrate.mjs — the base hours learned from the actual hours a person recorded (README § Models and budget, Estimates).
+// calibrate.mjs — the base hours learned from the actual hours a person recorded (reference/models-and-budget.md § Models and budget, Estimates).
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
@@ -10,7 +10,7 @@ const LIB = join(dirname(fileURLToPath(import.meta.url)), '..'); // lib/, where 
 const median = (list) => { const a = list.slice().sort((x, y) => x - y); return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : null; };
 
 /**
- * The base hours learn from actuals (README § Models and budget, Estimates): every ticket whose estimate the pipeline made
+ * The base hours learn from actuals (reference/models-and-budget.md § Models and budget, Estimates): every ticket whose estimate the pipeline made
  * and whose actual hours a person recorded (`ticket.json.actual`, through /tp:eod) gives one actual/estimate ratio; per rating
  * the median ratio, once `estimate.minSamples` exist, proposes `estimate.base[rating]` = current × median (half-hour
  * rounded). The pipeline's own minutes per ticket (state.mjs durations) are reported as shape only, never as a person's

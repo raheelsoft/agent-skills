@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// doctor.mjs — the preflight (skills/README.md § Using it, Preflight): is this install able to run a ticket right now?
+// doctor.mjs — the preflight (reference/using.md § Using it, Preflight): is this install able to run a ticket right now?
 // Every check is a fact a run would otherwise discover mid-stage as an *environment* failure (§ Failures and
 // escalation): the toolchain, the repos and their remotes, the platform CLI's auth, the pipeline's own files, the
 // runtime's allowlist, leftovers in the work directory. Nothing here changes anything — it reports, with a fix per line.
@@ -12,7 +12,7 @@
 //
 // tiers.json.doctor (defaults): { maxAgeHours: 24, heartbeatHours: 72, timeoutMs: 8000,
 //                                 checks: [{ name, run: [argv…], expect?: "<substring>" }] }   ← e.g. the hosting CLI's auth status
-// The ceiling (README § Models and budget, The ceiling): `ceiling` says whether tiers.json records one and agrees with it (every tier on the ladder
+// The ceiling (reference/models-and-budget.md § Models and budget, The ceiling): `ceiling` says whether tiers.json records one and agrees with it (every tier on the ladder
 // at or below it); `starting model` is the `model` the project's settings start a session on; `session model` is `--session <the model the invoking
 // context runs on>` — a warning when either is above the ceiling, never a block: the pipeline can ask for a session within it, not cap one.
 // `contracts` reads every JSON the stages left in the work directory against its schema (schemas/README.md; read mode: an older shape is not an error);
@@ -43,7 +43,7 @@ const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return 
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 
 // A path ticket.json recorded, as an absolute one — the reading state.mjs's worktree check uses. Every path a
-// skill writes is absolute (README § Definitions, `<.claude>`); a record from an earlier pickup can hold a
+// skill writes is absolute (reference/definitions.md § Definitions, `<.claude>`); a record from an earlier pickup can hold a
 // relative one, and resolving that against this script's cwd loses the repo the ticket named — its remote and
 // its recorded base go unchecked. The bases are the roots such a path was written against: the project folder
 // around `<.claude>`, the `<.claude>` itself, the work directory; nothing exists → the project folder's reading.
@@ -137,7 +137,7 @@ export function run(claudeDir, opts = {}) {
 
   // the toolchain
   const major = Number(process.versions.node.split('.')[0]);
-  add('node', major >= 18 ? 'ok' : 'fail', `node ${process.versions.node} at ${process.execPath}`, major >= 18 ? null : 'Node 18+ is needed for the scripts (README § Install)');
+  add('node', major >= 18 ? 'ok' : 'fail', `node ${process.versions.node} at ${process.execPath}`, major >= 18 ? null : 'Node 18+ is needed for the scripts (reference/using.md § Install)');
   const git = cmd(['git', '--version'], t);
   add('git', git.code === 0 ? 'ok' : 'fail', git.code === 0 ? git.stdout.trim() : git.error || firstLine(git.stderr), git.code === 0 ? null : 'install git');
 
@@ -151,7 +151,7 @@ export function run(claudeDir, opts = {}) {
     if (missing.length) add('tiers.json', 'fail', `no model for ${missing.join(', ')}`, `/tp:setup — it asks for the largest model the pipeline may use; or node ${LIB}/model.mjs tiers ${claudeDir} ceiling=<model> ladder=<smallest>,…,<largest>`);
     else if (!(Number(b.economy) < Number(b.stop) && Number(b.stop) <= 100)) add('tiers.json', 'fail', `budget.economy (${b.economy}) must be below budget.stop (${b.stop}) ≤ 100`, 'fix tiers.json budget');
     else add('tiers.json', 'ok', `${RATINGS.map((r) => `${r}=${tiers[r]}`).join(' ')}`);
-    if (!tiers.prices || !RATINGS.some((r) => Number(tiers.prices[r]) >= 0)) add('prices', 'warn', 'tiers.json has no prices: tokens stay unpriced', 'set tiers.json prices { low, medium, high } (currency per 1M tokens) — README § Models and budget, Cost');
+    if (!tiers.prices || !RATINGS.some((r) => Number(tiers.prices[r]) >= 0)) add('prices', 'warn', 'tiers.json has no prices: tokens stay unpriced', 'set tiers.json prices { low, medium, high } (currency per 1M tokens) — reference/models-and-budget.md § Models and budget, Cost');
     // the ceiling: the largest model the pipeline may use, and the models a session is on or starts on
     const c = ceilingStatus({ tiers, claudeDir, session: opts.session });
     if (!c.ceiling) add('ceiling', 'warn', 'no ceiling: every model the tiers name is allowed', '/tp:setup — it asks for the largest model the pipeline may use');
@@ -190,7 +190,7 @@ export function run(claudeDir, opts = {}) {
     if (noProgress.length) add('work directories', 'warn', `no progress.md in ${noProgress.join(', ')} — not a ticket the state script can read`, 'remove the directory, or restore progress.md');
     const all = cmd([process.execPath, join(HERE, 'state.mjs'), 'all', work], { timeoutMs: 60000 });
     let rows = null; try { rows = JSON.parse(all.stdout); } catch { rows = null; }
-    if (all.code !== 0 || !Array.isArray(rows)) add('scripts', 'fail', `state.mjs all failed: ${firstLine(all.stderr) || all.error || 'no JSON'}`, 'node --test the tests (README § Install, step 4)');
+    if (all.code !== 0 || !Array.isArray(rows)) add('scripts', 'fail', `state.mjs all failed: ${firstLine(all.stderr) || all.error || 'no JSON'}`, 'node --test the tests (reference/using.md § Install, step 4)');
     else {
       add('scripts', 'ok', `state.mjs reads ${rows.length} ticket(s)`);
       const errors = rows.filter((r) => r.status === 'error');
@@ -218,20 +218,20 @@ export function run(claudeDir, opts = {}) {
     if (remote.code !== 0) { add(`repo ${name}`, 'warn', 'no origin remote', 'add one, or the pipeline cannot push'); continue; }
     const base = baseOf(claudeDir, p, doctor.timeoutMs);
     const ls = cmd(['git', '-C', p, 'ls-remote', '--heads', 'origin', ...(base ? [base] : [])], t);
-    if (ls.code !== 0) add(`repo ${name}`, 'fail', `origin unreachable: ${ls.error || firstLine(ls.stderr) || `exit ${ls.code}`}`, 'the identity or credential this remote needs — a key to load, a token to renew — never a change to remotes or ssh config (README § Remote access failures)');
+    if (ls.code !== 0) add(`repo ${name}`, 'fail', `origin unreachable: ${ls.error || firstLine(ls.stderr) || `exit ${ls.code}`}`, 'the identity or credential this remote needs — a key to load, a token to renew — never a change to remotes or ssh config (reference/procedures.md § Remote access failures)');
     else if (base && !ls.stdout.trim()) add(`repo ${name}`, 'fail', `origin has no branch "${base}" (the base the tickets record)`, 'check the base branch in the conventions file and ticket.json');
     else add(`repo ${name}`, 'ok', `${remote.stdout.trim()}${base ? ` · base ${base}` : ''}`);
     const wt = cmd(['git', '-C', p, 'worktree', 'list', '--porcelain'], t);
     const prunable = (wt.stdout.match(/^prunable/gm) || []).length;
     if (prunable) add(`worktrees ${name}`, 'warn', `${prunable} worktree entr${prunable === 1 ? 'y' : 'ies'} whose directory is gone`, `git -C ${p} worktree prune`);
-    // generated code the gates and the build depend on (README § Toolchain): stale is the classic invented-findings trap
+    // generated code the gates and the build depend on (reference/procedures.md § Toolchain): stale is the classic invented-findings trap
     try {
       const g = codegenStatus({ repo: p, claudeDir });
       if (!g.command) add(`generated code ${name}`, 'ok', g.source);
       else if (g.stale) add(`generated code ${name}`, 'warn', `${g.generator || 'generated code'} is behind: ${g.why}`, `run it in ${p}: ${g.command} (then node ${LIB}/codegen.mjs mark '{ "repo": "${p}", "claudeDir": "${claudeDir}" }')`);
       else add(`generated code ${name}`, 'ok', `${g.generator || 'generated'} current (${g.command})`);
     } catch (e) { add(`generated code ${name}`, 'warn', `codegen.mjs could not check: ${firstLine(e.message)}`); }
-    // the gates this repo's own hooks own: every one of them is a gate the pipeline never runs (README § Verification rules)
+    // the gates this repo's own hooks own: every one of them is a gate the pipeline never runs (reference/verification.md § Verification rules)
     try {
       const h = hookCover({ repo: p, claudeDir });
       if (!h.trust) add(`hooks ${name}`, 'warn', 'tiers.json hooks.trust is false: every gate runs in the pipeline', 'set it back to true once the hooks are trusted');
@@ -247,7 +247,7 @@ export function run(claudeDir, opts = {}) {
     const ok = r.code === 0 && (!c.expect || out.includes(c.expect));
     add(c.name, ok ? 'ok' : 'fail', ok ? firstLine(r.stdout) || 'ok' : r.error || firstLine(r.stderr) || firstLine(r.stdout) || `exit ${r.code}`, ok ? null : c.fix || `run: ${c.run.join(' ')}`);
   }
-  if (!doctor.checks.length) add('platform CLI', 'warn', 'no hosting-CLI check configured', 'tiers.json doctor.checks — e.g. { "name": "hosting CLI", "run": ["<cli>", "auth", "status"] } (README § Install, step 2)');
+  if (!doctor.checks.length) add('platform CLI', 'warn', 'no hosting-CLI check configured', 'tiers.json doctor.checks — e.g. { "name": "hosting CLI", "run": ["<cli>", "auth", "status"] } (reference/using.md § Install, step 2)');
 
   // the active skills (pipeline.json, /tp:setup): every dependency of a skill that is on is on too
   try {
@@ -287,10 +287,10 @@ export function run(claudeDir, opts = {}) {
 
   // the runtime's allowlist
   const allow = ['settings.json', 'settings.local.json'].flatMap((f) => { const s = readJson(join(claudeDir, f)); return Array.isArray(s?.permissions?.allow) ? s.permissions.allow : []; });
-  if (!allow.length) add('allowlist', 'warn', 'no permissions.allow in settings.json or settings.local.json: every pipeline command will prompt', 'README § Install, step 2');
+  if (!allow.length) add('allowlist', 'warn', 'no permissions.allow in settings.json or settings.local.json: every pipeline command will prompt', 'reference/using.md § Install, step 2');
   else {
     const missing = expectedRules().filter((r) => !covered(r, allow));
-    if (missing.length) add('allowlist', 'warn', `${missing.length} of the Install rules missing: ${missing.slice(0, 4).join(', ')}${missing.length > 4 ? ', …' : ''}`, 'add them to permissions.allow (README § Install, step 2)');
+    if (missing.length) add('allowlist', 'warn', `${missing.length} of the Install rules missing: ${missing.slice(0, 4).join(', ')}${missing.length > 4 ? ', …' : ''}`, 'add them to permissions.allow (reference/using.md § Install, step 2)');
     else add('allowlist', 'ok', `${allow.length} rules, the Install set covered`);
   }
 

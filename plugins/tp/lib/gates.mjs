@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// gates.mjs — the gate baseline and the gate record (skills/README.md § Verification rules). A `/tp:verify` result is a
+// gates.mjs — the gate baseline and the gate record (reference/verification.md § Verification rules). A `/tp:verify` result is a
 // fact about two commits, so it is computed once and reused by every later stage that asks about the same commits;
 // the base's whole-program output is computed once per base commit in one persistent baseline checkout per repo —
 // never in a fresh checkout per call, never in the person's copy.
@@ -37,7 +37,7 @@ import { join, dirname, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DEFAULTS = { lockMinutes: 30, keepBases: 10, keepResults: 50 };
-// the dependency lockfiles whose change means "install again" (README § Toolchain)
+// the dependency lockfiles whose change means "install again" (reference/procedures.md § Toolchain)
 export const LOCKFILES = ['package-lock.json', 'npm-shrinkwrap.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lockb', 'bun.lock',
   'poetry.lock', 'Pipfile.lock', 'uv.lock', 'requirements.txt', 'Cargo.lock', 'go.sum', 'Gemfile.lock', 'composer.lock', 'mix.lock', 'Package.resolved'];
 const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');

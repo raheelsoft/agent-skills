@@ -461,7 +461,7 @@ describe('day.mjs — the plan as a proposal the person approves or adjusts', ()
     assert.ok(p.tickets.every((t) => t.status === 'queued' && !t.startedAt), 'nothing marked started');
     const stop = JSON.parse(readFileSync(join(r2, 'work', '_scratch', `plan-day-${DATE}.stop.json`), 'utf8'));
     assert.deepEqual([stop.id, stop.skill, stop.kind, stop.default, stop.resume], [`plan-day:${DATE}`, 'plan-day', 'approval', 'go-ahead', `/tp:plan-day date=${DATE}`]);
-    // the question alone cannot be approved: the stop names the plan the person reads first (README § Definitions, Asking the user)
+    // the question alone cannot be approved: the stop names the plan the person reads first (reference/definitions.md § Definitions, Asking the user)
     assert.equal(stop.doc, `_day/${DATE}.md`);
     assert.ok(existsSync(join(r2, 'work', '_day', `${DATE}.md`)), 'and that file is written before the stop is listed');
     const inbox = spawnSync(process.execPath, [STATE, 'inbox', join(r2, 'work')], { encoding: 'utf8' });

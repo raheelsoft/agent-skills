@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The deterministic half of skills/README.md § Models and budget. The rubric there rates a task
+// The deterministic half of reference/models-and-budget.md § Models and budget. The rubric there rates a task
 // low | medium | high; this script turns numbers into a rating, a usage reading into a budget band,
 // and a rating into the model and effort to spawn with — from the environment's own tiers.json,
 // never from a name written into a skill.
@@ -13,7 +13,7 @@
 //   node model.mjs estimate '{ rating, repos, flags, unclear, novelty, claudeDir }' -> { focusedHours, calendarHours, days, points, perDay, basis, why }
 //   node model.mjs calibrate '{ workroot, claudeDir, minSamples? }' [--apply] -> { samples, ratings: { <rating>: { samples, current, medianRatio,
 //                                                proposed, pipelineMedianMin, ids } }, drift, applied } — the base hours proposed from the
-//                                                person's recorded actuals (README § Models and budget, Estimates); --apply writes them
+//                                                person's recorded actuals (reference/models-and-budget.md § Models and budget, Estimates); --apply writes them
 //   node model.mjs tiers  <.claude> ceiling=<model> [ladder=<smallest>,…,<largest>] [low=<model> medium=<model> high=<model>]
 //                                                             -> writes <.claude>/tiers.json: the ceiling, the ladder and the three tiers derived from
 //                                                                them (low = the smallest model, high = the ceiling, medium = the first step up); a tier
@@ -39,15 +39,15 @@
 // review:  { rating, files, lines, history: [{ round, open: [ids], new: [ids] }, …] } — one entry per pass posted so far
 // context: { rating, used (tokens the agent estimates it holds) | percentUsed, window?, stepsLeft, stepsTotal?,
 //            nextStep?: { bytes } (what the next step must read), handoffs? (hand-offs so far), perStep? }
-// ceiling, ladder: the largest model the pipeline may use, and the runtime's models smallest first (README § Models and budget, The
+// ceiling, ladder: the largest model the pipeline may use, and the runtime's models smallest first (reference/models-and-budget.md § Models and budget, The
 //          ceiling) — both are data, no script names a model; every tier sits on the ladder at or below the ceiling, and pick clamps one that does not
 // tiers.json: { ceiling?, ladder?, low, medium, high, budget?: { economy: 70, stop: 90 }, thresholds?: { medium: 2, high: 4 },
 //               review?: { low: 2, medium: 3, high: 4, max: 5 },
 //               compact?: { window: 200000, reserve: 0.08, perStep: { low: 0.04, medium: 0.08, high: 0.12 },
 //                           safety: { low: 1.2, medium: 1.5, high: 2 }, handoffs: { low: 2, medium: 4, high: 6 } },
-//               retries?: { low: 1, medium: 2, high: 3 } (auto-resolve bound, README § Failures and escalation),
+//               retries?: { low: 1, medium: 2, high: 3 } (auto-resolve bound, reference/failures-and-stops.md § Failures and escalation),
 //               estimate?: { base: { low: 2, medium: 6, high: 16 }, perRepo: 0.25, perFlag: 0.15, unclear: 0.3, novelty: 0.2,
-//                            overhead: 0.35, unitHours: null, minSamples: 3 } (a person's focused hours — README § Models and budget,
+//                            overhead: 0.35, unitHours: null, minSamples: 3 } (a person's focused hours — reference/models-and-budget.md § Models and budget,
 //                            Estimates; minSamples: actuals per rating before calibrate proposes a base),
 //               day?: { lanes: { ample: "all", economy: 1, stop: 0, unknown: "all" }, draw: 6,  (day.mjs: lanes and the pool draw)
 //                       hours: 8, focus: 0.65, switch: 0.5, slack: 0.5, attend: 0.25, carry: true,  (the person's workday, dayConfig)

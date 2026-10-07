@@ -7,7 +7,7 @@ user-invocable: true
 **Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/implement-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write.
 
 Execute the work for one ticket in a **fresh agent** — never the agent that wrote the
-plan. That agent is this skill's own dedicated agent (`reference/README.md`
+plan. That agent is this skill's own dedicated agent (`reference/definitions.md`
 § Definitions, Dedicated agent): spawned for exactly this, holding nothing but its
 arguments, so it implements itself — no second agent is spawned to do the same job.
 Fresh eyes on the plan catch the plan's mistakes, and the invoking context stays
@@ -24,7 +24,7 @@ contract, Asking the user).
   are the state script's: `next` is this stage (it stays at `plan` while the plan
   lacks its go-ahead line for this round) and no `problems`; an
   earlier `next`, or no work directory, → the earlier stages run first
-  (`reference/README.md` § Definitions, Entry points).
+  (`reference/definitions.md` § Definitions, Entry points).
 - `answers=<text>` — the answer to the last stop's question; the run resumes at
   `stopped.step` (§ Definitions, Resume).
 - `step=<n>` — override the step to resume from.
@@ -32,7 +32,7 @@ contract, Asking the user).
 - `repo=<name>` — cross-repo tickets: which repo this run covers; default the first
   whose `implement:<name>` stage is not done.
 - `continue=true` — start from `checkpoint.implement[.<repo>].md`.
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `plan.json.complexity`, or `triage.json.complexity` for direct work
   (`state.mjs state` → `complexity`).
 
@@ -43,7 +43,7 @@ contract, Asking the user).
 `implement`, or `implement:<name>` for a cross-repo ticket). This agent is the
 implementer — one repo per invocation, in `ticket.json` order (the one stage that
 still takes an agent per repo: here the split is the point, since an implementer holds
-one repo's code and nothing of the other's — `reference/README.md` § Context management,
+one repo's code and nothing of the other's — `reference/context-management.md` § Context management,
 rule 9), never two agents on
 one worktree — and what it works from is exactly this, nothing else:
 - the absolute work directory; `plan.md` or `triage.md` § Approach; `ticket.md`;
@@ -97,7 +97,7 @@ pushing on when a deviation changes the approach, a step needs a decision only t
 person can make, or the change would touch shared state, access control or a public
 contract the plan didn't foresee. A step's checkpoint that still fails after the
 retries `model.mjs retry '{ rating, kind: "logic", attempts, claudeDir }'` allows is
-not a question but the error stop of `reference/README.md` § Failures and escalation:
+not a question but the error stop of `reference/failures-and-stops.md` § Failures and escalation:
 the checkpoint written first, `stopped "error: step <n> — …"`, the error form
 returned, `answers=retry` afterwards. **Harder than rated** → checkpoint and return
 `complexity: higher — <reason>` (§ Models and budget, Escalation).
@@ -127,7 +127,7 @@ on a cross-repo ticket) in the work directory, in the format of `/tp:create-pr`'
 `skills/create-pr/instructions/description-format.md` (its `examples/` show the bar) — the problem
 from `ticket.md`, the solution as this agent made it, the manual steps from `plan.md`
 § Verification — so `/tp:create-pr` checks and posts it instead of spawning an agent to
-read the whole diff again (`reference/README.md` § Context management, rule 9). Never
+read the whole diff again (`reference/context-management.md` § Context management, rule 9). Never
 posted from here: the PR is `/tp:create-pr`'s.
 
 ### 3. Output contract

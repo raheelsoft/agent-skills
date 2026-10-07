@@ -1,5 +1,5 @@
 // setup.mjs — the integration interview's mechanics: the catalogue, its dependencies, pipeline.json, and what the state script
-// leaves out when a stage's skill is off (README § Definitions, Active skills). The skills live in the plugin; a project only records its choice.
+// leaves out when a stage's skill is off (reference/definitions.md § Definitions, Active skills). The skills live in the plugin; a project only records its choice.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

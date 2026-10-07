@@ -14,7 +14,7 @@ export function isDir(p) {
 }
 
 // A path ticket.json recorded, as an absolute one. Every path a skill writes is already absolute
-// (README § Definitions, `<.claude>`); a record from an earlier pickup can hold a relative one, and
+// (reference/definitions.md § Definitions, `<.claude>`); a record from an earlier pickup can hold a relative one, and
 // resolving that against this script's cwd would report a worktree that is there as missing. The bases
 // are the roots such a path was written against — the project folder around `<.claude>`, the `<.claude>`
 // itself, the work directory (`wt/<repo>`) — first one that exists wins; nothing exists → the project
@@ -43,7 +43,7 @@ export function clean(text) {
 
 // A question as one line, whatever shape a skill wrote it in: a string as it is; a structured question
 // ({ text | question, choices | options: [...], default }) as "<text> — a | b? Default: a"; anything else stringified —
-// never "[object Object]" (README § Work directory, triage.json).
+// never "[object Object]" (reference/work-directory.md § Work directory, triage.json).
 export function questionText(q) {
   if (q == null) return '';
   if (typeof q === 'string') return q.trim();
@@ -62,7 +62,7 @@ export function questionText(q) {
 
 // A count a skill may have written either as the number or as the list itself (plan.json's `steps` and
 // `openQuestions` appear in both shapes): the list's length, a number as it is, '?' for anything else —
-// never "[object Object]" in a question (README § Work directory, plan.json).
+// never "[object Object]" in a question (reference/work-directory.md § Work directory, plan.json).
 export function countOf(v) {
   if (Array.isArray(v)) return v.length;
   if (typeof v === 'number' && Number.isFinite(v)) return v;

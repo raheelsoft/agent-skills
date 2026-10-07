@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// setup.mjs — which skills a project activates (skills/setup/SKILL.md; reference/README.md § Using it, Install). The catalogue and its
+// setup.mjs — which skills a project activates (skills/setup/SKILL.md; reference/using.md § Using it, Install). The catalogue and its
 // dependencies live here, once; the interview is the skill's; this script lists, checks and applies.
 // The skills belong to the plugin, which every project that enables it shares, so a project's choice is a record and changes nothing in the
 // plugin: `<.claude>/pipeline.json` (versioned — the team's). The state script, the orchestrator, the runner and the doctor read it; an

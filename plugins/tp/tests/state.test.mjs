@@ -369,7 +369,7 @@ describe('state — planned tickets and derived waits', () => {
 
   it('a stop that cannot be answered from its question names the document to read', () => {
     // the bug this exists for: the person was asked to approve a plan in an interview that showed only the
-    // one-line question — nothing to read, nothing to send a change against (README § Definitions, Asking the user)
+    // one-line question — nothing to read, nothing to send a change against (reference/definitions.md § Definitions, Asking the user)
     const d = pickedUp(root, { id: 'T-doc' });
     ARTEFACTS.triage(d, 'plan'); ARTEFACTS.plan(d, { steps: 2 }); ARTEFACTS.check(d);
     append(d, [['2026-01-01T10:06Z', 'triage', 'done', 'plan'], ['2026-01-01T10:08Z', 'plan', 'done', '2 steps'], ['2026-01-01T10:10Z', 'plan-check', 'done', 'ok']]);
@@ -519,7 +519,7 @@ describe('state — worktrees, prs, lock, retro', () => {
     append(dir, [['2026-01-01T10:09Z', 'merge', 'done', 'x']]);
     const j = state('state', dir).json;
     assert.deepEqual(j.problems, []);
-    // the same worktree stays through release and accept (README § Worktrees): detached at the merge commit is fine
+    // the same worktree stays through release and accept (reference/work-directory.md § Worktrees): detached at the merge commit is fine
     wt.git(['checkout', '-q', '--detach', 'main'], wt.worktree);
     assert.deepEqual(state('state', dir).json.problems, [], 'a detached worktree after the merge is not a problem');
     // wt/ lists directories only — a worktree kept by a finished ticket is what /tp:status and the doctor point at
@@ -530,7 +530,7 @@ describe('state — worktrees, prs, lock, retro', () => {
   });
 
   it('resolves a relative worktree an older pickup recorded, and still reports one that is nowhere', () => {
-    // Every path a row holds is absolute (README § Definitions, `<.claude>`), but records written before a
+    // Every path a row holds is absolute (reference/definitions.md § Definitions, `<.claude>`), but records written before a
     // pickup did that hold "<repo-name>" / ".claude/work/<id>/wt/<repo-name>". Resolved against this script's
     // own cwd, a worktree that is there reads as missing — a phantom `problems` entry, which step 0 of a run
     // treats as an error stop. The recorded path is resolved against the roots it was written against instead.

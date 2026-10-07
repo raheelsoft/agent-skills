@@ -7,11 +7,11 @@ user-invocable: true
 **Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
 
 You are the reviewer, not the author. This skill runs in its own dedicated agent
-(`reference/README.md` § Definitions, Dedicated agent) whose whole context is the arguments it was given —
+(`reference/definitions.md` § Definitions, Dedicated agent) whose whole context is the arguments it was given —
 so the isolation from the author's reasoning holds whoever invokes it, as long as the
 arguments are unbiased (below). Local mode, invoked by the author before pushing, is a
 self-check on the author's own branch, not an independent review. One invocation
-reviews one PR. The scope and pass rules are `reference/README.md` § Review scope and
+reviews one PR. The scope and pass rules are `reference/procedures.md` § Review scope and
 rounds; `instructions/scope.md` is the reviewer's reading of them.
 
 ## Input
@@ -32,10 +32,10 @@ rounds; `instructions/scope.md` is the reviewer's reading of them.
   path, conventions file, environment constraints). Nothing else.
 - **`checkout=<path>`** (remote mode, optional) → a checkout at the PR's head the
   invoker already holds — the pipeline's `/tp:merge` passes the ticket's worktree
-  (`reference/README.md` § Worktrees) — for the gates, so this review creates none of
+  (`reference/work-directory.md` § Worktrees) — for the gates, so this review creates none of
   its own. A path is a run fact, not a claim: step 0 verifies it is at the PR's head
   and clean before using it, and falls back to its own worktree otherwise.
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `tier=` or `rate`, with the catching step; the token is not part of the
   scope summary.
 
@@ -84,7 +84,7 @@ dedicated agent under the office id `review:<slug>:qa:verify` with this agent as
   worktree), at `_scratch/wt/review-<repo>` (never under a ticket's `wt/`, never the
   shared working copy: parallel reviews must not share a checkout), reusing an
   existing dependency install where possible and removed when this review is done.
-  Then the Gates table: **reuse, hooks, then run** (`reference/README.md` § Verification
+  Then the Gates table: **reuse, hooks, then run** (`reference/verification.md` § Verification
   rules) — the result recorded for exactly these commits is the table (the gates ran
   once on this commit, in `/tp:create-pr`, and a `HOOK` row in it is the repo's own hook,
   not the author's word); otherwise `/tp:verify path=<checkout> base=<base>
@@ -93,7 +93,7 @@ dedicated agent under the office id `review:<slug>:qa:verify` with this agent as
   add it as a P1 finding (*fix before merging*, so the loop tracks its resolution; its gate row
   is `FAIL`, which makes the verdict BLOCK), and continue; the review is still posted. Gates that
   cannot run here at all (a missing tool past its documented fallback) are an
-  environment failure: the error form, not a table note (`reference/README.md`
+  environment failure: the error form, not a table note (`reference/failures-and-stops.md`
   § Failures and escalation).
 - The Gates table is `/tp:verify`'s output and nothing else — the recorded result or the
   run: it runs the gates on the change and answers "no new errors vs base" by a
@@ -109,7 +109,7 @@ handed is left exactly as found.
 
 ### 1. Get the diff — and the round
 Base branch = in remote mode, the PR's declared base; in local mode, detected per
-`reference/README.md` § Definitions, Base branch — never a hardcoded name.
+`reference/definitions.md` § Definitions, Base branch — never a hardcoded name.
 
 - Local: `git diff <base>...HEAD`; if nothing is ahead of base, `git diff` for
   uncommitted work. Local mode is always round 1.
@@ -131,7 +131,7 @@ Base branch = in remote mode, the PR's declared base; in local mode, detected pe
 Read the hunks and the lines around them, widening to the enclosing function or
 declaration when a hunk cannot be judged without it — never a file end to end, and
 never the hunks of a lockfile, a generated file, a binary or a vendored tree, which
-are checked from `--stat` for consistency with their source (`reference/README.md`
+are checked from `--stat` for consistency with their source (`reference/context-management.md`
 § Context management, rule 8). `full`: apply the checklist to every changed line. `delta`: to the delta only, and
 verify each open *fix before merging* item — resolved (say how) or not (say what is
 still wrong); a new *fix before merging* item is raised only for a defect the fixes
@@ -210,6 +210,6 @@ ticketed); this agent then re-runs `/tp:verify base=<base>` and reports what cha
 None for a question — the review is posted or returned whole; `apply=` is an
 instruction, not an answer. `error: …` only: the PR or its checkout unreachable past
 the fallback, gates that cannot run at all, a fixer that returned nothing twice
-(`reference/README.md` § Failures and escalation; the state in
+(`reference/failures-and-stops.md` § Failures and escalation; the state in
 `_scratch/review-<slug>.md`): `answers=retry` once the person has done what
 `needs` names.

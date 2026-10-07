@@ -53,7 +53,7 @@ export function office(workroot) {
   // the day board: the latest plan with live statuses (day.mjs status, dry — the rows are the ones computed above)
   let day = null;
   try { day = dayStatus(workroot, null, { rows: Object.fromEntries(rows.map((r) => [r.id, r])) }); } catch (e) { day = { error: e.message }; }
-  // the last usage reading pick recorded, and the last preflight (README § Models and budget; § Using it, Preflight)
+  // the last usage reading pick recorded, and the last preflight (reference/models-and-budget.md § Models and budget; § Using it, Preflight)
   const budgetFile = readJson(join(workroot, '_budget.json'), []);
   const budget = budgetFile && budgetFile.at ? { ...budgetFile, ageMin: Math.max(0, Math.round((now - Date.parse(budgetFile.at)) / 60000)) } : null;
   const doctorFile = readJson(join(workroot, '_doctor.json'), []);

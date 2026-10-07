@@ -8,15 +8,15 @@ user-invocable: true
 
 The integration interview — the first thing to run once the plugin is on in a project,
 and the way to change the selection later. It runs **where it is invoked**
-(`reference/README.md` § Definitions, Dedicated agent: its whole job is to ask the person
+(`reference/definitions.md` § Definitions, Dedicated agent: its whole job is to ask the person
 and run one script, so no agent is spawned for it). Nothing here touches a ticket, a repo
 or the tracker, and nothing in the plugin: it writes `<.claude>/pipeline.json` and
 `<.claude>/tiers.json` (and, when the person accepts step 3's offer, the `model` line of
 `<.claude>/settings.local.json`). The skills belong to the plugin, which every project that
 enables it shares, so a skill that is off is a record in `pipeline.json`, not a folder
 moved. The catalogue — every skill, its group, what it needs, whether the interview
-preselects it — is one place, `<lib>/setup.mjs`; the README's table describes the same
-skills.
+preselects it — is one place, `<lib>/setup.mjs`; the table in `reference/README.md` describes the
+same skills.
 
 ## Input
 
@@ -59,7 +59,7 @@ skills still work one by one (§ Definitions, Entry points). `all=true` and `ski
 skip the question.
 
 ### 3. The ceiling — the largest model the pipeline may use
-The one decision that bounds every model the pipeline's agents run on (`reference/README.md`
+The one decision that bounds every model the pipeline's agents run on (`reference/models-and-budget.md`
 § Models and budget, The ceiling). Ask it when `<.claude>/tiers.json` records no ceiling
 (a first install) or the person asked to change it — and never from memory of which
 models exist:
@@ -79,7 +79,8 @@ models exist:
    is a session's starting model: the pipeline can set it, not enforce it.
 3. **Write it** — `node <lib>/model.mjs tiers <.claude> ceiling=<model>
    ladder=<smallest>,…,<largest>` (`ladder=` is optional once one is recorded): the
-   script derives the three tiers (README, the ceiling's rule), refuses a ceiling that is
+   script derives the three tiers (`reference/models-and-budget.md` § Models and budget,
+   The ceiling), refuses a ceiling that is
    not on the ladder, and keeps every other setting. On *yes*, `node
    <lib>/model.mjs pin <.claude>` writes `model` into
    `<.claude>/settings.local.json` — unless the person's own setting there is already
@@ -119,13 +120,13 @@ an uncommitted change for the person to commit (or to take through a ticket), an
 stays); the result names what was added for a dependency and which rules changed. An
 unreadable `settings.json` stops it before anything is written. `node <lib>/setup.mjs sync
 <.claude>` regenerates the rules from the current `pipeline.json`. Then, in this order:
-1. **The allowlist** — print the permission lines the selection needs (README
+1. **The allowlist** — print the permission lines the selection needs (reference/using.md
    § Install, step 2): the scripts, `git` and `node --test` always; the hosting CLI's
    `pr`/`run`/`api` when `tp:create-pr`, `tp:merge`, `tp:review` or `tp:release` is on; the
    tracker's and chat tool's read tools by name when the tracker is real; the gate
    commands when `tp:verify` is on. The person adds them to the runtime's settings — a
    missing one is a prompt mid-run, never a failure.
-2. **`.gitignore`** — the per-machine files (README § Install, step 1), listed once.
+2. **`.gitignore`** — the per-machine files (reference/using.md § Install, step 1), listed once.
 3. **Notifications** — `tp:notify` on and `<.claude>/notify.json` missing → `/tp:notify
    setup` here (it, too, runs where invoked); off → nothing.
 4. **The preflight** — `tp:doctor` on → `/tp:doctor` (its dedicated agent, this context as

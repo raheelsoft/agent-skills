@@ -77,7 +77,7 @@ parked ticket and skipped-blocked candidate at once.
    (§ Freshness) — its state stands. Nothing left to gather → nothing to run, and the
    report says the last check's time.
 2. **One batched lookup** — the caller's own tracker reads, every blocker in one
-   message (README § Definitions, Tracker; § Context management, rule 4), plus the
+   message (reference/definitions.md § Definitions, Tracker; § Context management, rule 4), plus the
    hosting platform's CLI reads for the "in review but merged" case — fetches each
    blocker's current state and classifies it exactly as § Resolving each blocker
    above: `resolved` (done, cancelled — or merged into the base branch), `soft` (in

@@ -8,10 +8,10 @@ user-invocable: true
 
 From "a described, gated PR is up" to "merged into the base branch, merge recorded"
 — or a stop that says exactly what a person must decide. The worktree stays: the
-release and the acceptance still use it (`reference/README.md` § Worktrees). The
+release and the acceptance still use it (`reference/work-directory.md` § Worktrees). The
 review runs in its own agent that knows only the PR; the loop's length comes from the
 change's complexity, never from a constant; a merge happens only when the review
-passes and merging is allowed. Rules: `reference/README.md` § Review scope and rounds;
+passes and merging is allowed. Rules: `reference/procedures.md` § Review scope and rounds;
 mechanics: `instructions/review-loop.md`. Conventions, resume rule, output contract:
 § Definitions (Resume, Output contract, Asking the user).
 
@@ -24,13 +24,13 @@ release or client-facing branch.
 
 - `<id>` — the ticket; `pr[.repo].json` exists with a `url` (the state's `next` is
   `merge` / `merge:<name>`). No PR yet (`next` earlier, or no work directory) →
-  `/tp:create-pr` and whatever precedes it run first (`reference/README.md` § Definitions,
+  `/tp:create-pr` and whatever precedes it run first (`reference/definitions.md` § Definitions,
   Entry points).
 - `repo=<name>` — cross-repo tickets: narrows this run to one repo (stage
   `merge:<name>`). **Left out, this one agent covers every repo whose stage is not
   done**, in `ticket.json` order — dependent PRs merge in that order, and each PR gets
   its own review agent, which is where the independence lies, not in the lead
-  (`reference/README.md` § Context management, rule 9). A stop or an error in one repo
+  (`reference/context-management.md` § Context management, rule 9). A stop or an error in one repo
   ends the run there.
 - `merge=auto|ask` — precedence: this argument, else the conventions file or the
   person's standing instruction, else `ask` (§ Review scope and rounds, Merging).
@@ -40,7 +40,7 @@ release or client-facing branch.
   — and the loop continues from that round (§ Failures and escalation, 3).
 - `continue=true` — start from `checkpoint.merge[.<repo>].md`.
 - `force=true` — re-run a done merge stage (§ Definitions, Resume).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: the ticket's current rating (`state.mjs state` → `complexity`) raised by
   `model.mjs rate` on `git diff --stat <base>...HEAD` — judgment about merging.
 
@@ -116,6 +116,6 @@ on the PR); this agent cannot spawn a review and none is designated
 <what>), or merge anyway (merge)? Default: retry"` on a PR the review passed (a base
 that moved is not a stop but a `/tp:create-pr update=true` sync round); `hand-off
 budget spent` (`answers=continue`); `error: …` — a platform API or merge failure past
-its fallback, a reviewer or fixer that returned nothing twice (`reference/README.md`
+its fallback, a reviewer or fixer that returned nothing twice (`reference/failures-and-stops.md`
 § Failures and escalation): `answers=retry` once the person has done what `needs`
 names.

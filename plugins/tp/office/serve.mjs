@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The office server: static files from this folder plus /office.json, computed live by the state script
-// (reference/README.md § Observability). Node only, no dependencies.
+// (reference/observability.md § Observability). Node only, no dependencies.
 //
 //   node office/serve.mjs [--port 4820] [--host 127.0.0.1] [--work <.claude>/work] [--sim]
 //   (--work defaults to the work/ of the project the command runs in: $CLAUDE_PROJECT_DIR, else the current folder, then .claude/work)
@@ -12,7 +12,7 @@
 //   GET /file?ticket=<id>&name=<plan.md|ticket.md|triage.md|report.md|accept.md|retro.md>
 //                         one of a ticket's own markdown files, for the drawer — nothing else is readable
 //   POST /answer          { id, stage, answer } → `state.mjs answer <work> <id> <stage> <answer> --by office`:
-//                         queues the answer for that exact stop (README § Definitions, Asking the user); same
+//                         queues the answer for that exact stop (reference/definitions.md § Definitions, Asking the user); same
 //                         origin only (the page, or no Origin header), ≤ 8 KB, refused in demo mode (403);
 //                         409 when the ticket is not stopped at that stage, 422 for a bad body
 //
@@ -30,7 +30,7 @@ const projectWork = () => resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd(
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 const FRAME_MS = 8000; // how long each sim frame is shown
 const FILES = new Set(['plan.md', 'ticket.md', 'triage.md', 'report.md', 'accept.md', 'retro.md']); // what the drawer may read
-// a stop's `doc` too, so a person answering on an inbox card can read what they are approving (skills/README.md
+// a stop's `doc` too, so a person answering on an inbox card can read what they are approving (reference/definitions.md
 // § Definitions, Asking the user): a ticket's is in FILES already; a day's plan is _day/<date>.md
 const readable = (id, name) => FILES.has(name) || (id === '_day' && /^\d{4}-\d{2}-\d{2}\.md$/.test(name));
 const MAX_BODY = 8192;

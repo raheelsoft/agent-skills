@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// codegen.mjs — generated code the build and the gates depend on (skills/README.md § Toolchain). An ORM client, a
+// codegen.mjs — generated code the build and the gates depend on (reference/procedures.md § Toolchain). An ORM client, a
 // GraphQL or protobuf stub, a typed API client is written by a tool from a schema in the repo; when the schema moves
 // ahead of the generated output, a type-aware gate reports the mismatch as dozens of errors in code nobody touched.
 // This script says what the project generates, from which inputs, and whether it is behind — so a stage regenerates

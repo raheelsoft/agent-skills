@@ -48,7 +48,7 @@ code. Skip sections that don't apply to this project or this change.
 - [ ] New behavior is covered by tests where the project's conventions expect it
 - [ ] Comments and PR text assert nothing about code outside the diff that the change
       does not prove — no counts, no "the only caller", no specificity or precedence
-      arithmetic, unless verified in this pass (README § Verification rules)
+      arithmetic, unless verified in this pass (reference/verification.md § Verification rules)
 
 ## Design (SOLID and clean code)
 - [ ] One responsibility per unit — module, class, function: one reason to change, one place to change it

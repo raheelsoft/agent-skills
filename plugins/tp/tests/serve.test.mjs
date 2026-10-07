@@ -76,7 +76,7 @@ describe('office server', () => {
     assert.equal((await fetch(`${srv.url}file?ticket=T-7%2F..%2FT-8&name=plan.md`)).status, 404);
 
     // a day plan is a stop's `doc` too: the person answering on the inbox card reads what they are approving
-    // (skills/README.md § Definitions, Asking the user)
+    // (reference/definitions.md § Definitions, Asking the user)
     mkdirSync(join(work, '_day'), { recursive: true });
     writeFileSync(join(work, '_day', '2026-01-02.md'), '# the day\n\nT-1, T-2\n');
     assert.match(await (await fetch(`${srv.url}file?ticket=_day&name=2026-01-02.md`)).text(), /T-1, T-2/);

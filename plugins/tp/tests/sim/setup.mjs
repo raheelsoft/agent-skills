@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// tests/sim/setup.mjs — a throw-away project to exercise the pipeline against the fixture tracker (reference/README.md
+// tests/sim/setup.mjs — a throw-away project to exercise the pipeline against the fixture tracker (reference/using.md
 // § Using it, Simulation): creates two small git repos (api, web) with a conventions file and a bare remote each, and a
 // `.claude` with tiers.json (the models of the file given with --tiers, else placeholders), tracker.json (a copy of the
 // fixture, so saves never touch tests/fixtures), office.json, notify.json (silent) and the allowlist. The pipeline itself is
@@ -75,5 +75,5 @@ next: cd ${r.root} && claude --plugin-dir ${r.plugin}   and try
   /tp:plan-day date=2026-09-21 dry=true          (sprint 4 from the fixture)
   /tp:run-ticket DEMO-4 until=implement           (a direct bug fix, no tracker or hosting account needed)
   node ${r.plugin}/office/serve.mjs --work ${r.claude}/work     (the office for this bed)
-/tp:create-pr onwards needs a real hosting platform — the bed stops at the push (reference/README.md § Using it, Simulation).`);
+/tp:create-pr onwards needs a real hosting platform — the bed stops at the push (reference/using.md § Using it, Simulation).`);
 }

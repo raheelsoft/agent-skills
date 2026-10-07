@@ -9,27 +9,27 @@ user-invocable: true
 The improvement loop, optional and after the fact: the work directory holds the plan,
 the check, the implementation summary, the review, every stop and answer, and the
 timings — enough to see where the process, not just the code, was wrong. A fresh agent
-— this skill's dedicated agent, `reference/README.md` § Definitions, Dedicated agent — reads it and
+— this skill's dedicated agent, `reference/definitions.md` § Definitions, Dedicated agent — reads it and
 proposes changes; the user decides which land. Conventions and the state script:
-`reference/README.md` § Definitions (Resume, Output contract, The scripts).
+`reference/definitions.md` § Definitions (Resume, Output contract, The scripts).
 
 ## Input
 
 - `<id>` — a ticket whose `accept` stage is `done` or `stopped`, or which the user
   declares abandoned. Runs from `/tp:run-ticket … retro=true`, or by hand. No work
-  directory → nothing to compare; the report says so (`reference/README.md`
+  directory → nothing to compare; the report says so (`reference/definitions.md`
   § Definitions, Entry points).
 - `answers=<text>` — the answer to this skill's last stop (§ Stops). `continue=true`
   — resume from `checkpoint.retro.md`. `force=true` — re-run a done retro
   (§ Definitions, Resume).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `medium` (bounded analysis of a finished record).
 
 ## Steps
 
 ### 1. Read the state, log, read the record
 `state.mjs state <workdir>` then `state.mjs log <workdir> retro started`
-(`reference/README.md` § Definitions, Resume). This agent reads the record itself — no
+(`reference/definitions.md` § Definitions, Resume). This agent reads the record itself — no
 second agent for the same reading (tools: read, the hosting platform's CLI reads, the
 state script; write only `retro.md` and `checkpoint.retro.md`, and `retro.json` through `state.mjs put`; it asks
 `model.mjs compact` between the questions below, rule 7): from the work directory,
@@ -88,6 +88,6 @@ prefer.
 
 ## Stops
 `hand-off budget spent — <next question>` (`answers=continue`); `error: …` — the
-hosting platform unreachable past its fallback (`reference/README.md` § Failures and
+hosting platform unreachable past its fallback (`reference/failures-and-stops.md` § Failures and
 escalation): `answers=retry` once the person has done what `needs` names. No work directory → not a stop: the report says there is
 nothing to compare.

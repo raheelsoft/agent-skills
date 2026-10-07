@@ -7,7 +7,7 @@ user-invocable: true
 **Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
 
 Run the quality gates and report results — once per commit, and only the gates nobody
-else already ran. Two rules of `reference/README.md` § Verification rules decide what that
+else already ran. Two rules of `reference/verification.md` § Verification rules decide what that
 is: a gate the repo's **hooks** own is reported as `HOOK` and not run here, and a gate
 **result** is a fact about the checkout's head and its base, so a recorded one is
 reused instead of re-run (the invokers ask for it before spawning this skill at all,
@@ -22,7 +22,7 @@ cached per base commit, never from a fresh checkout.
   scoping are measured against; the callers (`/tp:implement`, `/tp:create-pr`, `/tp:review`)
   know it. Without it, detect the base as described in step 2.
 - **`tests=true`** (optional) → also run the project's test target as a gate — on a
-  disposable copy of any shared state the tests touch (`reference/README.md`
+  disposable copy of any shared state the tests touch (`reference/verification.md`
   § Verification rules).
 - **`path=<checkout>`** (optional) → the checkout to gate (a ticket's worktree)
   instead of the current directory; every gate command runs there.
@@ -31,7 +31,7 @@ cached per base commit, never from a fresh checkout.
   them, and the files are restored (`git checkout -- <files>`) before the report.
 - **`full=true`** (optional) → run every gate here, hooks or not (an audit, a release
   check, a checkout whose history did not come through the hooks).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `medium` (detect the toolchain, assemble the table). `/tp:verify` never writes
   to a ticket's `progress.md`; a checkpoint goes under `<.claude>/work/_scratch/`.
 
@@ -61,7 +61,7 @@ with `full=true`? no — this one always runs: a gate against stale generated co
 invents findings). Exit 0 → nothing to do. Exit 1 → run its `command` once, output to a
 file (rule 11), then `codegen.mjs mark` so later runs know this checkout is current;
 the baseline checkout gets the same treatment before a whole-program gate runs there
-(§ Verification rules, and `reference/README.md` § Toolchain owns the rule). A failure
+(§ Verification rules, and `reference/procedures.md` § Toolchain owns the rule). A failure
 here is an environment failure, not a gate result: the error form, with the command and
 its first lines — every type-aware gate below would be reporting its consequences
 otherwise.
@@ -103,9 +103,9 @@ more than one tool, and a reimplementation silently drops the rest.
   check the CI config for which is canonical rather than guessing.
 - **Any OS:** every gate is a command the project already runs, so it runs wherever the
   project does; nothing here assumes a shell built-in, a POSIX path or a platform tool.
-- **Base branch:** the `base=` argument if given; else detect per `reference/README.md`
+- **Base branch:** the `base=` argument if given; else detect per `reference/definitions.md`
   § Definitions, Base branch.
-- **Gates run on the change** (`reference/README.md` § Context management, rule 8). With
+- **Gates run on the change** (`reference/context-management.md` § Context management, rule 8). With
   `base=`, the changed files are `git diff --name-only <base>...HEAD` plus the
   uncommitted ones: a file-scoped tool (lint, format, unit tests by file) gets that
   list — passed to the *same* tool the defined target runs, never a narrower
@@ -131,7 +131,7 @@ more than one tool, and a reimplementation silently drops the rest.
   errors vs base"; a count is never the evidence). Without `base=`, everything runs
   whole. A gate tool missing from the environment past its documented fallback
   (§ Toolchain) is an environment failure: the error form, not a table row
-  (`reference/README.md` § Failures and escalation).
+  (`reference/failures-and-stops.md` § Failures and escalation).
 - **Autofix:** a lint step that rewrites files changes the checkout. After all gates
   finish, `git diff` to see what it changed before treating the gate as clean; with
   `readonly=true` the gate is a FAIL naming the files, which are restored.
@@ -144,7 +144,7 @@ under `<.claude>/work/_scratch/gates/<repo-name>/run-<stamp>/` (the base's
 whole-program commands, when the cache missed, in the same batch in the baseline
 checkout), waited for together, then read: PASS/FAIL per gate and the first ~20 lines
 of a failure, the changed files first — never the whole output into this context. No
-agent runs a gate (`reference/README.md` § Context management, rule 4): a command's result
+agent runs a gate (`reference/context-management.md` § Context management, rule 4): a command's result
 needs no judgment, and a process keeps its output out of every context just as well.
 Don't stop at the first failure — everything has already run, so report every result.
 An autofixing lint step is the only writer: it runs alone, after the read-only gates,
@@ -176,13 +176,13 @@ Then record it: `node <lib>/gates.mjs result put '{ repo, head, base,
 verdict, table, gates: { <gate>: "PASS"|"FAIL" }, checkout, claudeDir }'` — recorded
 only while the checkout is still clean at that head (exit 2 otherwise: an autofix that
 changed files leaves nothing to record; the caller commits and the next run records).
-The record is what `reference/README.md` § Verification rules lets every later stage reuse
+The record is what `reference/verification.md` § Verification rules lets every later stage reuse
 instead of running the same gates on the same commit.
 
 ## Stops
 None for a question — a failing gate is a result, not a stop. `error: …` only: a gate
 tool missing past its documented fallback, a baseline that cannot be created or moved
 (`gates.mjs base` failing past `model.mjs retry`'s bound), a process that produced no
-output twice (`reference/README.md` § Failures and escalation; the state in
+output twice (`reference/failures-and-stops.md` § Failures and escalation; the state in
 `_scratch/verify-<slug>.md`): `answers=retry` once the person has done what `needs`
 names.

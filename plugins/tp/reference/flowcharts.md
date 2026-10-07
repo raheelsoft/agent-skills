@@ -2,9 +2,11 @@
 
 Diagrams for people. Each one is followed by **where each branch lives**, so a box or an
 arrow can be traced to the file that decides it: nothing here is a second statement of a
-rule, only a map of the rules in `README.md` and the skills.
+rule, only a map of the rules in the reference (`README.md` indexes it) and the skills.
 
-Agents do not read this file — they read the rules by reference (`README.md`
+**Contents** — [1. One ticket, end to end](#1-one-ticket-end-to-end) · [2. Entry points](#2-entry-points--any-skill-from-anywhere) · [3. A stop, and how it is answered](#3-a-stop-and-how-it-is-answered) · [4. A day](#4-a-day) · [5. A gate](#5-a-gate--who-runs-it-and-who-does-not) · [6. Installing it in a project](#6-installing-it-in-a-project) · [7. Who runs in which agent](#7-who-runs-in-which-agent)
+
+Agents do not read this file — they read the rules by reference (`context-management.md`
 § Context management, rule 10). Read it when you want to see the shape of the thing, or
 to find which skill owns a decision you are looking at.
 
@@ -108,20 +110,20 @@ flowchart TD
 
 | Branch in the diagram | Decided by |
 |---|---|
-| preflight, and what each exit code means | `README.md` § Using it, Preflight |
-| the resume decision (queued answer, usage pause, unblocked, problems, closed) | `README.md` § Definitions, Resume · `run-ticket/SKILL.md` step 0 |
+| preflight, and what each exit code means | `using.md` § Using it, Preflight |
+| the resume decision (queued answer, usage pause, unblocked, problems, closed) | `definitions.md` § Definitions, Resume · `run-ticket/SKILL.md` step 0 |
 | blocked / soft-blocked at pickup | `start-ticket/instructions/blocked-check.md` |
 | triage's five decisions | `triage/instructions/criteria.md` |
 | the plan → check → revise loop and its bound | `plan/SKILL.md` step 2 · `plan/instructions/check-criteria.md` |
 | the approval, and what an answer other than `go-ahead` does | `plan/SKILL.md` step 3 |
-| a step's stop, an escalation, a checkpoint | `implement/SKILL.md` step 2 · `README.md` § Context management, rule 7 |
+| a step's stop, an escalation, a checkpoint | `implement/SKILL.md` step 2 · `context-management.md` § Context management, rule 7 |
 | conflicts, unexpected diffs, a gate that changes the approach | `create-pr/instructions/sync.md` · `create-pr/instructions/diff-validation.md` |
-| the review loop's `review` / `merge` / `stop` | `merge/instructions/review-loop.md` · `README.md` § Review scope and rounds |
-| `merge=auto` vs `ask`, and who may merge | `README.md` § Review scope and rounds, Merging |
+| the review loop's `review` / `merge` / `stop` | `merge/instructions/review-loop.md` · `procedures.md` § Review scope and rounds |
+| `merge=auto` vs `ask`, and who may merge | `procedures.md` § Review scope and rounds, Merging |
 | the deploy watch, follow-ups, smoke, promotion | `release/SKILL.md` steps 2–5 |
-| a failed criterion and the next round | `accept/SKILL.md` step 4 · `README.md` § Worktrees |
-| when the worktrees go | `README.md` § Worktrees |
-| what a stop does before it returns (unlock, notify, report) | `README.md` § Stops and notifications |
+| a failed criterion and the next round | `accept/SKILL.md` step 4 · `work-directory.md` § Worktrees |
+| when the worktrees go | `work-directory.md` § Worktrees |
+| what a stop does before it returns (unlock, notify, report) | `failures-and-stops.md` § Stops and notifications |
 
 ## 2. Entry points — any skill, from anywhere
 
@@ -141,8 +143,8 @@ flowchart LR
 
 | Branch | Decided by |
 |---|---|
-| what counts as "at this stage" | `README.md` § Definitions, Entry points |
-| run vs resume vs refuse | `README.md` § Definitions, Resume |
+| what counts as "at this stage" | `definitions.md` § Definitions, Entry points |
+| run vs resume vs refuse | `definitions.md` § Definitions, Resume |
 | which arguments are forwarded to which stage | `run-ticket/SKILL.md` Input |
 
 ## 3. A stop, and how it is answered
@@ -171,10 +173,10 @@ flowchart TD
 
 | Branch | Decided by |
 |---|---|
-| the kinds, the default, `resumable`, the resume command | `README.md` § Definitions, Asking the user |
-| the document a stop names, and showing it before asking | `README.md` § Definitions, Asking the user · `state.mjs` (`docOf`) |
-| the order a stop ends an agent in | `README.md` § Stops and notifications |
-| queued answers from the office | `README.md` § Definitions, Asking the user · `status/SKILL.md` |
+| the kinds, the default, `resumable`, the resume command | `definitions.md` § Definitions, Asking the user |
+| the document a stop names, and showing it before asking | `definitions.md` § Definitions, Asking the user · `state.mjs` (`docOf`) |
+| the order a stop ends an agent in | `failures-and-stops.md` § Stops and notifications |
+| queued answers from the office | `definitions.md` § Definitions, Asking the user · `status/SKILL.md` |
 | what resumes without a person | `inbox/SKILL.md` · `start-ticket/instructions/blocked-check.md` § Re-check |
 
 ## 4. A day
@@ -205,10 +207,10 @@ flowchart TD
 |---|---|
 | sprint detection, the pool draw, the feature filter | `plan-day/instructions/selection.md` |
 | the proposal and its adjustments | `plan-day/SKILL.md` step 6b |
-| how many run at once | `README.md` § Models and budget (`tiers.json.day.lanes`) |
-| when a dependent may start | `README.md` § Worktrees (stacked) · `day.mjs` header |
+| how many run at once | `models-and-budget.md` § Models and budget (`tiers.json.day.lanes`) |
+| when a dependent may start | `work-directory.md` § Worktrees (stacked) · `day.mjs` header |
 | the blocker re-check and its freshness | `start-ticket/instructions/blocked-check.md` § Re-check, § Freshness |
-| the day's close and the estimates' drift | `eod/SKILL.md` · `README.md` § Models and budget, Estimates |
+| the day's close and the estimates' drift | `eod/SKILL.md` · `models-and-budget.md` § Models and budget, Estimates |
 
 ## 5. A gate — who runs it, and who does not
 
@@ -236,11 +238,11 @@ flowchart TD
 
 | Branch | Decided by |
 |---|---|
-| the whole rule: reuse, hooks, then run | `README.md` § Verification rules |
+| the whole rule: reuse, hooks, then run | `verification.md` § Verification rules |
 | what a hook covers, and at what scope | `hooks.mjs` header · `verify/SKILL.md` step 0b |
-| generated code and staleness | `README.md` § Toolchain · `codegen.mjs` header |
+| generated code and staleness | `procedures.md` § Toolchain · `codegen.mjs` header |
 | the baseline and the per-commit record | `verify/SKILL.md` step 2 · `gates.mjs` header |
-| a failing gate, and what is never done about it | `README.md` § Verification rules · § Commits |
+| a failing gate, and what is never done about it | `verification.md` § Verification rules · § Commits |
 
 ## 6. Installing it in a project
 
@@ -263,10 +265,10 @@ flowchart TD
 | Branch | Decided by |
 |---|---|
 | the catalogue, the groups, the dependencies | `lib/setup.mjs` (`GROUPS`) · `setup/SKILL.md` |
-| what an off skill changes downstream | `README.md` § Definitions, Active skills |
-| the ceiling, the ladder, the three tiers, the session's starting model | `README.md` § Models and budget, The ceiling · `model.mjs` (`tiers`, `ceiling`, `pin`) |
-| the hooks, and when they are refused | `README.md` § Verification rules · `hooks.mjs` header |
-| what the allowlist must cover | `README.md` § Using it, Install |
+| what an off skill changes downstream | `definitions.md` § Definitions, Active skills |
+| the ceiling, the ladder, the three tiers, the session's starting model | `models-and-budget.md` § Models and budget, The ceiling · `model.mjs` (`tiers`, `ceiling`, `pin`) |
+| the hooks, and when they are refused | `verification.md` § Verification rules · `hooks.mjs` header |
+| what the allowlist must cover | `using.md` § Using it, Install |
 
 ## 7. Who runs in which agent
 
@@ -283,10 +285,10 @@ flowchart TD
 
 | Branch | Decided by |
 |---|---|
-| the dedicated-agent rule and what a skill does itself | `README.md` § Definitions, Dedicated agent |
-| when a second agent is justified | `README.md` § Context management, rules 2 and 9 |
-| one agent per stage, and why implement is the exception | `README.md` § Context management, rule 9 · `create-pr/SKILL.md` · `merge/SKILL.md` · `release/SKILL.md` |
-| commands batched into one call rather than a turn each | `README.md` § Context management, rule 12 |
-| commands and lookups without an agent | `README.md` § Context management, rules 4 and 11 |
-| the depth limit | `README.md` § Definitions, Depth |
-| which model each agent runs on | `README.md` § Models and budget |
+| the dedicated-agent rule and what a skill does itself | `definitions.md` § Definitions, Dedicated agent |
+| when a second agent is justified | `context-management.md` § Context management, rules 2 and 9 |
+| one agent per stage, and why implement is the exception | `context-management.md` § Context management, rule 9 · `create-pr/SKILL.md` · `merge/SKILL.md` · `release/SKILL.md` |
+| commands batched into one call rather than a turn each | `context-management.md` § Context management, rule 12 |
+| commands and lookups without an agent | `context-management.md` § Context management, rules 4 and 11 |
+| the depth limit | `definitions.md` § Definitions, Depth |
+| which model each agent runs on | `models-and-budget.md` § Models and budget |

@@ -1,5 +1,5 @@
 // usage.mjs — tokens an agent reported (`tokens=<n> tier=<rating>` in a progress line), per stage and per tier, priced when tiers.json names prices
-// (README § Models and budget, Cost).
+// (reference/models-and-budget.md § Models and budget, Cost).
 import { join, dirname, resolve } from 'node:path';
 import { RATING_VALUES } from './constants.mjs';
 import { isDir, readJson } from './util.mjs';
@@ -16,7 +16,7 @@ export function pricesOf(claudeDir) {
 }
 
 // tokens an agent reported, recorded as "tokens=<n> tier=<rating>" anywhere in a line's summary or links; priced when
-// tiers.json names prices (README § Models and budget). `claudeDir` defaults to the parent of the work root; `date`
+// tiers.json names prices (reference/models-and-budget.md § Models and budget). `claudeDir` defaults to the parent of the work root; `date`
 // keeps the lines of one day. `partial` when a run said its totals are incomplete ("tokens partial").
 export function usage(workdir, opts = {}) {
   const entries = isDir(workdir) ? parseProgress(workdir, []) : [];

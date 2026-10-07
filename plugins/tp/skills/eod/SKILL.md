@@ -8,7 +8,7 @@ user-invocable: true
 
 Close the day: one report a person can read tomorrow morning, and the one fact only
 a person knows — the hours they actually spent on each ticket that finished today —
-recorded so `model.mjs calibrate` can teach the estimates (`reference/README.md`
+recorded so `model.mjs calibrate` can teach the estimates (`reference/models-and-budget.md`
 § Models and budget, Estimates). The numbers are the scripts'; this skill writes the
 prose, asks the one question, and sends the line.
 
@@ -19,7 +19,7 @@ prose, asks the one question, and sends the line.
   (`answers="1: 5 | 2: skip | 3: "` — blank takes the estimate, `skip` records
   nothing), or `retry` for an error stop.
 - `dry=true` — write the report, ask nothing, send nothing.
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `medium` (a bounded summary of the day's record).
 
 ## Where it runs
@@ -82,4 +82,4 @@ done`, then the report's path and its first lines, and the output contract lines
 The actuals question (`answers="1: <h> | 2: skip | …"`; derived from
 `_scratch/eod-<date>.stop.json`, listed by `/tp:inbox` and the office until answered);
 `error: …` — the day script refusing the work root, a lookup that returned nothing
-twice (`reference/README.md` § Failures and escalation): `answers=retry`.
+twice (`reference/failures-and-stops.md` § Failures and escalation): `answers=retry`.

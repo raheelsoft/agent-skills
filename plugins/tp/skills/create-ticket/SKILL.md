@@ -7,7 +7,7 @@ user-invocable: true
 **Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
 
 Write a ticket the rest of the workflow can act on without re-reading the original
-conversation. This is the only skill that creates tickets (`reference/README.md`
+conversation. This is the only skill that creates tickets (`reference/procedures.md`
 § Tickets) — because the user invoked it, or because `/tp:review` found pre-existing
 defects in code a PR touches or depends on (`from=review`, all of a pass's defects in
 one invocation — one dedicated agent, one ticket each; step 1 says what a duplicate
@@ -25,7 +25,7 @@ iteration/sprint, priority, parent ticket, related tickets.
   numbered defects: each gets steps 1–4 on its own, a duplicate is reported, never
   asked about (step 1), and the report is one line per defect.
 - `answers=comment|create` — the decision after a duplicate was found (step 1).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: from the request — a reproduction with a known area is `low`, a spec excerpt
   spanning areas is `high`. No token is part of the ticket text.
 
@@ -54,10 +54,10 @@ whether existing behaviour is broken, not by the wording; title per the tracker'
 convention (prefix, component); repo target from discovery; acceptance criteria as a
 checklist; the discovery result as the implementation brief; labels, priority,
 iteration and relations (parent, blocked-by, related) from the hints and the tracker's
-existing conventions. No personal data (`reference/README.md` § Personal data).
+existing conventions. No personal data (`reference/procedures.md` § Personal data).
 
 ### 4. Create it
-Create the ticket with the tracker (`reference/README.md` § Definitions, Tracker) in its backlog/unstarted state,
+Create the ticket with the tracker (`reference/definitions.md` § Definitions, Tracker) in its backlog/unstarted state,
 unassigned unless the user said otherwise; add the relations. If the tracker rejects a
 field (a label that doesn't exist, a quota), create without it and say so.
 
@@ -69,7 +69,7 @@ could not find (so the brief's gaps are visible) — one line per ticket with
 
 ## Stops
 A duplicate on a person's request (`answers=comment|create`); the tracker or a
-lookup failing past its fallback — `error: …` (`reference/README.md`
+lookup failing past its fallback — `error: …` (`reference/failures-and-stops.md`
 § Failures and escalation; the state in `_scratch/create-ticket-<slug>.md`):
 `answers=retry` once the person has done what `needs` names. With `from=review`
 nothing stops (step 1).

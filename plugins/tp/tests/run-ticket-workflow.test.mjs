@@ -175,7 +175,7 @@ describe('stage order and control flow', () => {
   });
 
   it('an error ends the ticket with its diagnosis and the resume steps, never retried by the runner', async () => {
-    const err = { status: 'error', summary: 'gates', diagnosis: 'tsc not found; tried: nvm path, npx — both missing', resume: '/tp:run-ticket T-1 answers=retry', needs: 'install the toolchain (README § Toolchain)', data: {} };
+    const err = { status: 'error', summary: 'gates', diagnosis: 'tsc not found; tried: nvm path, npx — both missing', resume: '/tp:run-ticket T-1 answers=retry', needs: 'install the toolchain (reference/procedures.md § Toolchain)', data: {} };
     const { outcome, calls, prompts } = await runWorkflow(A, { ...fullDirect(), 'implement:T-1': err });
     assert.deepEqual(calls.slice(-1), ['implement:T-1']);
     assert.equal(prompts['implement:T-1'].length, 1);

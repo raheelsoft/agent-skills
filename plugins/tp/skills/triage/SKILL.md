@@ -8,16 +8,16 @@ user-invocable: true
 
 Decide **direct**, **plan**, **needs-input**, **close** or **blocked** for one ticket
 and record why. The decision is made by a fresh agent — this skill's dedicated agent,
-which knows nothing but its arguments (`reference/README.md` § Definitions, Dedicated
+which knows nothing but its arguments (`reference/definitions.md` § Definitions, Dedicated
 agent) — from what it finds in the ticket and the code, not from the invoker's
 impression of the task; no second agent is spawned to do the same reading.
-Conventions: `reference/README.md` § Definitions (Resume, Output contract, Asking the
+Conventions: `reference/definitions.md` § Definitions (Resume, Output contract, Asking the
 user).
 
 ## Input
 
 - `<id>` — the ticket. No work directory yet (`<.claude>/work/<id>/`, written by
-  `/tp:start-ticket`) → the pickup runs first (`reference/README.md` § Definitions, Entry
+  `/tp:start-ticket`) → the pickup runs first (`reference/definitions.md` § Definitions, Entry
   points).
 - `mode=direct|plan` (optional) — the user's override; the agent still runs so
   `triage.md` carries the evidence, but the decision is the override.
@@ -25,7 +25,7 @@ user).
   (§ Definitions, Resume); appended to `answers.md` and logged as a `note` before the
   agent runs again.
 - `force=true` — re-run a done triage (§ Definitions, Resume).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `ticket.json.complexity`.
 
 ## Steps
@@ -38,7 +38,7 @@ worktrees, write `triage.md`, `state.mjs put` for the JSON), from: the absolute 
 `answers.md`; each repo's worktree and conventions file from `ticket.json`; the
 criteria file (`instructions/criteria.md`). The task — locate the code the ticket
 touches (its frontier: the acceptance criteria and the code they name —
-`reference/README.md` § Context management, rule 8), estimate the blast radius, check
+`reference/context-management.md` § Context management, rule 8), estimate the blast radius, check
 every criterion, rate the ticket's complexity from the same evidence
 (`instructions/criteria.md` § Complexity), write `triage.md` in the template below
 and `triage.json` (`{ decision, confidence, override, flags, questions, blockedBy,
@@ -122,5 +122,5 @@ which renders a structured `{ text, choices, default }` as one line — write th
 way or as plain strings, never anything the script would show as `[object Object]`;
 `answers=1: … | 2: …`, a blank answer takes the default); `hand-off budget spent —
 <next step>` (`answers=continue`); `error: …` — a lookup or a read that failed past its
-fallback (`reference/README.md` § Failures and escalation):
+fallback (`reference/failures-and-stops.md` § Failures and escalation):
 `answers=retry` once the person has done what `needs` names.

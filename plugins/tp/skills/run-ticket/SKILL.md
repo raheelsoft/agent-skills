@@ -8,8 +8,9 @@ user-invocable: true
 
 Orchestrate `/tp:start-ticket → /tp:triage → (/tp:plan →) /tp:implement → /tp:create-pr → /tp:merge →
 /tp:release → /tp:accept (→ /tp:retro)` for a ticket. The orchestrator holds only each stage's short
-report; everything else is in the work directory. `reference/README.md` defines the files,
-the dedicated-agent rule, the resume rule, the state script and what is logged where.
+report; everything else is in the work directory. `reference/` defines the files,
+the dedicated-agent rule, the resume rule, the state script and what is logged where
+(`reference/README.md` says which file holds what).
 
 Invoking this skill carries each stage skill's own authorization statement, exactly as
 if that skill were invoked alone. Its stops are the stage skills' stops (each skill's
@@ -27,22 +28,22 @@ held by another run, a problem from the state script, a usage pause.
   pickup does not fetch the same states again (`blocked-check.md` § Freshness).
 - `mode=direct|plan` → `/tp:triage`. `promote=<branch>` → `/tp:release`, never inferred.
   `where=live|checkout`, `env=<name>` → `/tp:accept`. `retro=true` → `/tp:retro` at the end.
-- `merge=auto|ask` → `/tp:merge` (precedence: `reference/README.md` § Review scope and
+- `merge=auto|ask` → `/tp:merge` (precedence: `reference/procedures.md` § Review scope and
   rounds, Merging).
 - `until=start-ticket|triage|plan|implement|create-pr|merge|release|accept` → stop
   after that stage (no close-out, no `done` message); `until=create-pr` opens the PR
   and leaves it unreviewed. A stage skill used as an entry point runs this with its
-  own stage as `until=` (`reference/README.md` § Definitions, Entry points).
+  own stage as `until=` (`reference/definitions.md` § Definitions, Entry points).
 - Any stage skill's own argument — `repo=`, `update=true`, `check-only=true`,
   `findings=`, `step=`, `force=true` — is forwarded to that stage, so an entry point
   keeps its options; the arguments above are forwarded to the stages named.
-- `owner=<string>` → the run-lock owner (`reference/README.md` § Concurrency); the
+- `owner=<string>` → the run-lock owner (`reference/work-directory.md` § Concurrency); the
   invoking session passes its own name or id and every orchestrator it spawns uses it.
 - `tier=<low|medium|high>` → the minimum rating for every agent of this run,
   forwarded to every stage (`strong` = `high`).
 - `answers=<text>` → the answer to the stopped stage's question, routed by the state
   (§ Definitions, Resume).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent): passed by the
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent): passed by the
   orchestrator spawn below and by a stage skill's entry-point invocation
   (§ Definitions, Entry points); this agent's rating: `medium` (orchestration and
   relaying reports).
@@ -51,7 +52,7 @@ held by another run, a problem from the state script, a usage pause.
 
 Without `inline=true` this invocation does three things and nothing else: the
 **preflight** (§ Using it, Preflight owns the rule and the exit codes); `/tp:notify
-setup` when `<.claude>/notify.json` does not exist (`reference/README.md`
+setup` when `<.claude>/notify.json` does not exist (`reference/observability.md`
 § Observability); then it spawns one **orchestrator agent per ticket** — **all in one
 message**, in the background, the session being the one context the runtime wakes
 for that (§ Definitions, Runtime notes) — for one id or for `A B C` alike, each told
@@ -65,7 +66,7 @@ report as it arrives; a stop becomes the interview and the re-invocation `/tp:ru
 <id> answers=…` (§ Definitions, Asking the user — a fresh orchestrator; the state on
 disk resumes it). Tickets never share a worktree or a work directory, so they run
 side by side, each in its one worktree per repo from pickup to the close-out
-(§ Worktrees). Where nobody can be interviewed — a scheduled run (`reference/README.md`
+(§ Worktrees). Where nobody can be interviewed — a scheduled run (`reference/observability.md`
 § Unattended runs, Scheduled runs) — the session spawns the orchestrators in one
 message and awaits them in the foreground, prints every stop as its row (the state
 already carries the resume command) and re-invokes nothing that needs a person; the
@@ -115,7 +116,7 @@ stop, without unlocking), `state.mjs log <workdir> run-ticket started`, then run
 `next` — with `answers=` when given (`repo=` is `next`'s suffix for `/tp:implement`,
 the one stage with an agent per repo; the others cover every repo left in their own
 agent, so pass no `repo=` and expect `next` to come back past all of them —
-`reference/README.md` § Context management, rule 9; `next: plan-check` → `/tp:plan <id>
+`reference/context-management.md` § Context management, rule 9; `next: plan-check` → `/tp:plan <id>
 check-only=true`); note which stages the state skipped.
 
 ### 1. `/tp:start-ticket <id> [round=…] [answers=…]`
@@ -137,7 +138,7 @@ written into `answers.md` by any agent is a breach of this rule, not a shortcut
 (standing instruction, 2026-09-25).
 Line `3/8 plan · <n> steps · risks: <flags> · check <ok|revise>`. Every plan ends in
 the approval stop — the person reads the checked plan itself (the stop's `doc`, open
-risks named: `reference/README.md` § Definitions, Asking the user) and answers
+risks named: `reference/definitions.md` § Definitions, Asking the user) and answers
 `go-ahead` or sends changes — before step 4 runs.
 
 ### 4. `/tp:implement <id> [repo=<name>] [answers=…]` — once per repo, in `ticket.json` order
@@ -189,7 +190,7 @@ person's call; `accept.md` is the evidence for closing it.
 
 ## Stops
 
-A stage's stop ends the orchestrator exactly as `reference/README.md` § Stops and
+A stage's stop ends the orchestrator exactly as `reference/failures-and-stops.md` § Stops and
 notifications says (unlock → `/tp:notify … level=stop` → `state.mjs agent leave
 <.claude>/work <id>:run-ticket:manager stopped` → return the stage lines so far and
 the stop text **verbatim**, prefixed `run-ticket › <stage> ›` — the choices and the

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// hooks.mjs — the repo's own git hooks as gate owners (skills/README.md § Verification rules, Gates the hooks own).
+// hooks.mjs — the repo's own git hooks as gate owners (reference/verification.md § Verification rules, Gates the hooks own).
 // A gate a commit or a push hook already runs costs the pipeline nothing: the hook fails the commit, the agent reads the
 // exit code, and no agent, no baseline and no second pass are needed for that gate. This script finds the hooks, says
 // which gates they cover and at which scope, and writes Husky-style hooks from the project's own commands.

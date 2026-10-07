@@ -2,7 +2,7 @@
 
 ## Only review the diff
 
-The scope rule is `reference/README.md` § Review scope and rounds (in: the lines the
+The scope rule is `reference/procedures.md` § Review scope and rounds (in: the lines the
 PR adds or changes; out: everything else, unchanged code in the same files included).
 
 ## Example
@@ -20,7 +20,7 @@ Keep the signal-to-noise ratio high.
 ## Pre-existing defects become tickets, not findings
 
 The rule, its scope ("code the diff touches or directly depends on") and its
-off-switch are `reference/README.md` § Review scope and rounds. Here: such a **defect**
+off-switch are `reference/procedures.md` § Review scope and rounds. Here: such a **defect**
 is filed and listed under "Pre-existing" with its ticket id — never under "Fix before
 merging", never as a request to the author; pre-existing style, naming or pattern
 issues are not listed at all. The passes are bounded and incremental by the same

@@ -1,4 +1,4 @@
-// tracker.mjs — the file-backed tracker over the fixture (README § Definitions, Tracker; § Using it, Simulation).
+// tracker.mjs — the file-backed tracker over the fixture (reference/definitions.md § Definitions, Tracker; § Using it, Simulation).
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

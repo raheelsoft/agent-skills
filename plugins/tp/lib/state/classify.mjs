@@ -1,5 +1,5 @@
 // classify.mjs — what a stop is: its kind (question, approval, error, usage, blocked, problem), the document a person must read to answer it, the reset
-// time of a usage pause, and the command that resumes it (README § Definitions, Asking the user). Pure: it reads nothing but the stop it is given.
+// time of a usage pause, and the command that resumes it (reference/definitions.md § Definitions, Asking the user). Pure: it reads nothing but the stop it is given.
 import { existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
@@ -16,7 +16,7 @@ export function resetTimeOf(question, at) {
   return new Date(t).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-// The document a stop is about (README § Definitions, Asking the user). A one-line question is enough to decide
+// The document a stop is about (reference/definitions.md § Definitions, Asking the user). A one-line question is enough to decide
 // "which API?", never enough to approve a plan: the stop names the file and the context that interviews shows it to
 // the person before asking. Named, never inlined: the question itself stays one line, and that line is what goes to
 // chat. The path is relative to the WORK ROOT, one base for every stop — a ticket's ("<id>/plan.md") and a scratch
@@ -29,7 +29,7 @@ export function docOf(stopped, ctx) {
 }
 
 // every stop gets a kind, what continues it and whether it can continue by itself — from the stop's own wording
-// (README § Definitions, Asking the user); never from re-reading progress.md
+// (reference/definitions.md § Definitions, Asking the user); never from re-reading progress.md
 export function classifyStop(stopped, ctx = {}, now = Date.now()) {
   const q = stopped.question || '';
   const id = ctx.id || '?';

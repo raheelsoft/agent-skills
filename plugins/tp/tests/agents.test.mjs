@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { PLUGIN_ROOT } from './helpers.mjs';
 import { ROLES } from '../hooks/roles.mjs';
 import { CONTRACTS } from '../hooks/handlers/subagent-stop.mjs';
+import { referenceText } from '../lib/ref.mjs';
 
 const DIR = join(PLUGIN_ROOT, 'agents');
 const files = readdirSync(DIR).filter((f) => f.endsWith('.md')).sort();
@@ -54,5 +55,5 @@ describe('the skills spawn them by type', () => {
   it('/tp:plan spawns its checker as tp:plan-checker', () => assert.match(skill('plan'), /agent of type `tp:plan-checker`/));
   it('/tp:create-pr spawns its diff validator as tp:diff-validator', () => assert.match(skill('create-pr'), /agent of type `tp:diff-validator`/));
   it('/tp:merge hands the review to a tp:reviewer', () => assert.match(skill('merge'), /of type `tp:reviewer`/));
-  it('the README says which type is the dedicated agent of /tp:implement', () => assert.match(readFileSync(join(PLUGIN_ROOT, 'reference', 'README.md'), 'utf8'), /`\/tp:implement`'s is\s+`tp:implementer`/));
+  it('the reference says which type is the dedicated agent of /tp:implement', () => assert.match(referenceText(), /`\/tp:implement`'s is\s+`tp:implementer`/));
 });

@@ -17,10 +17,10 @@ Check every row; the first column that applies decides.
 ## Complexity
 
 The same rows rate the ticket `low`, `medium` or `high` for `triage.json.complexity`
-(`reference/README.md` § Models and budget — every later agent's model follows it): map
-each row of the table above onto the README's rubric columns — blast radius → Scope,
+(`reference/models-and-budget.md` § Models and budget — every later agent's model follows it): map
+each row of the table above onto the rubric's columns — blast radius → Scope,
 criteria → Ambiguity, the shared-state / access / contract rows → Risk, "existing
-pattern" → Novelty — and the highest column that applies wins, exactly as the README
+pattern" → Novelty — and the highest column that applies wins, exactly as the rubric
 says. Uncertain → the higher level; record the deciding row in `triage.md`
 § Evidence.
 

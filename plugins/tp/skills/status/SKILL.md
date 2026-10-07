@@ -7,14 +7,14 @@ user-invocable: true
 **Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
 
 One table for all tickets, or one ticket in detail. Everything comes from
-`state.mjs` (`reference/README.md` § Definitions, The scripts); this skill formats, it doesn't infer.
+`state.mjs` (`reference/definitions.md` § Definitions, The scripts); this skill formats, it doesn't infer.
 
 ## Input
 
 - No argument → every work directory under `<.claude>/work/`.
 - `<id>` → that ticket in detail.
 - `problems` → only tickets whose state script reports a problem.
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `low` (run the state script, format its output). Nothing is logged; a
   checkpoint goes under `<.claude>/work/_scratch/`.
 
@@ -31,7 +31,7 @@ One table for all tickets, or one ticket in detail. Everything comes from
 is non-null — what the review passes left open (`schemas/README.md` § Reviews).
 `Estimate` is the row's `estimate` — `<focusedHours>h · <days>d` with `*` when the
 pipeline made it (`source: pipeline`), followed by `actual <h>h` when `/tp:eod` recorded
-the person's hours, empty when there is none (`reference/README.md`
+the person's hours, empty when there is none (`reference/models-and-budget.md`
 § Models and budget, Estimates).
 `Status` is `in-progress`, `stopped` (with the stop's `kind` and the question in *Next
 / waiting on* — `blocked` shows `blockedBy` with each blocker's last recorded state
@@ -40,7 +40,7 @@ shows as `answer queued (<by>, <when>)`),
 `closed` (closed early — the `why` in *Next / waiting on*), `done` or `error` (a
 directory the script could not read — its problem in *Next / waiting on*); a `done`
 ticket whose `retro` is non-null shows `done · retro`. `Run` is the
-lock (`reference/README.md` § Concurrency): `<owner> since <time>`, `stale` appended when
+lock (`reference/work-directory.md` § Concurrency): `<owner> since <time>`, `stale` appended when
 the script says so, empty otherwise. `Tokens · cost` is the row's `tokens` (the sum of
 logged `tokens=<n>`; empty when the runtime reports none) and `cost` as `$<n>`, with
 `+<m> unpriced` when tokens carried no tier or `tiers.json` names no price for it, and
@@ -48,12 +48,12 @@ logged `tokens=<n>`; empty when the runtime reports none) and `cost` as `$<n>`, 
 totals line (`state.mjs totals`: tokens, cost, today's share), tickets with problems (each problem on its own line), and tickets that are done
 or abandoned but still hold a worktree (`worktrees` non-empty: the ticket's one
 worktree per repo, kept for the whole run and removed by `/tp:accept`'s `done` or the
-close-out of a closed or parked ticket — `reference/README.md` § Worktrees; a stopped
+close-out of a closed or parked ticket — `reference/work-directory.md` § Worktrees; a stopped
 ticket keeps it on purpose and is not listed here) — for each, the exact cleanup:
 `git -C <repo path> worktree remove <workdir>/wt/<entry>` with the repo path from
 `ticket.json` (by name), then the directory. A stale lock is listed with
 `state.mjs unlock <workdir> <owner>`; a live lock of a run the user declares dead
-with `--force` (`reference/README.md` § Concurrency).
+with `--force` (`reference/work-directory.md` § Concurrency).
 
 ### One ticket
 `state.mjs state <workdir>` and `state.mjs durations <workdir>` → the stage list with

@@ -44,7 +44,7 @@ export function markdown(p) {
     (p.undrawn.length ? `\nNot drawn today: ${p.undrawn.join(', ')}\n` : '');
 }
 
-// the approval stop as the state script classifies it (README § Definitions, Asking the user): kind approval, default go-ahead
+// the approval stop as the state script classifies it (reference/definitions.md § Definitions, Asking the user): kind approval, default go-ahead
 export function proposalQuestion(planObj, proposal) {
   const now = proposal.start.length ? `now: ${proposal.start.join(', ')}` : 'now: nothing (everything waits or is blocked)';
   const then = proposal.waiting.map((w) => `${w.id} after ${w.on.map((o) => o.id).join(', ')}`);
@@ -57,7 +57,7 @@ export function stopFile(workroot, date) { return join(workroot, '_scratch', `pl
 export function writeStop(workroot, planObj, question, nowMs) {
   mkdirSync(join(workroot, '_scratch'), { recursive: true });
   const file = stopFile(workroot, planObj.date);
-  // `doc`: the day's plan itself — nobody approves a day they have not read (README § Definitions, Asking the user)
+  // `doc`: the day's plan itself — nobody approves a day they have not read (reference/definitions.md § Definitions, Asking the user)
   const rec = { id: `plan-day:${planObj.date}`, skill: 'plan-day', slug: planObj.date, kind: 'approval', question, doc: join('_day', `${planObj.date}.md`), at: nowIso(nowMs), default: 'go-ahead', resume: `/tp:plan-day date=${planObj.date}` };
   writeFileSync(`${file}.tmp`, JSON.stringify(rec, null, 2) + '\n'); renameSync(`${file}.tmp`, file);
 }

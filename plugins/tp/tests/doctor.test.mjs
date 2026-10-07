@@ -100,7 +100,7 @@ describe('doctor.mjs', () => {
   });
 
   it('finds a repo an older ticket recorded with a relative path, and reads that row\'s base', () => {
-    // A row's paths are absolute (README § Definitions, `<.claude>`); records written before that was spelled
+    // A row's paths are absolute (reference/definitions.md § Definitions, `<.claude>`); records written before that was spelled
     // out hold "<repo-name>". Resolved against this script's cwd the repo is lost — it is neither discovered
     // (nothing checks its remote) nor matched in baseOf (the base the ticket recorded is ignored). Resolved
     // against the project folder around <.claude> it is found. The checkout sits one level deeper than the

@@ -7,7 +7,7 @@ export const DEFAULT_RETRIES = { low: 1, medium: 2, high: 3 }; // re-tries a fai
 
 export const RETRY_KINDS = ['transient', 'environment', 'logic', 'usage', 'decision'];
 
-export const DEFAULT_COMPACT = { // when an agent hands its remaining work to a fresh one (README § Context management, rule 7)
+export const DEFAULT_COMPACT = { // when an agent hands its remaining work to a fresh one (reference/context-management.md § Context management, rule 7)
   window: 200000,                                   // tokens an agent's context holds when the runtime does not say
   reserve: 0.08,                                    // share of the window kept free for the checkpoint and the report
   perStep: { low: 0.04, medium: 0.08, high: 0.12 }, // share of the window one step of a task of that rating takes in
@@ -78,7 +78,7 @@ export function compact(input = {}) {
 }
 
 /**
- * Auto-resolve before escalating (README § Failures and escalation): what a failure of `kind` gets after `attempts`
+ * Auto-resolve before escalating (reference/failures-and-stops.md § Failures and escalation): what a failure of `kind` gets after `attempts`
  * tries. transient (network, 429/5xx, a busy resource, a flaky command): retry with backoff up to the rating's bound;
  * environment (a missing tool, expired auth, a denied permission): the documented fallback once, then escalate;
  * logic (the agent's own mistake, a failing checkpoint, a gate its change broke): fix and retry up to the bound;
@@ -96,7 +96,7 @@ export function retry(input = {}) {
   if (kind === 'usage') { action = 'escalate'; why = 'a usage limit is never retried — log the usage pause and stop'; }
   else if (kind === 'decision') { action = 'escalate'; why = 'a decision, an answer or a permission is a stop for the person, never a retry'; }
   else if (kind === 'environment') {
-    if (attempts === 0) { action = 'fallback'; why = 'try the documented alternative once (README § Remote access failures, § Toolchain) — never a change to credentials, remotes or shell config'; }
+    if (attempts === 0) { action = 'fallback'; why = 'try the documented alternative once (reference/procedures.md § Remote access failures, § Toolchain) — never a change to credentials, remotes or shell config'; }
     else { action = 'escalate'; why = 'the fallback failed too — checkpoint and hand up with the resume steps'; }
   } else if (attempts < max) {
     action = 'retry';

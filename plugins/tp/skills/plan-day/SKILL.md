@@ -14,8 +14,8 @@ every ready ticket through `/tp:run-ticket`; then, each time one of them returns
 what became ready. Nothing starts before the go-ahead (`approve=true` skips the
 review for a person who wants the plan run as drawn). The selection is a dedicated
 agent's; the interview and the launching are the session's (§ Where it runs).
-`reference/README.md` defines the dedicated-agent rule, the work directory, the scripts
-and the budget.
+`reference/` defines the dedicated-agent rule, the work directory, the scripts
+and the budget (`reference/README.md` says which file holds what).
 
 Invoking this skill carries `/tp:start-ticket`'s authorization for every ticket it starts
 (assign, move to in progress, branch) and `/tp:run-ticket`'s for the stages that follow.
@@ -44,7 +44,7 @@ The planner itself only reads the tracker.
 - `answers=<text>` — the answer to this skill's last stop (§ Stops) — for the plan's
   review: `go-ahead`, or adjustments separated by ` | `: `drop <ids>`, `only <ids>`,
   `add <ids>`, `first <ids>`, `lanes=<n|all>`, `hours=<n>`, `focus=<0–1>` (step 6b).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: `medium` (many lookups; two judgments — what matches a feature, what depends
   on what).
 
@@ -72,7 +72,7 @@ advances (step 7), so the next ready tickets start as lanes free and prerequisit
 finish. A stop is interviewed and resumed exactly as `/tp:run-ticket` describes; the plan
 keeps that ticket as running until its work directory says otherwise. `dry=true`
 returns the plan with `start: none — dry run`. Where nobody can be interviewed (a
-scheduled run — `reference/README.md` § Unattended runs, Scheduled runs) the session
+scheduled run — `reference/observability.md` § Unattended runs, Scheduled runs) the session
 launches the same way but awaits the runs in the foreground and prints every stop as
 its row; the stops wait in the office inbox and `/tp:inbox`, and the next scheduled
 advance picks up what was answered there.
@@ -113,7 +113,7 @@ Sprint → every ticket in the iteration; pool → every open ticket in scope, n
 any standing scope (one repo, a ticket kind) before anything is drawn. Keep tickets in
 a not-started state; a container ticket contributes its children, not itself. A ticket
 with a work directory is **in flight** — listed with its state, never selected again.
-**Two passes, and the first spawns nothing** (`reference/README.md` § Context management,
+**Two passes, and the first spawns nothing** (`reference/context-management.md` § Context management,
 rules 4, 9 and 12; the same shape as `/tp:start-ticket`'s blocker reads). First, **this
 agent's own tracker list**, in one message for the whole scope: id, title, state,
 assignee, labels, parent, priority, the tracker's estimate and the blocked-by ids with
@@ -249,10 +249,10 @@ match (`answers=drop|pool|<ids>`); a dependency cycle (`answers=<id to leave out
 usage pause (`stopped "usage at <n>% of <window> — resume after <reset>"` — the plan is
 written first, so `/tp:plan-day date=<date>` after the reset only advances); `error: …`
 — the tracker unreachable past its fallback, `day.mjs` refusing its input, a fetcher
-that returned nothing twice (`reference/README.md` § Failures and escalation; the state
+that returned nothing twice (`reference/failures-and-stops.md` § Failures and escalation; the state
 in `_scratch/plan-day-<date>.md`): `answers=retry` once the person has done what
 `needs` names. This skill logs to no ticket: a stop is written to
 `_scratch/plan-day-<date>.md` — and, so the inbox and the office list it,
-`_scratch/plan-day-<date>.stop.json` (`reference/README.md` § Work directory; removed
+`_scratch/plan-day-<date>.stop.json` (`reference/work-directory.md` § Work directory; removed
 when the re-run resumes) — and returned, the office record leaves `stopped`, and
 the re-run with `answers=` resumes there.

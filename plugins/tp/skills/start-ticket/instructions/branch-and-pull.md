@@ -1,17 +1,17 @@
 # Worktree and Branch
 
 Run once per target repo identified in SKILL.md step 6. Nothing here touches the user's
-own checkout: the ticket gets its own worktree (`reference/README.md` § Worktrees).
+own checkout: the ticket gets its own worktree (`reference/work-directory.md` § Worktrees).
 
 `<repo>` and `<.claude>` stand for absolute paths throughout this file — `<.claude>` is
-resolved once (`reference/README.md` § Definitions, `<.claude>`). Pass them to git that
+resolved once (`reference/definitions.md` § Definitions, `<.claude>`). Pass them to git that
 way, and record their **expansions** in `ticket.json`'s repo row (`path`, `worktree`),
 not the placeholders and not a path relative to the working directory: the row is read
 by later stages running elsewhere, so a relative one names a worktree that isn't there.
 
 ## 1. Identifying the base branch
 
-Per `reference/README.md` § Definitions (conventions file → recent merged PRs → remote
+Per `reference/definitions.md` § Definitions (conventions file → recent merged PRs → remote
 default; ask once if ambiguous); record it in `ticket.json`. If the project promotes the
 base to a release or client-facing branch, that branch is never branched from and never
 targeted by a feature PR; a bug reported on it may already be fixed on the base
@@ -52,7 +52,7 @@ worktree add. Record `stackedOn` in `ticket.json`; `/tp:create-pr` treats the ne
 as an update round of that PR.
 
 **New round** (SKILL.md step 1, `round=<n>`): **the same worktree**, re-branched
-from the base, which now holds the merged work (`reference/README.md` § Worktrees — the
+from the base, which now holds the merged work (`reference/work-directory.md` § Worktrees — the
 install, the generated code and the caches are already there) —
 ```bash
 git -C <.claude>/work/<id>/wt/<repo-name> fetch <remote> <base>
@@ -65,7 +65,7 @@ old head and the new branch point (`git diff --name-only <old head> <remote>/<ba
 before this rule, a cleanup by hand) → the fresh form above with the new branch name.
 `ticket.json` gets the new `branch` and `round`; `worktree` stays.
 
-A refused fetch is an access problem (`reference/README.md` § Remote access failures);
+A refused fetch is an access problem (`reference/procedures.md` § Remote access failures);
 it, a worktree add or an install that fails past its documented fallback is the error
 stop of § Failures and escalation — `stopped "error: …"`, the error form, `needs:`
 what the person must fix, `answers=retry` afterwards.
@@ -73,14 +73,14 @@ what the person must fix, `answers=retry` afterwards.
 ## 3. Make the worktree usable
 
 - Install dependencies in the worktree with the project's lockfile tool, or reuse the
-  main checkout's install where the project's docs allow it (`reference/README.md`
+  main checkout's install where the project's docs allow it (`reference/procedures.md`
   § Toolchain); log which as a `note`. The install's output goes to a file, never into
   this context (`<tool> install > <.claude>/work/<id>/install.<repo-name>.log 2>&1`;
   read its exit code and `tail -5`, the first error lines on failure — § Context
   management, rule 11); the same for the code generation below.
 - Regenerate generated code — `node <lib>/codegen.mjs status '{ repo:
   "<this worktree>", claudeDir }'`, and when it reports `stale`, run its `command` here
-  (output to a file, rule 11) and `codegen.mjs mark` (`reference/README.md` § Toolchain).
+  (output to a file, rule 11) and `codegen.mjs mark` (`reference/procedures.md` § Toolchain).
   A fresh worktree always needs this: the generated output lives outside git.
 - Copy nothing from the user's checkout: untracked config the app needs (env files) is
   provided the way the project's docs say, on a disposable copy of any data store.
@@ -90,7 +90,7 @@ show. A ticket spanning repos does this once per repo, each its own worktree and
 
 ## 4. Removing a worktree and a never-pushed branch
 
-Used once per ticket, when its run ends (`reference/README.md` § Worktrees): by
+Used once per ticket, when its run ends (`reference/work-directory.md` § Worktrees): by
 `/tp:accept`'s `done` — the last stage — and by `/tp:run-ticket`'s close-out of a ticket
 that ends before it (closed by triage, parked as blocked); never by a stage in
 between, and never by a new round, which re-branches the worktree instead (§ 2):

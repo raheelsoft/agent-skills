@@ -54,7 +54,7 @@ person at the prompt — or its bypass mode — answers: not a permission rule, 
 `claude plugin eval` is not interactive, so a case cannot have the agent write a work-directory *document* or edit a
 *worktree* (both live under `<.claude>/work/`); the state script's writes (`put`, `log`, `lock`) are the script writing, not
 a file tool, and work. The stages that write documents and code (triage, plan, implement…) are exercised end to end
-by hand, in the simulation bed (`reference/README.md` § Using it, Simulation) in a session run with the runtime's bypass
+by hand, in the simulation bed (`reference/using.md` § Using it, Simulation) in a session run with the runtime's bypass
 mode, inside a scratch directory.
 
 ## Adding a case

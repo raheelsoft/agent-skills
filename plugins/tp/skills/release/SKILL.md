@@ -8,11 +8,11 @@ user-invocable: true
 
 Stage 7 of the workflow (`reference/README.md`): from "merged into the base branch" to
 "running where the project runs it, with the follow-ups done". Nothing here changes
-code. Conventions and the state script: the README (§ Definitions: Resume, Output
-contract, Asking the user, The scripts).
+code. Conventions and the state script: `reference/definitions.md` (§ Definitions:
+Resume, Output contract, Asking the user, The scripts).
 
 Invoking this skill authorises watching runs, read-only smoke checks, and the operator
-follow-ups the project's docs prescribe after a merge (`reference/README.md`
+follow-ups the project's docs prescribe after a merge (`reference/verification.md`
 § Verification rules — the one sanctioned mutation of shared state, and only with the
 user's standing authorisation). It does **not** authorise promotion to another branch
 (needs `promote=`) or anything the docs don't prescribe.
@@ -21,20 +21,20 @@ user's standing authorisation). It does **not** authorise promotion to another b
 
 - `<id>` — the ticket; `pr[.repo].json` shows `merged` for every repo (the state
   script's `next` is `release` / `release:<name>`). Not merged yet → the earlier
-  stages run first, the merge included (`reference/README.md` § Definitions, Entry
+  stages run first, the merge included (`reference/definitions.md` § Definitions, Entry
   points).
 - `repo=<name>` (optional) — cross-repo tickets: narrows this run to one repo.
   **Left out, this one agent covers every repo whose `release:<name>` stage is not
   done**, in `ticket.json` order, which is deploy order: watching a second pipeline is
-  a command, not a reason for a second agent's floor (`reference/README.md` § Context
+  a command, not a reason for a second agent's floor (`reference/context-management.md` § Context
   management, rule 9). A stop or an error in one repo ends the run there.
 - `promote=<branch>` (optional) — also fast-forward the base into that branch once the
   base deploy is healthy. Never inferred; the user says it.
 - `answers=<text>` (optional) — the answer to this stage's last stop (§ Stops;
-  `reference/README.md` § Definitions, Resume).
+  `reference/definitions.md` § Definitions, Resume).
 - `continue=true` — start from `checkpoint.release[.<repo>].md`. `force=true` — re-run
   a done release stage (§ Definitions, Resume).
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: the ticket's current rating (`state.mjs state` → `complexity`), `high` when a
   documented follow-up mutates a shared environment.
 
@@ -65,7 +65,7 @@ one deploy is watched once and a follow-up runs once.
 Each step is a checkpoint boundary (rule 7): `checkpoint.release[.<repo>].md` holds
 the run id, the follow-ups done, the smoke checks so far. Steps 2 and 4 are reads —
 list runs, wait, request an endpoint — that this agent makes itself, keeping one line
-per result (`reference/README.md` § Context management, rule 4: a command's result needs
+per result (`reference/context-management.md` § Context management, rule 4: a command's result needs
 no agent); step 3's follow-ups are the one kind of work spawned, an **operator** per
 follow-up, because each mutates a shared environment and must run under exactly the
 tools its command needs and nothing else (rule 9; office id
@@ -104,7 +104,7 @@ the result. **Follow-ups that need the same environment and the same tools share
 operator**, in the documented order, each carrying its own doc line, `authority` and
 result: the tool set that operator gets is exactly what each of them needed alone, so
 nothing widens, and three scripts on one box cost one agent's floor instead of three
-(`reference/README.md` § Context management, rule 9). A follow-up needing a tool the
+(`reference/context-management.md` § Context management, rule 9). A follow-up needing a tool the
 others do not gets its own operator — that is what the narrow tool set is for. Otherwise list it and `stopped "follow-up <name> is not prescribed as an
 operator step — run it, or skip? Default: skip"`. Record each as done /
 skipped-with-reason, with `authority`: the doc line and the instruction that allowed
@@ -152,5 +152,5 @@ failed smoke check (`answers=retry|skip`); a promotion target that isn't an ance
 of the base (`answers=retry|skip` — the person reconciles the target themselves;
 never a merge); `hand-off budget spent` (`answers=continue`); `error: …` — a deploy tool or
 environment unreachable past its fallback, an operator that returned nothing twice
-(`reference/README.md` § Failures and escalation): `answers=retry` once the person has
+(`reference/failures-and-stops.md` § Failures and escalation): `answers=retry` once the person has
 done what `needs` names.

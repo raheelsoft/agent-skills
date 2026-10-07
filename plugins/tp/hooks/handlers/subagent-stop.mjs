@@ -1,5 +1,5 @@
 // subagent-stop — SubagentStop for the plugin's role agents. A role agent is not done until its contract holds: the output contract's two closing
-// lines (reference/README.md § Definitions, Output contract) or the error form, and the one thing its job produces — a valid plan-check.json for the
+// lines (reference/definitions.md § Definitions, Output contract) or the error form, and the one thing its job produces — a valid plan-check.json for the
 // plan checker, diff-validation.md for the diff validator, the review's verdict line and trailer for the reviewer. A broken contract sends the agent
 // back to finish, at most twice per agent: the gate reads files and runs nothing, and past the bound it lets the agent stop and records an error
 // stop on the ticket, so a person is told instead of the loop going round for ever. The error form and a checkpoint hand-off are not "done": they owe

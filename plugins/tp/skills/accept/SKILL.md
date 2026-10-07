@@ -11,18 +11,18 @@ check proved it — this stage is that check, run by an agent that did not write
 (this skill's dedicated agent: fresh, holding nothing but its arguments), against the
 criteria the ticket set before the work started. It is the run's last stage, so a
 clean pass also ends the ticket's worktrees (§ Worktrees). Conventions and the state
-script: the README (§ Definitions: Resume, Output contract, Asking the user, The
-scripts).
+script: `reference/definitions.md` (§ Definitions: Resume, Output contract, Asking the
+user, The scripts).
 
 ## Input
 
 - `<id>` — the ticket; `release[.repo].json` exists for every repo (the state script's
   `next` is `accept`) — or `/tp:release` is off for this project (§ Definitions, Active
   skills: then `where` defaults to `checkout`). Not released yet → the earlier stages
-  run first (`reference/README.md` § Definitions, Entry points).
+  run first (`reference/definitions.md` § Definitions, Entry points).
 - `where=live|checkout` (optional). Default `live` when any `release[.repo].json` has an
   `env`; else `checkout`. `live` → the `env` recorded by release, per repo. `checkout` →
-  per repo, **the ticket's own worktree moved to the merge commit** (`reference/README.md`
+  per repo, **the ticket's own worktree moved to the merge commit** (`reference/work-directory.md`
   § Worktrees — its dependencies, generated code and caches are already there):
   `git -C <worktree> fetch <remote> <base>` then `git -C <worktree> checkout --detach
   <pr[.repo].json.merged>`; dependencies re-installed only when a lockfile changed
@@ -39,9 +39,9 @@ scripts).
   <name> is not documented — walk <recorded env> (keep), or name another? Default:
   keep"`.
 - `answers=<text>` (optional) — the answer to this stage's last stop (§ Stops;
-  `reference/README.md` § Definitions, Resume). `continue=true` — resume from
+  `reference/definitions.md` § Definitions, Resume). `continue=true` — resume from
   `checkpoint.accept.md`. `force=true` — re-run a done acceptance.
-- `inline=true` — `reference/README.md` § Definitions (Dedicated agent); this agent's
+- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: from the criteria (count, live-environment reads, derived criteria), with
   the catching step.
 
@@ -60,7 +60,7 @@ agent only through the project's documented mechanism (an env file, a secret sto
 never pasted into a prompt.
 
 ### 2. Walk the criteria — this agent
-This agent is the walker (`reference/README.md` § Definitions, Dedicated agent — fresh,
+This agent is the walker (`reference/definitions.md` § Definitions, Dedicated agent — fresh,
 no second agent for the same walk; its tools: read and search, a shell for requests,
 queries and CLI reads, write only `accept.md` and its checkpoint, and `accept.json` through `state.mjs put`;
 frontier: the criteria alone — rule 8), with what step 1 collected: the criteria
@@ -116,5 +116,5 @@ No acceptance criteria (`answers=<the criteria, one per line>` — recorded in
 are supplied>`); an undocumented `env=` (`answers=keep|<name>`); `<n> criteria
 failed` (`answers=round|leave`); `hand-off budget
 spent` (`answers=continue`); `error: …` — an environment unreachable or a checkout
-that cannot be made usable past its fallback (`reference/README.md` § Failures and
+that cannot be made usable past its fallback (`reference/failures-and-stops.md` § Failures and
 escalation): `answers=retry` once the person has done what `needs` names.

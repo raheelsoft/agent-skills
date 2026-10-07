@@ -18,8 +18,8 @@ function gitReason(command) {
   const g = gitOf(command);
   if (!g) return null;
   if (VERIFY_SUBS.has(g.sub)) {
-    if (g.args.includes('--no-verify')) return 'refused: --no-verify skips the repository\'s hooks, which are the gates. Fix what the hook reports, in the change (reference/README.md § Verification rules).';
-    if (g.sub === 'commit' && g.args.some((a) => /^-[A-Za-z]*n[A-Za-z]*$/.test(a))) return 'refused: `git commit -n` is --no-verify. Fix what the hook reports, in the change (reference/README.md § Verification rules).';
+    if (g.args.includes('--no-verify')) return 'refused: --no-verify skips the repository\'s hooks, which are the gates. Fix what the hook reports, in the change (reference/verification.md § Verification rules).';
+    if (g.sub === 'commit' && g.args.some((a) => /^-[A-Za-z]*n[A-Za-z]*$/.test(a))) return 'refused: `git commit -n` is --no-verify. Fix what the hook reports, in the change (reference/verification.md § Verification rules).';
   }
   if (g.sub === 'push' && g.args.some((a) => a === '--force' || /^-[A-Za-z]*f[A-Za-z]*$/.test(a) || (a.startsWith('+') && a.length > 1))) {
     return 'refused: a plain force-push can overwrite someone else\'s commits. After a rebase use --force-with-lease (skills/create-pr/instructions/sync.md).';

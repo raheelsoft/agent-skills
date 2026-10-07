@@ -1,4 +1,4 @@
-// estimate.mjs — a person's workday and a ticket's estimate in the person's hours (README § Models and budget, Estimates).
+// estimate.mjs — a person's workday and a ticket's estimate in the person's hours (reference/models-and-budget.md § Models and budget, Estimates).
 import { RATINGS, readTiers } from './common.mjs';
 
 // A person's workday, not an agent's: `hours` at the desk, `focus` the share that is engineering time once meetings,
@@ -22,7 +22,7 @@ export function dayConfig(tiersOrTask = {}) {
   for (const k of ['hours', 'focus', 'switch', 'slack', 'attend']) if (!(Number(d[k]) >= 0)) d[k] = DEFAULT_DAY[k];
   d.focus = Math.min(1, Math.max(0.05, d.focus));
   d.carry = d.carry !== false;
-  // the scheduled day's window (README § Unattended runs, Scheduled runs): HH:MM local, advances every n minutes
+  // the scheduled day's window (reference/observability.md § Unattended runs, Scheduled runs): HH:MM local, advances every n minutes
   for (const k of ['start', 'end']) if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(d[k]))) d[k] = DEFAULT_DAY[k];
   if (d.end <= d.start) { d.start = DEFAULT_DAY.start; d.end = DEFAULT_DAY.end; }
   d.advanceEvery = Number.isInteger(d.advanceEvery) && d.advanceEvery >= 5 && d.advanceEvery <= 720 ? d.advanceEvery : DEFAULT_DAY.advanceEvery;
@@ -31,7 +31,7 @@ export function dayConfig(tiersOrTask = {}) {
 }
 
 /**
- * A ticket's estimate in a person's hours (README § Models and budget, Estimates): the base hours of its rating
+ * A ticket's estimate in a person's hours (reference/models-and-budget.md § Models and budget, Estimates): the base hours of its rating
  * × the multipliers the ticket's signals add (repos beyond the first, risk flags, unclear criteria, no pattern to
  * follow) × (1 + overhead) — then the same effort as calendar hours, workdays and tracker points, using the day model.
  * Signals: rating; repos (count); flags (names or a count); unclear (derived criteria / open questions); novelty.

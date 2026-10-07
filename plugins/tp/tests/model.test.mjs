@@ -1,4 +1,4 @@
-// Unit tests for skills/_lib/model.mjs — the deterministic half of README § Models and budget:
+// Unit tests for skills/_lib/model.mjs — the deterministic half of reference/models-and-budget.md § Models and budget:
 // numeric evidence → rating, usage reading → budget band, rating + budget → model and effort, tiers.json.
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';

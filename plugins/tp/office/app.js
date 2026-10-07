@@ -2,7 +2,7 @@
 // (every open stop, answerable from here), the day board (the latest plan with live statuses), a ticket
 // drawer and the budget gauge. Plain DOM, keyed by (slot, agent id) and patched in place so animations
 // don't restart. Every stop's kind, default and resume command come from the state script — nothing is
-// re-derived here (skills/README.md § Definitions, Asking the user).
+// re-derived here (reference/definitions.md § Definitions, Asking the user).
 (() => {
   const $ = (sel, el = document) => el.querySelector(sel);
   // any value as display text — a structured question ({ text, choices, default }) as one line, never "[object Object]"
@@ -169,7 +169,7 @@
     $('.item-wait', e).textContent = i.waitingMin != null ? `· waiting ${fmtMin(i.waitingMin)}` : '';
     const link = $('.item-link', e); link.hidden = !i.link; if (i.link) link.href = i.link;
     $('.item-question', e).textContent = txt(i.question);
-    // the document this stop is about: nobody approves a plan from a one-line question (README § Definitions, Asking the user)
+    // the document this stop is about: nobody approves a plan from a one-line question (reference/definitions.md § Definitions, Asking the user)
     const doc = $('.item-doc', e); const parts = String(i.doc || '').split('/');
     doc.hidden = parts.length !== 2;
     if (!doc.hidden) { doc.href = `/file?ticket=${encodeURIComponent(parts[0])}&name=${encodeURIComponent(parts[1])}`; doc.textContent = `read ${parts[1]} ↗`; }

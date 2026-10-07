@@ -8,14 +8,14 @@ prompt. `<.claude>` is the absolute path; `<slug>` the project's label; `<start>
 ## The common preamble (every task starts with it)
 
 > You are a scheduled, unattended session for the ticket pipeline installed at
-> `<.claude>` (`reference/README.md` is the authority). Nobody can be
+> `<.claude>` (`reference/` is the authority). Nobody can be
 > interviewed here: never put a question to a person and never wait for one — a stop
 > is printed as its row (the ticket, the stage, the question, the resume command) and
 > stays in the office inbox and `/tp:inbox` for a person to answer later. Before
 > anything, load the pipeline's tools: the scripts under `<lib>`
 > (run with node), git, the hosting platform's CLI, the tracker's tools by name
 > through the tool lookup (or `<lib>/tracker.mjs` when `<.claude>/tracker.json`
-> names a fixture — README § Definitions, Tracker). Every `/tp:run-ticket` you start carries
+> names a fixture — reference/definitions.md § Definitions, Tracker). Every `/tp:run-ticket` you start carries
 > `owner=schedule:<task>:<stamp>` and is awaited in the foreground — spawn the
 > orchestrators the plan's `start` line names in one message and wait for them; when
 > they return, `/tp:plan-day date=<today>` again, until nothing more starts or every

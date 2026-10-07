@@ -29,7 +29,7 @@ otherwise.
    Update round: `git diff <validated sha>..HEAD --stat`, then that diff the same way.
    Never the hunks of a lockfile, a generated file (an ORM client, API types,
    snapshots, build output, `linguist-generated`), a binary or a vendored tree
-   (`reference/README.md` § Context management, rule 8): those are classified from the
+   (`reference/context-management.md` § Context management, rule 8): those are classified from the
    stat and their names — Supporting when their source changed with them (manifest
    ↔ lockfile, schema ↔ client), Unexpected otherwise.
 2. Same question per file.

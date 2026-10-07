@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // run.mjs — the one entry for the plugin's Claude Code hooks (hooks/hooks.json): `node run.mjs <handler>` reads the event payload on stdin, hands it to
 // handlers/<handler>.mjs and prints what that returns. A hook must never break a session by crashing, so every failure here is a note on stderr and
-// an exit 0 — only a handler's own `block` or `deny` stops anything (reference/README.md § Verification rules, Hooks).
+// an exit 0 — only a handler's own `block` or `deny` stops anything (reference/verification.md § Verification rules, Hooks).
 //
 //   handler:  export default (payload, ctx) => null | { decision: 'block', reason } | { hookSpecificOutput: … }
 //   ctx:      { projectDir, claudeDir, pluginRoot } — projectDir is $CLAUDE_PROJECT_DIR (else the payload's cwd), claudeDir its .claude

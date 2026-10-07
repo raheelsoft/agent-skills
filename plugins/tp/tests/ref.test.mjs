@@ -1,5 +1,6 @@
-// ref.mjs — the README by reference (skills/README.md § Context management, rule 10): an agent gets the sections and
-// items a skill names, never the whole file. These run against the real README, so a renamed heading fails here first.
+// ref.mjs — the reference by section (reference/context-management.md § Context management, rule 10): an agent gets the sections and
+// items a skill names, never a whole file. These run against the real reference (README.md and its topic files, read as one), so a renamed
+// heading fails here first.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -10,13 +11,13 @@ import { tmp, rm, PLUGIN_ROOT, script } from './helpers.mjs';
 const REF = script('ref.mjs');
 const ref = (...args) => { const r = spawnSync(process.execPath, [REF, ...args], { encoding: 'utf8' }); return { code: r.status, out: r.stdout, err: r.stderr }; };
 
-describe('ref.mjs — sections and items of the README', () => {
+describe('ref.mjs — sections and items of the reference', () => {
   it('prints one section by its heading text before the dash, and stops at the next heading', () => {
     const r = ref(PLUGIN_ROOT, 'Worktrees');
     assert.equal(r.code, 0, r.err);
-    assert.match(r.out, /^## § Worktrees\n\n### Worktrees/);
+    assert.match(r.out, /^## § Worktrees\n\n## Worktrees/);
     assert.match(r.out, /one\*\* `git worktree` per repo/);
-    assert.doesNotMatch(r.out, /### Concurrency/);
+    assert.doesNotMatch(r.out, /## Concurrency/);
     assert.ok(r.out.length < 4000, `a section, not the file (${r.out.length} bytes)`);
   });
 
@@ -40,6 +41,13 @@ describe('ref.mjs — sections and items of the README', () => {
     assert.equal(ref(PLUGIN_ROOT, 'Context management, 8').out, r.out);
   });
 
+  it('prints a numbered step of a list the way it prints a rule', () => {
+    const r = ref(PLUGIN_ROOT, 'Install, step 2');
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /^## § Install, rule 2\n\n2\. /);
+    assert.equal(ref(PLUGIN_ROOT, 'Install, rule 2').out, r.out);
+  });
+
   it('prints a bold paragraph item with what follows it up to the next item', () => {
     const r = ref(PLUGIN_ROOT, 'Models and budget, Estimates');
     assert.equal(r.code, 0, r.err);
@@ -57,11 +65,11 @@ describe('ref.mjs — sections and items of the README', () => {
     assert.match(a.out, /^## § Using it, Preflight\n\n### Preflight/);
     assert.doesNotMatch(a.out, /### End of day/);
     const b = ref(PLUGIN_ROOT, 'Commits');
-    assert.match(b.out, /^## § Commits\n\n#### Commits/);
+    assert.match(b.out, /^## § Commits\n\n### Commits/);
     assert.equal(ref(PLUGIN_ROOT, 'Shared procedures, Commits').out.split('\n').slice(2).join('\n'), b.out.split('\n').slice(2).join('\n'));
     const c = ref(PLUGIN_ROOT, 'Review scope and rounds');
     assert.match(c.out, /judges \*\*the diff and nothing else\*\*/);
-    assert.doesNotMatch(c.out, /#### Personal data/);
+    assert.doesNotMatch(c.out, /### Personal data/);
   });
 
   it('answers several queries in order, ignores a § prefix, and matches case-insensitively', () => {
@@ -75,8 +83,8 @@ describe('ref.mjs — sections and items of the README', () => {
     const list = ref(PLUGIN_ROOT, 'list');
     assert.equal(list.code, 0);
     assert.match(list.out, /^The problem it solves( — .*)?\n/);
-    assert.match(list.out, /\n  Definitions — conventions file · tracker/);
-    assert.match(list.out, /\n  Context management — rule 1 · rule 2/);
+    assert.match(list.out, /\nDefinitions — conventions file · tracker/);
+    assert.match(list.out, /\nContext management — rule 1 · rule 2/);
     const miss = ref(PLUGIN_ROOT, 'Worktrees', 'Nothing like this');
     assert.equal(miss.code, 1);
     assert.match(miss.out, /## § Worktrees/);

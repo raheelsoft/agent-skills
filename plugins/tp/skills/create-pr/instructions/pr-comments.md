@@ -28,5 +28,5 @@ changes, append the manual-validation steps — the ticket is where the user tes
 
 ## All comments
 
-No personal data (`reference/README.md` § Personal data) — manual-validation steps name
+No personal data (`reference/procedures.md` § Personal data) — manual-validation steps name
 the project's documented test accounts or fixtures, never a real person's.
