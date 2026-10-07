@@ -1,0 +1,45 @@
+name: CI
+
+# The plugin's tests and the runtime's own validator, on every pull request and every push to main or dev. Neither needs a credential or
+# a model: the tests run the scripts, the hooks and the contracts on fixtures, and `claude plugin validate` reads the manifests.
+# The evals (plugins/tp/evals) call a model and cost tokens, so they run by hand before a release, never here.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 18 is the oldest Node the scripts claim (`/tp:doctor` checks it); 24 is the one they are developed on.
+        node: [18, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Test the scripts, hooks, contracts and skills
+        working-directory: plugins/tp
+        run: node --test tests/*.test.mjs
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install the Claude Code CLI
+        run: npm install --global @anthropic-ai/claude-code
+      - name: Validate the plugin and the marketplace
+        run: |
+          claude plugin validate --strict plugins/tp
+          claude plugin validate --strict .
