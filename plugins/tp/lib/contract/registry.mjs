@@ -9,7 +9,7 @@ import { invariants } from './invariants.mjs';
 export const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'schemas');
 /** Stamped into every artifact `put` writes; a later contract change bumps it and a reader can tell the generations apart. */
 export const SCHEMA_VERSION = 1;
-export const ARTIFACTS = ['ticket', 'triage', 'plan', 'plan-check', 'implement', 'pr', 'release', 'accept', 'retro'];
+export const ARTIFACTS = ['ticket', 'triage', 'plan', 'plan-check', 'implement', 'pr', 'release', 'accept', 'retro', 'quality'];
 
 const cache = new Map();
 /** A schema file by name — `ticket`, `ticket.schema.json` — parsed once. */
@@ -19,7 +19,7 @@ export function loadSchema(name) {
   return cache.get(file);
 }
 
-const SINGLE = /^(ticket|triage|plan|plan-check|accept|retro)\.json$/;
+const SINGLE = /^(ticket|triage|plan|plan-check|accept|retro|quality)\.json$/;
 const PER_REPO = /^(implement|pr|release)(?:\.([A-Za-z0-9][\w.-]*))?\.json$/;
 /** `{ artifact, repo }` for a work-directory file name, null for any other file (answers, logs, the jest output a stage saved…). */
 export function artifactOf(fileName) {

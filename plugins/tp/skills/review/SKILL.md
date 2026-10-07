@@ -90,8 +90,8 @@ dedicated agent under the office id `review:<slug>:qa:verify` with this agent as
   not the author's word); otherwise `/tp:verify path=<checkout> base=<base>
   readonly=true` there (in a checkout handed over, nothing of the author's is ever
   written). A failure does **not** stop the review — record it in the Gates table,
-  add it as a numbered *fix before merging* item (so the loop tracks its resolution),
-  set the verdict to BLOCK, and continue; the review is still posted. Gates that
+  add it as a P1 finding (*fix before merging*, so the loop tracks its resolution; its gate row
+  is `FAIL`, which makes the verdict BLOCK), and continue; the review is still posted. Gates that
   cannot run here at all (a missing tool past its documented fallback) are an
   environment failure: the error form, not a table note (`reference/README.md`
   § Failures and escalation).
@@ -158,54 +158,39 @@ Rate confidence 1–5. Below 4, re-read with a different focus.
 
 ### 5. Write the review
 
-```
-## Review Summary
+The review is data, and the comment is derived from it. Write
+`<.claude>/work/_scratch/review-<slug>.json` in the shape of `schemas/examples/review-findings.json`
+(`schemas/README.md` § Reviews):
 
-**Verdict:** PASS / PASS WITH WARNINGS / BLOCK
-**Confidence:** {n}/5
+- `round`, `sha` (the head reviewed), `mode` (`full`, `delta`, `resolution`), `confidence`
+  (1–5);
+- `gates` — the Gates table's rows (`gate`, `status`, `notes`);
+- `findings` — one per item: `id` (stable: an item keeps the number it was first given),
+  `priority` (`instructions/checklist.md` § Priorities), `file`, `line`, `text`, `fix`;
+  `scope: "pre-existing"` with `ticket` (its id, or null when one is needed) for a defect in code
+  the diff touches but did not introduce; in a `delta` or `resolution` pass `status: "resolved"`
+  for a previous item the change fixed, `"noted"` for something seen that does not gate
+  (`resolution` only), and `new: true` on each item this pass raised.
 
-### Gates
-| Gate  | Status | Notes |
-|-------|--------|-------|
-| ...   | ...    | ...   |
-
-#### Fix before merging ({count})
-{n}. `{file}:{line}` — {description}
-   → {what should change and why}
-
-#### Should fix ({count})
-{n}. `{file}:{line}` — {description}
-   → {what should change and why}. Your call.
-
-#### Could improve ({count})
-{n}. `{file}:{line}` — {description}
-   → Minor. {suggestion}. Your call.
-
-#### Pre-existing ({count})
-{n}. `{file}:{line}` — {description} — tracked as {ticket id} | ticket needed
-
-#### Noted, not gating ({count})   ← resolution mode only
-{n}. `{file}:{line}` — {description}
-
-Reviewed: {head sha} · round {n} · open: {ids of fix-before-merging items still open, comma-separated or none} · new: {ids this pass raised, or none}
-```
-
-Only sections with findings are included; `delta` and `resolution` passes have no
-*should fix* or *could improve* sections, and a resolution check lists each previous
-item as resolved or not. Item ids stay stable across passes (an item keeps the number
-it was first given), so the trailer's `open` and `new` lists are the loop's history. The summary is the deliverable in both modes; it must stand alone — no
-questions to the reader inside it.
+Then `node <lib>/findings.mjs check <file>` and `node <lib>/findings.mjs render <file> >
+<.claude>/work/_scratch/review-<slug>.md`. The verdict (`BLOCK` when a gate failed or a *fix before
+merging* item — P0 or P1 — is open, `PASS WITH WARNINGS` when anything else of the diff is open,
+`PASS` otherwise), the sections (only those with items; no *should fix* or *could improve* in a
+`delta` or `resolution` pass; a resolution check lists each previous item as resolved or not), the
+numbering and the `Reviewed: <sha> · round <n> · open: <ids> · new: <ids>` trailer all come from
+the data — never typed. The rendered file is the deliverable in both modes; it must stand alone —
+no questions to the reader inside it.
 
 ### 6. Deliver
 
-**Local mode:** the summary is the report — write it to
+**Local mode:** the rendered summary is the report — it is already at
 `<.claude>/work/_scratch/review-<slug>.md` (so a later invocation can act on the
-same numbering) and return it. The author's choice ("fix all", "fix 1–3") comes
+same numbering); return it. The author's choice ("fix all", "fix 1–3") comes
 back as `apply=` on a new invocation, which reads
 that file and goes straight to step 7. Nothing is applied in the invocation that
 reviewed.
 
-**Remote mode:** post the summary as a *comment* on the PR — not a formal
+**Remote mode:** post the rendered file as a *comment* on the PR — not a formal
 approve/request-changes review — using the hosting platform's CLI or API, from a file
 rather than an inline string so formatting survives. Post unconditionally and without
 asking; posting is the review, acting on it is not. The report is the verdict, the

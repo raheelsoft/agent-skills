@@ -57,10 +57,10 @@ describe('the command lines in front of the libraries are shims', () => {
     for (const m of shim.matchAll(/^import .* from '([^']+)';/gm)) assert.match(m[1], /^(\.\/contract\/|\.\/state\/|node:)/, `the shim imports ${m[1]}`);
   });
 
-  it('findings.mjs imports from contract/ and node, and stays short', () => {
+  it('findings.mjs imports from contract/, state/ and node, and stays short', () => {
     const shim = readFileSync(join(PLUGIN_ROOT, 'lib', 'findings.mjs'), 'utf8');
-    assert.ok(shim.split('\n').length <= 40, 'findings.mjs only parses arguments, runs the library and prints');
-    for (const m of shim.matchAll(/^import .* from '([^']+)';/gm)) assert.match(m[1], /^(\.\/contract\/|node:)/, `the shim imports ${m[1]}`);
+    assert.ok(shim.split('\n').length <= 50, 'findings.mjs only parses arguments, runs the library and prints');
+    for (const m of shim.matchAll(/^import .* from '([^']+)';/gm)) assert.match(m[1], /^(\.\/contract\/|\.\/state\/|node:)/, `the shim imports ${m[1]}`);
   });
 
   it('validate.mjs imports from contract/ and node, and stays short', () => {

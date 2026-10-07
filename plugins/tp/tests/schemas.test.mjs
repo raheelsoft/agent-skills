@@ -116,6 +116,12 @@ const MISTAKES = {
     ['a criterion without evidence', (a) => delete a.criteria[0].evidence, '$.criteria[0].evidence: required, missing'],
     ['where: somewhere else', (a) => { a.where = 'prod'; }, '$.where: expected one of "live" | "checkout"'],
   ],
+  quality: [
+    ['a priority count missing', (q) => delete q.open.P1, '$.open.P1: required, missing'],
+    ['a pass without its repo', (q) => delete q.rounds[0].repo, '$.rounds[0].repo: required, missing'],
+    ['a mode nobody knows', (q) => { q.rounds[0].mode = 'quick'; }, '$.rounds[0].mode'],
+    ['a negative count', (q) => { q.open.P0 = -1; }, '$.open.P0: -1 is below 0'],
+  ],
   retro: [
     ['a proposal aimed at nothing', (r) => { r.proposals[0].target = 'other'; }, '$.proposals[0].target'],
     ['no proposals list', (r) => delete r.proposals, '$.proposals: required, missing'],

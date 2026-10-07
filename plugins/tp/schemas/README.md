@@ -18,6 +18,7 @@ schema here, and a script — not the model — checks it: `state.mjs put` befor
 | `retro.schema.json` | `retro.json` | retro |
 | `stage-result.schema.json` | an agent's final reply | every stage agent |
 | `review-findings.schema.json` | a review pass as data | review |
+| `quality.schema.json` | `quality.json` | `findings.mjs record`, after every review pass |
 | `common.schema.json` | — | pieces the others share |
 
 `schemas/examples/<name>.json` is one valid document per schema, kept valid by the tests: read it
@@ -74,12 +75,20 @@ node <lib>/findings.mjs check   <review.json>   # valid against the schema?
 node <lib>/findings.mjs verdict <review.json>   # PASS | PASS WITH WARNINGS | BLOCK
 node <lib>/findings.mjs render  <review.json>   # the PR comment, in the format /tp:review posts
 node <lib>/findings.mjs row     <review.json>   # { round, sha, verdict, open, new } for pr.json's reviews
+node <lib>/findings.mjs score   <review.json>   # what is open, fixed and pre-existing, per priority, and the score
+node <lib>/findings.mjs record  <review.json> <workdir> [--repo <name>]   # the pass into pr[.<repo>].json and quality.json
 ```
 
 P0 and P1 are "fix before merging", P2 "should fix", P3 and P4 "could improve"; a defect the diff
 did not introduce is "pre-existing" whatever its priority. The verdict is BLOCK when a gate failed
 or a fix-before-merging item is open, PASS WITH WARNINGS when any other item of the diff is open,
 PASS otherwise.
+
+`quality.json` is what the passes add up to: per pass and repo, the findings left open per priority,
+the ones fixed, the pre-existing ones ticketed, and the score; for the ticket, the counts summed
+over each repo's latest pass and the worst verdict. A gate compares the counts, P0 first — one open
+P0 outweighs any number of P1s — and `score` (1000 per P0, 100 per P1, 10 per P2, 3 per P3, 1 per P4)
+is the same thing as one number for a status line.
 
 ## Invariants
 

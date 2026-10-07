@@ -19,9 +19,10 @@ const parse = (f) => {
 const skill = (name) => readFileSync(join(PLUGIN_ROOT, 'skills', name, 'SKILL.md'), 'utf8');
 
 describe('agents/ — the definitions', () => {
-  it('there is a definition for each role the hooks know, and no other', () => {
-    assert.deepEqual(files.map((f) => `tp:${f.replace(/\.md$/, '')}`), Object.keys(ROLES).sort());
-    assert.deepEqual(Object.keys(CONTRACTS).sort(), Object.keys(ROLES).sort());
+  const verifiers = Object.keys(ROLES).map((r) => `${r.replace('tp:', '')}.md`);
+  it('there is a definition for each role the hooks know, and no other: the verifiers are held to their jobs, every agent to its contract', () => {
+    assert.deepEqual(files.map((f) => `tp:${f.replace(/\.md$/, '')}`), Object.keys(CONTRACTS).sort());
+    for (const v of verifiers) assert.ok(files.includes(v), v);
   });
 
   for (const f of files) {
@@ -33,13 +34,14 @@ describe('agents/ — the definitions', () => {
       assert.match(front.description, /not for general use/);
       assert.ok(front.description.length <= 400);
       for (const key of ['model', 'effort', 'tools', 'permissionMode', 'hooks', 'mcpServers']) assert.equal(key in front, false, `${key} is not set: the spawner's pick wins, and a plugin agent cannot widen what its hooks hold it to`);
-      for (const tool of ['Agent', 'Edit', 'MultiEdit', 'NotebookEdit']) assert.ok(front.disallowedTools.split(',').map((s) => s.trim()).includes(tool), `${tool} is taken away`);
+      if (verifiers.includes(f)) for (const tool of ['Agent', 'Edit', 'MultiEdit', 'NotebookEdit']) assert.ok(front.disallowedTools.split(',').map((s) => s.trim()).includes(tool), `${tool} is taken away`);
       assert.ok(body.split('\n').length <= 20, 'a role contract, not a manual');
     });
 
-    it(`${f}: says it changes nothing in the repositories, writes one thing, and closes with the output contract`, () => {
+    it(`${f}: says what it does to the repositories, and closes with the output contract`, () => {
       const { body } = parse(f);
-      assert.match(body, /change[s]? nothing in (any|the) repositor/i);
+      if (verifiers.includes(f)) assert.match(body, /change[s]? nothing in (any|the) repositor/i);
+      else assert.match(body, /commit/i, 'the implementer says its work is committed');
       assert.match(body, /`complexity: as rated \| higher — <reason>`/);
       assert.match(body, /`continue: no \| <checkpoint path>`/);
       assert.match(body, /hook/i, 'names the hook that enforces what it says');
@@ -52,4 +54,5 @@ describe('the skills spawn them by type', () => {
   it('/tp:plan spawns its checker as tp:plan-checker', () => assert.match(skill('plan'), /agent of type `tp:plan-checker`/));
   it('/tp:create-pr spawns its diff validator as tp:diff-validator', () => assert.match(skill('create-pr'), /agent of type `tp:diff-validator`/));
   it('/tp:merge hands the review to a tp:reviewer', () => assert.match(skill('merge'), /of type `tp:reviewer`/));
+  it('the README says which type is the dedicated agent of /tp:implement', () => assert.match(readFileSync(join(PLUGIN_ROOT, 'reference', 'README.md'), 'utf8'), /`\/tp:implement`'s is\s+`tp:implementer`/));
 });

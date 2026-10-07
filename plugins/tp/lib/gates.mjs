@@ -236,6 +236,14 @@ export function resultGet(input) {
   }
   return { code: 0, record: rec };
 }
+/** A recorded result for exactly this head, whatever base it was run against — the first found, or null. */
+export function recordAt(input) {
+  const p = places(input);
+  const dir = join(p.gates, 'results');
+  if (!isDir(dir) || !SHA.test(String(input.head))) return null;
+  const file = readdirSync(dir).sort().find((f) => f.startsWith(`${input.head}.`) && f.endsWith('.json'));
+  return file ? readJson(join(dir, file)) || null : null;
+}
 export function resultPut(input) {
   const p = places(input);
   if (!input.verdict || !input.table) throw new Error('verdict and table are required');

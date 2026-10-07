@@ -50,6 +50,36 @@ code. Skip sections that don't apply to this project or this change.
       does not prove — no counts, no "the only caller", no specificity or precedence
       arithmetic, unless verified in this pass (README § Verification rules)
 
+## Design (SOLID and clean code)
+- [ ] One responsibility per unit — module, class, function: one reason to change, one place to change it
+- [ ] Extended, not copied: new behaviour goes through the seam that exists (an interface, a strategy,
+      a config table), not another branch in a conditional that keeps growing
+- [ ] Depends on the abstractions the project already has, not on a detail of the layer below; no new
+      cycle between modules
+- [ ] Small interfaces: nothing takes or returns more than it needs
+- [ ] No duplication that has to change together; no premature abstraction either — a new one earns
+      its place with two real uses
+- [ ] Names say what a thing is for; a function fits on a screen; a comment says why
+
+## Priorities
+Every finding carries one priority. It decides the tier, the verdict and whether the merge waits
+(`schemas/README.md` § Reviews); the findings file is data, the comment is derived from it.
+- **P0** — correctness, security, data loss: a wrong result on the main path, an access check
+  missing or bypassed, a secret or personal data leaked, a write that corrupts or loses data, an
+  injection.
+- **P1** — a break someone will hit: a public contract changed without its consumers, a regression, a
+  failure swallowed on a path that matters, a resource leaked, a criterion of the ticket the change
+  does not deliver, a test the conventions require and the change lacks, something the conventions
+  file forbids. A failed gate is at least this.
+- **P2** — design: more than one reason to change in a unit, an existing seam copied instead of
+  extended, the wrong layer, a dependency pointing the wrong way, duplication that will drift.
+- **P3** — clean code: a name that misleads, a function too long to read at once, a comment that
+  restates the code or asserts what the diff does not prove, dead or commented-out code.
+- **P4** — style the formatter does not own.
+
+P0 and P1 are *fix before merging*, P2 *should fix*, P3 and P4 *could improve*. Between two
+priorities take the higher only when you can name who is hurt by the lower one being right.
+
 ## Skepticism pass
 When the first pass found nothing, assume something was missed and re-read for:
 - A new or changed endpoint/route with no authentication/authorization, or one that

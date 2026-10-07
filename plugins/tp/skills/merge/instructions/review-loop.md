@@ -54,9 +54,12 @@ actually delivered.
 
 ## The loop
 
-After every pass, mirror its trailer into `pr[.repo].json.reviews`
-(`{ round, sha, verdict, open, new }`, `none` → `[]`; `reviewRounds` = the count;
-top-level `verdict` = this pass's),
+After every pass, record it: `node <lib>/findings.mjs record
+<.claude>/work/_scratch/review-<slug>.json <workdir> [--repo <name>]` (`<slug>` = `<repo-name>--<PR
+number>`, as `/tp:review` names it) — appends the pass's row `{ round, sha, verdict, open, new }` to
+`pr[.repo].json.reviews`, sets `reviewRounds` and the top-level `verdict`, and adds the pass to
+`quality.json`; a pass whose findings file is not there (a reviewer from before it existed) is
+mirrored from its trailer by hand with `state.mjs put <workdir> pr[.<repo>] … --merge`,
 then `node <lib>/model.mjs rounds '{ rating, files, lines, history,
 claudeDir }'` — `rating` the same rating the reviewer was handed as `tier=` (the
 ticket's, raised by the diff), `files`/`lines` from `git diff --stat

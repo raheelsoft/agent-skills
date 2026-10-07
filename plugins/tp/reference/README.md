@@ -575,17 +575,23 @@ each rule below to the branch it decides, if a picture is the faster way in.
   "<role> tokens=<n> tier=<rating>"` — the rating `pick` chose for it, so the tokens can
   be priced (§ Models and budget, Cost); the session logs the orchestrator's own on
   `run-ticket` the same way. An unattended run's stage leads cannot (the script reads
-  nothing back), so their tickets' totals are marked partial (§ Unattended runs).
-- **Role agents** (`agents/`) — three sub-agents are plugin agent types, spawned as `tp:<name>`:
-  `tp:plan-checker` (`/tp:plan`'s checker), `tp:diff-validator` (`/tp:create-pr`'s validator)
-  and `tp:reviewer` (the dedicated agent of `/tp:review`). Each is independent of whoever made
-  what it checks, so each reads the repositories and changes nothing in them, and writes the
-  one file its job produces. The definition removes the tools it never needs; the plugin's
+  nothing back), so their tickets' totals are marked partial (§ Unattended runs). A dedicated agent is
+  spawned as the plugin's role type when its skill has one (§ Role agents): `/tp:implement`'s is
+  `tp:implementer`, `/tp:review`'s `tp:reviewer`; every other skill's is the runtime's general agent.
+- **Role agents** (`agents/`) — four agents are plugin agent types, spawned as `tp:<name>`:
+  `tp:plan-checker` (`/tp:plan`'s checker), `tp:diff-validator` (`/tp:create-pr`'s validator),
+  `tp:reviewer` (the dedicated agent of `/tp:review`) and `tp:implementer` (the dedicated agent of
+  `/tp:implement` — a dedicated agent of a skill with a role here is spawned as that type; the other
+  skills' stay as the runtime's general agent). The first three are independent of whoever made what
+  they check, so each reads the repositories and changes nothing in them, and writes the one file
+  its job produces; the implementer writes the change. The definition removes the tools it never needs; the plugin's
   hooks (`hooks/roles.mjs`) refuse what a tool it keeps could still do — a commit, an edit to a
   source file, `gh pr merge`; and the `subagent-stop` hook sends it back, at most twice, until
   its contract holds: the output contract's closing lines (or the error form), and a valid
-  `plan-check.json`, a non-empty `diff-validation.md`, or the review's verdict line and
-  trailer. A third failure lets it stop and logs `error: contract violation` on the ticket. The
+  `plan-check.json`, a non-empty `diff-validation.md`, the review's verdict line and trailer, or —
+  for the implementer — a valid `implement[.repo].json`, everything committed and no recorded gate
+  result for HEAD that says FAIL (a stop for the person is a legitimate end). A third failure lets it
+  stop and logs `error: contract violation` on the ticket. The
   definitions name no model: the spawner's pick (`model.mjs pick`, under the ceiling) wins.
 - **Output contract** — every agent a skill spawns returns at most ~15 lines and ends
   with two lines the spawner acts on: `complexity: as rated | higher — <reason>` and
@@ -790,6 +796,7 @@ inbox lists it; `/tp:status` and the state script's `all` ignore every `_`-prefi
 | `release[.repo].json` | release | the deploy run, follow-ups, smoke checks, promotion |
 | `accept.md` / `accept.json` | accept | pass / fail / manual per criterion, with evidence |
 | `retro.md` / `retro.json` | retro | plan-vs-reality, questions asked, time per stage; proposals by target |
+| `quality.json` | `findings.mjs record`, after every review pass | what the passes left open per priority (P0–P4), the score, the worst verdict — shown by `/tp:status` |
 | `progress.md` | every stage, via the state script | append-only log |
 | `report.md` | create-pr creates or appends; merge, release, accept, run-ticket append | what shipped, PR, verdict, merge, deploy, acceptance, deviations, follow-ups, manual steps |
 | `checkpoint.<stage>[.<repo>].md` | any agent that hands off | done / decisions / remaining / open questions — the next agent starts here |
@@ -1602,6 +1609,12 @@ complexity** with convergence rules that end the loop earlier.
   A project can turn this off in its conventions file ("reviews do not create
   tickets"): then the item is *pre-existing — ticket needed*. Pre-existing style or
   pattern issues are not reported at all.
+- **Findings carry a priority, and the rest is derived.** P0 correctness, security, data loss ·
+  P1 contract break, regression, missing test · P2 design (SOLID, duplication, layering) · P3 clean
+  code · P4 style. The reviewer writes its findings as JSON; `findings.mjs` renders the comment and
+  computes the verdict — `BLOCK` when a gate failed or a P0/P1 item is open, `PASS WITH WARNINGS` when
+  anything else of the diff is open, `PASS` otherwise — and `record` adds the pass to `pr.json` and to
+  `quality.json` (`schemas/README.md` § Reviews). The merge waits for no open P0 or P1.
 - **The loop** is `model.mjs rounds '{ rating, files, lines, history, claudeDir }'` →
   `{ cap, round, next, mode, open, why }`. The budget is the change's rating — `low` 2,
   `medium` 3, `high` 4 passes, one more for a large diff, never above 5

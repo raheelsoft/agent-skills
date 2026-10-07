@@ -35,5 +35,5 @@ if (cmd === 'file') {
   const r = single ? checkWorkdir(target, { mode: mode || 'read' }) : checkWorkroot(target, { mode: mode || 'read' });
   out({ ok: r.invalid.length === 0, checked: r.checked, invalid: r.invalid }, r.invalid.length === 0);
 } else if (cmd === 'artifacts') {
-  out({ artifacts: ARTIFACTS, files: { ticket: 'ticket.json', triage: 'triage.json', plan: 'plan.json', 'plan-check': 'plan-check.json', implement: 'implement[.<repo>].json', pr: 'pr[.<repo>].json', release: 'release[.<repo>].json', accept: 'accept.json', retro: 'retro.json' } }, true);
+  out({ artifacts: ARTIFACTS, files: { ticket: 'ticket.json', triage: 'triage.json', plan: 'plan.json', 'plan-check': 'plan-check.json', implement: 'implement[.<repo>].json', pr: 'pr[.<repo>].json', release: 'release[.<repo>].json', accept: 'accept.json', retro: 'retro.json', quality: 'quality.json' } }, true);
 } else usage();

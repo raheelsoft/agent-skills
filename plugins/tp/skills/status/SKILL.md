@@ -27,6 +27,8 @@ One table for all tickets, or one ticket in detail. Everything comes from
 ```
 | Ticket | Title | Decision · rating | Estimate | Status | Next / waiting on | Run | PR · verdict · merged | Tokens · cost | Last event | Age |
 ```
+`PR · verdict · merged` ends with `quality <open P0–P4 counts> · score <n>` (`P1×1 P3×1 · score 103`, `clean` when nothing is open) when the row's `quality`
+is non-null — what the review passes left open (`schemas/README.md` § Reviews).
 `Estimate` is the row's `estimate` — `<focusedHours>h · <days>d` with `*` when the
 pipeline made it (`source: pipeline`), followed by `actual <h>h` when `/tp:eod` recorded
 the person's hours, empty when there is none (`reference/README.md`

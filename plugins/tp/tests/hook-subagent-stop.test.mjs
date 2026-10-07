@@ -2,8 +2,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, readdirSync, utimesSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { PLUGIN_ROOT, tmp, rm, writeJson, ticket, progress } from './helpers.mjs';
+import { basename, join } from 'node:path';
+import { PLUGIN_ROOT, tmp, rm, writeJson, ticket, progress, gitRepoWithWorktree } from './helpers.mjs';
 import { run } from '../hooks/run.mjs';
 import { CONTRACTS, MAX_BLOCKS, outputProblem, spawnOf, workdirIn } from '../hooks/handlers/subagent-stop.mjs';
 import { SCHEMA_DIR } from '../lib/contract/index.mjs';
@@ -82,11 +82,17 @@ describe('the gate — a plan checker', () => {
     assert.match(out.reason, /plan-check\.json is not in the work directory/);
   });
 
-  it('the error form is a legitimate end, with the file or without', async (t) => {
+  it('the error form is a legitimate end, with the file or without: a failure that could not be resolved owes no artifact', async (t) => {
     const b = bed(t);
-    assert.match((await b.stop('tp:plan-checker', 'error: no worktree\nneeds: none')).reason, /plan-check\.json is not in the work directory/, 'the file is still owed');
+    assert.equal(await b.stop('tp:plan-checker', 'error: no worktree\nneeds: none'), null);
     good(b);
-    assert.equal(await b.stop('tp:plan-checker', 'error: could not read two files\nneeds: none'), null);
+    assert.equal(await b.stop('tp:plan-checker', 'error: could not read two files\nneeds: none', { id: 'e2' }), null);
+  });
+
+  it('a checkpoint hand-off is not done either: it owes its closing lines, not the artifact', async (t) => {
+    const b = bed(t);
+    assert.equal(await b.stop('tp:plan-checker', 'Checkpointed after step 4.\ncomplexity: as rated\ncontinue: .claude/work/T-1/checkpoint.plan-check.md'), null);
+    assert.match((await b.stop('tp:plan-checker', 'Checkpointed.\ncontinue: .claude/work/T-1/checkpoint.plan-check.md', { id: 'c2' })).reason, /must end with the two lines/);
   });
 });
 
@@ -203,6 +209,79 @@ describe('finding the work directory in a spawn prompt', () => {
 
 describe('the contracts table', () => {
   it('names exactly the plugin\'s role agents', () => {
-    assert.deepEqual(Object.keys(CONTRACTS).sort(), ['tp:diff-validator', 'tp:plan-checker', 'tp:reviewer']);
+    assert.deepEqual(Object.keys(CONTRACTS).sort(), ['tp:diff-validator', 'tp:implementer', 'tp:plan-checker', 'tp:reviewer']);
+  });
+});
+
+describe('the gate — the implementer', () => {
+  /** A ticket whose worktree is a real git checkout with a commit, an implement.json and (optionally) a recorded gate result for HEAD. */
+  function implBed(t, { implement = {}, dirty = false, record = null, repoArg = false } = {}) {
+    const b = bed(t);
+    const { repo, worktree, git } = gitRepoWithWorktree(b.root, 'shop', 'feat/t');
+    writeJson(b.wd, 'ticket.json', { id: 'T-1', title: 't', link: null, round: 1, stackedOn: null, acceptanceCriteria: ['a'], complexity: 'low', repos: [{ name: 'shop', path: repo, worktree, branch: 'feat/t', base: 'main' }] });
+    const head = git(['rev-parse', 'HEAD'], worktree).trim();
+    if (dirty) writeFileSync(join(worktree, 'wip.txt'), 'uncommitted');
+    writeJson(b.wd, 'implement.json', { schemaVersion: 1, repo: 'shop', done: 2, total: 2, commits: [head], gates: { lint: 'PASS' }, deviations: 0, stopped: null, complexity: 'low', ...implement });
+    if (record) {
+      const dir = join(b.claude, 'work', '_scratch', 'gates', basename(repo), 'results'); mkdirSync(dir, { recursive: true }); // gates.mjs keys a repo by the folder name of its path
+      writeJson(dir, `${head}.${'b'.repeat(40)}.json`, { repo: 'shop', head, base: 'b'.repeat(40), table: '|', ...record });
+    }
+    const stop = (message = CONTRACT_LINES, id = 'i1') => b.stop('tp:implementer', message, { id, prompt: `Dedicated agent for /tp:implement. Work directory ${b.wd}. Invoke the skill: T-1${repoArg ? ' repo=shop' : ''} inline=true` });
+    return { ...b, worktree, head, stop };
+  }
+
+  it('lets a finished implementer go: implement.json valid, everything committed, no gate result that says FAIL', async (t) => {
+    const b = implBed(t);
+    assert.equal(await b.stop(), null);
+    const withRecord = implBed(t, { record: { verdict: 'ALL GATES PASSED', gates: { lint: 'PASS', types: 'PASS' } } });
+    assert.equal(await withRecord.stop(), null);
+  });
+
+  it('sends it back when implement.json is missing, or from before it started', async (t) => {
+    const b = implBed(t);
+    rm(join(b.wd, 'implement.json'));
+    assert.match((await b.stop()).reason, /implement\.json is not in the work directory\. Record it with `state\.mjs put <workdir> implement …`, commit, and run \/tp:verify/);
+    const stale = implBed(t); stale.fresh(join(stale.wd, 'implement.json'), stale.started - 3600000);
+    assert.match((await stale.stop()).reason, /implement\.json is the one from before you started/);
+  });
+
+  it('reads implement.<repo>.json when the prompt names the repo', async (t) => {
+    const b = implBed(t, { repoArg: true });
+    assert.match((await b.stop()).reason, /implement\.shop\.json is not in the work directory/);
+    writeJson(b.wd, 'implement.shop.json', { schemaVersion: 1, repo: 'shop', done: 2, total: 2, commits: [b.head], gates: { lint: 'HOOK' }, deviations: [], stopped: null, complexity: 'medium' });
+    assert.equal(await b.stop(CONTRACT_LINES, 'i2'), null);
+  });
+
+  it('sends it back when the work is not committed', async (t) => {
+    const out = await implBed(t, { dirty: true }).stop();
+    assert.match(out.reason, /the worktree has uncommitted changes \(\?\? wip\.txt\) — commit them, a PR is made from commits/);
+  });
+
+  it('sends it back when the gate result recorded for HEAD says FAIL, by its table or by its verdict', async (t) => {
+    assert.match((await implBed(t, { record: { verdict: 'FAILED', gates: { lint: 'FAIL', types: 'PASS' } } }).stop()).reason, /the gate result recorded for [0-9a-f]{7} says FAIL/);
+    assert.match((await implBed(t, { record: { verdict: '2 GATES FAILED' } }).stop()).reason, /says FAIL/);
+  });
+
+  it('with no recorded result, the gates it reported must exist and not fail — a repo whose hooks own the gates records none', async (t) => {
+    assert.equal(await implBed(t, { implement: { gates: { lint: 'HOOK', build: 'HOOK' } } }).stop(), null);
+    assert.match((await implBed(t, { implement: { gates: {} } }).stop()).reason, /no gate result is recorded for [0-9a-f]{7} and implement\.json lists no gates — run \/tp:verify/);
+    assert.match((await implBed(t, { implement: { gates: { lint: 'FAIL' } } }).stop()).reason, /implement\.json reports a failing gate/);
+  });
+
+  it('a stop for the person, or fewer steps done than planned, is a legitimate end: no commit or gate is demanded', async (t) => {
+    const stopped = implBed(t, { dirty: true, implement: { done: 1, stopped: { step: 2, question: 'Which of the two?' }, gates: {} } });
+    assert.equal(await stopped.stop('Which of the two?\ncomplexity: as rated\ncontinue: no'), null);
+    const partial = implBed(t, { dirty: true, implement: { done: 1, gates: {} } });
+    assert.equal(await partial.stop(), null);
+  });
+
+  it('a worktree the hook cannot find or read is not a reason to hold the agent', async (t) => {
+    const b = implBed(t);
+    writeJson(b.wd, 'ticket.json', { id: 'T-1', title: 't', link: null, round: 1, stackedOn: null, acceptanceCriteria: ['a'], complexity: 'low', repos: [{ name: 'shop', path: '/x/shop', worktree: '/nowhere', branch: 'b', base: 'main' }] });
+    assert.equal(await b.stop(), null);
+  });
+
+  it('still needs the closing lines', async (t) => {
+    assert.match((await implBed(t).stop('Implemented.')).reason, /must end with the two lines/);
   });
 });

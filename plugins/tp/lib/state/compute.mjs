@@ -178,6 +178,7 @@ export function computeState(workdir) {
 
   const prFiles = repos.length > 1 ? repos.map((r) => `pr.${r}.json`) : ['pr.json'];
   const prs = prFiles.map((f) => readJson(join(workdir, f), problems)).filter(Boolean);
+  const qualityDoc = readJson(join(workdir, 'quality.json'), []); // what the review passes left open per priority (findings.mjs record)
   return {
     id: ticket?.id || basename(workdir),
     title: ticket?.title || null,
@@ -196,6 +197,7 @@ export function computeState(workdir) {
     stopped,
     closed,
     prs,
+    quality: qualityDoc && qualityDoc.open ? { verdict: qualityDoc.verdict ?? null, open: qualityDoc.open, score: qualityDoc.score ?? 0 } : null,
     worktrees: worktreesOnDisk,
     lock: readLock(workdir),
     retro: readRetro(workdir, problems),
@@ -248,6 +250,7 @@ export function rowOf(d) {
       blockedBy: s.blockedBy, unblocked: s.unblocked,
       repos: repoNames(readJson(join(d, 'ticket.json'), []), []),
       prs: s.prs.map((p) => ({ url: p.url, verdict: p.verdict, reviewRounds: p.reviewRounds ?? null, merged: p.merged })),
+      quality: s.quality,
       worktrees: s.worktrees,
       lock: s.lock ? { owner: s.lock.owner, since: s.lock.since, stale: s.lock.stale } : null,
       retro: s.retro,

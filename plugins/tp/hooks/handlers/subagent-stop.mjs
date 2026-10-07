@@ -2,45 +2,19 @@
 // lines (reference/README.md § Definitions, Output contract) or the error form, and the one thing its job produces — a valid plan-check.json for the
 // plan checker, diff-validation.md for the diff validator, the review's verdict line and trailer for the reviewer. A broken contract sends the agent
 // back to finish, at most twice per agent: the gate reads files and runs nothing, and past the bound it lets the agent stop and records an error
-// stop on the ticket, so a person is told instead of the loop going round for ever.
-import { existsSync, mkdirSync, openSync, readSync, closeSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+// stop on the ticket, so a person is told instead of the loop going round for ever. The error form and a checkpoint hand-off are not "done": they owe
+// no artifact, only the form they are in.
+import { existsSync, mkdirSync, openSync, readSync, closeSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { checkArtifact } from '../../lib/contract/registry.mjs';
+import { CONTRACTS, formOf, outputProblem } from '../contracts.mjs';
 import { log } from '../../lib/state/progress.mjs';
 import { tpProject, workRoot } from '../shared.mjs';
 
 export const MAX_BLOCKS = 2;
 const REASON_MAX = 290;
-
-/** What each role must leave behind. `file` is read against the work directory the spawn prompt names. */
-export const CONTRACTS = {
-  'tp:plan-checker': { stage: 'plan-check', file: 'plan-check.json', artifact: 'plan-check', how: 'write it with `state.mjs put <workdir> plan-check …`' },
-  'tp:diff-validator': { stage: 'create-pr', file: 'diff-validation.md', how: 'write the per-file table to <workdir>/diff-validation.md' },
-  'tp:reviewer': { review: true, how: 'end with the review: the **Verdict:** line and the `Reviewed:` trailer' },
-};
+export { CONTRACTS, outputProblem };
 
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
-const lines = (text) => String(text || '').split('\n').map((l) => l.trim()).filter(Boolean);
-
-/** Does the reply close the way the output contract says — or is it the error form, or a checkpoint hand-off? Returns the problem or null. */
-export function outputProblem(message) {
-  const all = lines(message);
-  if (!all.length) return 'your reply is empty';
-  if (/^error:/i.test(all[0])) return null;
-  const [complexity, cont] = all.slice(-2);
-  if (!/^complexity:\s*(as rated|higher\b)/i.test(complexity || '') || !/^continue:\s*\S/i.test(cont || '')) {
-    return 'your reply must end with the two lines `complexity: as rated | higher — <reason>` and `continue: no | <checkpoint path>`';
-  }
-  return null;
-}
-
-/** The reviewer's reply must carry the verdict and the trailer the merge loop reads its history from — unless it hands off at a checkpoint. */
-function reviewProblem(message) {
-  if (/^continue:\s*(?!no\b)\S/im.test(lines(message).slice(-1)[0] || '') || /^error:/i.test(lines(message)[0] || '')) return null;
-  if (!/\*\*Verdict:\*\*\s*(PASS WITH WARNINGS|PASS|BLOCK)\b/.test(message)) return 'the review has no `**Verdict:** PASS | PASS WITH WARNINGS | BLOCK` line';
-  if (!/Reviewed: \S+ · round \d+ · open: .+ · new: .+/.test(message)) return 'the review has no `Reviewed: <sha> · round <n> · open: … · new: …` trailer';
-  return null;
-}
 
 /** The first line of the agent's transcript: its spawn prompt as text, and when it started. Reads a few kilobytes, never the whole file. */
 export function spawnOf(transcriptPath) {
@@ -68,20 +42,6 @@ export function workdirIn(prompt, ctx) {
   return pick.length === 1 ? pick[0] : null;
 }
 
-/** The problem with the file a role must leave behind, or null. */
-function fileProblem(contract, workdir, since) {
-  const file = join(workdir, contract.file);
-  if (!existsSync(file)) return `${contract.file} is not in the work directory`;
-  if (since && statSync(file).mtimeMs < since - 2000) return `${contract.file} is the one from before you started — this pass has not written it`;
-  if (contract.artifact) {
-    let doc;
-    try { doc = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { return `${contract.file} is not valid JSON`; }
-    const r = checkArtifact(contract.artifact, doc, { mode: 'write' });
-    if (!r.ok) return `${contract.file} does not match its schema: ${r.errors.slice(0, 2).join('; ')}`;
-  } else if (!statSync(file).size) return `${contract.file} is empty`;
-  return null;
-}
-
 const counterFile = (ctx, id) => join(workRoot(ctx), '_gates', `${String(id).replace(/[^\w.-]/g, '_')}.json`);
 
 export default function subagentStop(payload, ctx) {
@@ -89,13 +49,14 @@ export default function subagentStop(payload, ctx) {
   if (!contract || !tpProject(ctx) || !payload.agent_id) return null;
   const message = String(payload.last_assistant_message || '');
   const spawn = spawnOf(payload.agent_transcript_path);
-  const workdir = contract.file ? workdirIn(spawn.text, ctx) : null;
+  const workdir = contract.workdir ? workdirIn(spawn.text, ctx) : null;
 
+  // the error form says the job could not be done, and a checkpoint hand-off that it is not finished: neither owes the artifact yet, only its closing lines
+  const form = formOf(message);
   const problems = [];
-  const out = outputProblem(message);
+  const out = form === 'error' ? null : outputProblem(message);
   if (out) problems.push(out);
-  if (contract.review) { const r = reviewProblem(message); if (r) problems.push(r); }
-  if (contract.file && workdir) { const f = fileProblem(contract, workdir, spawn.at); if (f) problems.push(f); }
+  if (form === 'done' && (!contract.workdir || workdir)) problems.push(...contract.problems(ctx, { message, workdir, since: spawn.at, prompt: spawn.text }).filter(Boolean));
 
   const counter = counterFile(ctx, payload.agent_id);
   if (!problems.length) { try { unlinkSync(counter); } catch { /* none to clear */ } return null; }

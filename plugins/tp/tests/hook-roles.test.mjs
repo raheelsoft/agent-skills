@@ -148,6 +148,6 @@ describe('role policy — who it applies to', () => {
   it('every role has a definition in agents/', async () => {
     const { readdirSync } = await import('node:fs');
     const files = readdirSync(join(PLUGIN_ROOT, 'agents')).map((f) => `tp:${f.replace(/\.md$/, '')}`).sort();
-    assert.deepEqual(Object.keys(ROLES).sort(), files);
+    assert.deepEqual(Object.keys(ROLES).sort(), files.filter((f) => f !== 'tp:implementer'), 'the verifiers: held to their jobs; the implementer writes the change');
   });
 });
