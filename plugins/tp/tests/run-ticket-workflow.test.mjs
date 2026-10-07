@@ -6,7 +6,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { WORKFLOW } from './helpers.mjs';
-import { pick as modelPick } from '../skills/_lib/model.mjs';
+import { pick as modelPick } from '../lib/model.mjs';
 
 const SOURCE = readFileSync(WORKFLOW, 'utf8');
 
@@ -48,7 +48,7 @@ async function runWorkflow(args, world = {}) {
 }
 
 const TIERS = { low: 'fast-model', medium: 'standard-model', high: 'strongest-model' };
-const A = { claudeDir: '/x/.claude', tickets: ['T-1'], options: {}, tiers: TIERS };
+const A = { claudeDir: '/x/.claude', pluginRoot: '/x/plugin', tickets: ['T-1'], options: {}, tiers: TIERS };
 const done = (next, extra = {}) => ({ status: 'done', summary: `→ ${next}`, data: { next, stopped: null, ...extra } });
 const stopped = (stage, question) => ({ status: 'stopped', summary: 'stopped', question, data: { next: stage, stopped: { stage, question } } });
 const direct = (n) => done('implement', { decision: 'direct' });
@@ -61,7 +61,7 @@ const fullDirect = () => ({
 describe('static shape', () => {
   it('has a pure-literal meta whose phases match the phases the stages use', async () => {
     const meta = loadMeta();
-    assert.equal(meta.name, 'tp-run-ticket-unattended');
+    assert.equal(meta.name, 'run-ticket-unattended');
     assert.ok(meta.description && meta.whenToUse);
     const titles = meta.phases.map((p) => p.title);
     assert.deepEqual(titles, ['Start', 'Triage', 'Plan', 'Implement', 'PR', 'Merge', 'Release', 'Accept', 'Close']);
@@ -91,21 +91,26 @@ describe('static shape', () => {
 
 describe('argument validation', () => {
   const rejects = async (args, re) => { await assert.rejects(() => runWorkflow(args, {}), re); };
+  it('requires the plugin root: the scripts and the reference are the plugin\'s, not the project\'s', async () => {
+    await rejects({ claudeDir: '/x/.claude', tickets: ['T-1'], tiers: TIERS }, /args\.pluginRoot must be the absolute path of the tp plugin/);
+    await rejects({ ...A, pluginRoot: 'relative/plugin' }, /args\.pluginRoot/);
+  });
+
   it('requires an absolute claudeDir', async () => {
     await rejects({ tickets: ['T-1'], tiers: TIERS }, /claudeDir must be the absolute path/);
     await rejects({ claudeDir: 'relative/.claude', tickets: ['T-1'], tiers: TIERS }, /claudeDir/);
   });
   it('requires at least one ticket id, ids only', async () => {
-    await rejects({ claudeDir: '/x/.claude', tickets: [], tiers: TIERS }, /at least one ticket id/);
-    await rejects({ claudeDir: '/x/.claude', tiers: TIERS }, /at least one ticket id/);
+    await rejects({ ...A, tickets: [] }, /at least one ticket id/);
+    await rejects({ claudeDir: '/x/.claude', pluginRoot: '/x/plugin', tiers: TIERS }, /at least one ticket id/);
     await rejects({ ...A, tickets: ['next'] }, /"next" is not a ticket id/);
     await rejects({ ...A, tickets: ['https://tracker/T-1'] }, /is not a ticket id/);
     await rejects({ ...A, tickets: ['T 1'] }, /is not a ticket id/);
     await rejects({ ...A, tickets: [42] }, /is not a ticket id/);
   });
   it('requires the tiers mapping — models are never written into the script', async () => {
-    await rejects({ claudeDir: '/x/.claude', tickets: ['T-1'] }, /args\.tiers must map low, medium and high/);
-    await rejects({ claudeDir: '/x/.claude', tickets: ['T-1'], tiers: { low: 'a', medium: 'b' } }, /args\.tiers/);
+    await rejects({ claudeDir: '/x/.claude', pluginRoot: '/x/plugin', tickets: ['T-1'] }, /args\.tiers must map low, medium and high/);
+    await rejects({ claudeDir: '/x/.claude', pluginRoot: '/x/plugin', tickets: ['T-1'], tiers: { low: 'a', medium: 'b' } }, /args\.tiers/);
     assert.ok(!/haiku|sonnet|opus|claude-/.test(SOURCE), 'no model name in the script');
   });
   it('rejects an unknown until', async () => {
@@ -135,7 +140,7 @@ describe('stage order and control flow', () => {
     assert.equal(outcome[0].status, 'done');
     const { calls: withRetro, prompts: p2 } = await runWorkflow({ ...A, options: { retro: true } }, closed);
     assert.deepEqual(withRetro, ['start-ticket:T-1', 'triage:T-1', 'close:T-1']);
-    assert.ok(!/invoke the "tp-retro" skill/.test(p2['close:T-1'][0]), 'no retro for a closed ticket');
+    assert.ok(!/invoke the "tp:retro" skill/.test(p2['close:T-1'][0]), 'no retro for a closed ticket');
   });
 
   it('runs plan only when the state says the next stage is plan', async () => {
@@ -227,7 +232,7 @@ describe('until=', () => {
   it('stages before the last one are told to unlock only on stopped or error', async () => {
     const { prompts } = await runWorkflow({ ...A, options: { until: 'implement' } }, planned());
     for (const l of ['start-ticket:T-1', 'triage:T-1', 'plan:T-1']) {
-      assert.match(prompts[l][0], /On "stopped" or "error": node \/x\/\.claude\/skills\/_lib\/state\.mjs unlock \/x\/\.claude\/work\/T-1 workflow/);
+      assert.match(prompts[l][0], /On "stopped" or "error": node \/x\/plugin\/lib\/state\.mjs unlock \/x\/\.claude\/work\/T-1 workflow/);
       assert.doesNotMatch(prompts[l][0], /last stage/);
     }
   });
@@ -235,7 +240,7 @@ describe('until=', () => {
   it('a full run makes no stage final: the close-out releases the lock', async () => {
     const { prompts } = await runWorkflow(A, fullDirect());
     assert.doesNotMatch(prompts['accept:T-1'][0], /last stage/);
-    assert.match(prompts['close:T-1'][0], /whatever happened above, node \/x\/\.claude\/skills\/_lib\/state\.mjs unlock \/x\/\.claude\/work\/T-1 workflow/);
+    assert.match(prompts['close:T-1'][0], /whatever happened above, node \/x\/plugin\/lib\/state\.mjs unlock \/x\/\.claude\/work\/T-1 workflow/);
     assert.match(prompts['close:T-1'][0], /run-ticket done/);
   });
 });
@@ -257,7 +262,7 @@ describe('what the stage agents are told', () => {
     assert.equal(m.prompts['merge:T-1'][0].split('\n')[1], 'T-1 merge=auto inline=true', 'merge= reaches /tp:merge, not /tp:create-pr');
     assert.equal(m.prompts['create-pr:T-1'][0].split('\n')[1], 'T-1 inline=true');
     assert.equal(argsLine('accept:T-1'), 'T-1 where=live env=staging inline=true');
-    assert.match(prompts['start-ticket:T-1'][0], /Invoke the "tp-start-ticket" skill with the Skill tool/);
+    assert.match(prompts['start-ticket:T-1'][0], /Invoke the "tp:start-ticket" skill with the Skill tool/);
   });
 
   it('passes the resume answer to exactly the stage it belongs to, JSON-quoted', async () => {
@@ -273,7 +278,7 @@ describe('what the stage agents are told', () => {
     const { prompts } = await runWorkflow({ ...A, owner: 'sess-7' }, fullDirect());
     for (const list of Object.values(prompts)) for (const p of list) {
       assert.doesNotMatch(p, /<\.claude>|<workdir>|<state script>/);
-      assert.ok(p.includes('/x/.claude/skills/_lib/state.mjs'));
+      assert.ok(p.includes('/x/plugin/lib/state.mjs'));
       assert.ok(p.includes('/x/.claude/work/T-1'));
     }
     assert.match(prompts['triage:T-1'][0], /lock \/x\/\.claude\/work\/T-1 sess-7/);
@@ -421,13 +426,13 @@ describe('what the stage agents are told', () => {
   it('tells every stage to notify through the skill on a stop or error, and the close-out on done', async () => {
     const { prompts } = await runWorkflow(A, fullDirect());
     for (const l of ['start-ticket:T-1', 'triage:T-1', 'implement:T-1', 'create-pr:T-1', 'merge:T-1', 'release:T-1', 'accept:T-1']) {
-      assert.match(prompts[l][0], /Notify on "stopped" \(a lock held elsewhere included\) and on "error": invoke the "tp-notify" skill/, l);
+      assert.match(prompts[l][0], /Notify on "stopped" \(a lock held elsewhere included\) and on "error": invoke the "tp:notify" skill/, l);
       assert.match(prompts[l][0], /level=stop/, l);
       assert.match(prompts[l][0], /silent no-op without a chat tool/, l);
-      assert.match(prompts[l][0], /\/x\/\.claude\/notify\.json does not exist, first invoke the tp-notify skill with args: setup inline=true/, l);
+      assert.match(prompts[l][0], /\/x\/\.claude\/notify\.json does not exist, first invoke the tp:notify skill with args: setup inline=true/, l);
       assert.match(prompts[l][0], /level=stop \(or level=error\) inline=true/, `${l}: notify runs inline in the stage agent`);
     }
-    assert.match(prompts['close:T-1'][0], /invoke the "tp-notify" skill with the Skill tool, args: T-1 · done · .* level=done/);
+    assert.match(prompts['close:T-1'][0], /invoke the "tp:notify" skill with the Skill tool, args: T-1 · done · .* level=done/);
     assert.doesNotMatch(prompts['close:T-1'][0], /level=stop/);
   });
 
@@ -452,11 +457,11 @@ describe('what the stage agents are told', () => {
 
   it('the close-out runs retro inline only when asked', async () => {
     let r = await runWorkflow({ ...A, options: { retro: true } }, fullDirect());
-    assert.match(r.prompts['close:T-1'][0], /invoke the "tp-retro" skill with the Skill tool; the args string, verbatim: T-1 inline=true/);
+    assert.match(r.prompts['close:T-1'][0], /invoke the "tp:retro" skill with the Skill tool; the args string, verbatim: T-1 inline=true/);
     assert.match(r.prompts['close:T-1'][0], /retro proposal count by target/);
     r = await runWorkflow(A, fullDirect());
     assert.doesNotMatch(r.prompts['close:T-1'][0], /retro/);
-    assert.match(r.prompts['close:T-1'][0], /step 9 of the tp-run-ticket skill/);
+    assert.match(r.prompts['close:T-1'][0], /step 9 of the tp:run-ticket skill/);
     assert.match(r.prompts['close:T-1'][0], /durations \/x\/\.claude\/work\/T-1/);
   });
 });

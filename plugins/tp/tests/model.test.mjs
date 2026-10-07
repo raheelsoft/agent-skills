@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { mkdirSync, existsSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
-import { CLAUDE_DIR, tmp, rm, writeJson, readJson, script } from './helpers.mjs';
-import { rate, budget, pick, rounds, compact, higherOf, RATINGS, dayConfig, calibrate, tiersFor, withinCeiling, ceilingStatus, pinSession } from '../skills/_lib/model.mjs';
+import { PLUGIN_ROOT, tmp, rm, writeJson, readJson, script } from './helpers.mjs';
+import { rate, budget, pick, rounds, compact, higherOf, RATINGS, dayConfig, calibrate, tiersFor, withinCeiling, ceilingStatus, pinSession } from '../lib/model.mjs';
 
 const MODEL = script('model.mjs');
 const TIERS = { low: 'fast-model', medium: 'standard-model', high: 'strongest-model' };

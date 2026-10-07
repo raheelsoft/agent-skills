@@ -6,16 +6,17 @@ user-invocable: true
 
 **Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
 
-The integration interview — the first thing to run after copying `skills/` into a
-project's `.claude/`, and the way to change the selection later. It runs **where it
-is invoked** (`reference/README.md` § Definitions, Dedicated agent: its whole job is to
-ask the person and run one script, so no agent is spawned for it). Nothing here
-touches a ticket, a repo or the tracker: it writes `<.claude>/pipeline.json` and
+The integration interview — the first thing to run once the plugin is on in a project,
+and the way to change the selection later. It runs **where it is invoked**
+(`reference/README.md` § Definitions, Dedicated agent: its whole job is to ask the person
+and run one script, so no agent is spawned for it). Nothing here touches a ticket, a repo
+or the tracker, and nothing in the plugin: it writes `<.claude>/pipeline.json` and
 `<.claude>/tiers.json` (and, when the person accepts step 3's offer, the `model` line of
-`<.claude>/settings.local.json`), and moves the folders of skills that are off to
-`<.claude>/skills/_off/` (kept, restorable). The catalogue — every skill, its group,
-what it needs, whether the interview preselects it — is one place,
-`<lib>/setup.mjs`; the README's table describes the same skills.
+`<.claude>/settings.local.json`). The skills belong to the plugin, which every project that
+enables it shares, so a skill that is off is a record in `pipeline.json`, not a folder
+moved. The catalogue — every skill, its group, what it needs, whether the interview
+preselects it — is one place, `<lib>/setup.mjs`; the README's table describes the same
+skills.
 
 ## Input
 
@@ -27,9 +28,13 @@ what it needs, whether the interview preselects it — is one place,
 - `session=<yes|no>` → answer step 3's second question without asking.
 - `hooks=<yes|no|dry>` → answer step 3b's question without asking (`dry` prints the
   hooks it would write and writes nothing).
-- `status` → what is on, what is off, and any problem (an active skill whose folder
-  is missing, a dependency off) — `node <lib>/setup.mjs status
-  <.claude>`; nothing changes.
+- `status` → what is on, what is off, and any problem (a dependency off, a name the
+  plugin does not have) — `node <lib>/setup.mjs status <.claude>`; nothing changes.
+- `migrate` → what is left of a copy of the pipeline kept in this project's own
+  `.claude`: `node <lib>/setup.mjs migrate <.claude>` lists the folders to remove, the
+  `tp-` keys in `pipeline.json` and the allow rules that name the copy. Show the list;
+  with the person's yes run it again with `--fix` (it rewrites only the keys of
+  `pipeline.json`) and give the `rm` lines for the folders — never delete them yourself.
 - `inline=true` — accepted and meaningless: this skill always runs where it is
   invoked.
 
@@ -109,9 +114,8 @@ an uncommitted change for the person to commit (or to take through a ticket), an
 
 ### 4. Apply
 `node <lib>/setup.mjs apply <.claude> '{ "skills": [<the selection>],
-"by": "setup" }'` — `pipeline.json` written, the folders of skills that are off moved
-to `skills/_off/`, the folders of skills switched back on restored; the result names
-what was added for a dependency. Then, in this order:
+"by": "setup" }'` — `pipeline.json` written; the result names what was added for a dependency.
+Then, in this order:
 1. **The allowlist** — print the permission lines the selection needs (README
    § Install, step 2): the scripts, `git` and `node --test` always; the hosting CLI's
    `pr`/`run`/`api` when `tp:create-pr`, `tp:merge`, `tp:review` or `tp:release` is on; the
@@ -135,5 +139,4 @@ shows it).
 
 ## Stops
 None for a question — this skill asks directly. `error: …` when the script refuses
-(an unknown skill name, a folder in both `skills/` and `skills/_off/`): the message
-names the fix; run again afterwards.
+(an unknown skill name): the message names the fix; run again afterwards.

@@ -1,26 +1,23 @@
 #!/usr/bin/env node
-// tests/sim/setup.mjs — a throw-away install to exercise the pipeline against the fixture tracker (skills/README.md
-// § Using it, Simulation): copies the skills, workflows, tests and office into <dir>/.claude, creates two small git
-// repos (api, web) with a conventions file and a bare remote each, writes tiers.json (the real install's models when
-// present), tracker.json (a copy of the fixture, so saves never touch tests/fixtures), office.json, notify.json
-// (silent) and the allowlist. Prints the folder; open a session there and run the skills.
+// tests/sim/setup.mjs — a throw-away project to exercise the pipeline against the fixture tracker (reference/README.md
+// § Using it, Simulation): creates two small git repos (api, web) with a conventions file and a bare remote each, and a
+// `.claude` with tiers.json (the models of the file given with --tiers, else placeholders), tracker.json (a copy of the
+// fixture, so saves never touch tests/fixtures), office.json, notify.json (silent) and the allowlist. The pipeline itself is
+// not copied: the project loads the plugin by path (`claude --plugin-dir <plugin>`). Prints the folder; open a session there.
 //
-//   node tests/sim/setup.mjs [<dir>] [--models low=<m> medium=<m> high=<m>]   (default dir: a fresh temp folder)
-import { mkdtempSync, mkdirSync, writeFileSync, cpSync, readFileSync, existsSync, realpathSync } from 'node:fs';
+//   node tests/sim/setup.mjs [<dir>] [--tiers <tiers.json>] [low=<m> medium=<m> high=<m>]   (default dir: a fresh temp folder)
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SRC = resolve(HERE, '..', '..'); // the real <.claude>
+const PLUGIN_ROOT = resolve(HERE, '..', '..'); // the plugin this bed exercises
 
 export function setup(dir, opts = {}) {
   const root = dir ? resolve(dir) : mkdtempSync(join(tmpdir(), 'pipeline-sim-'));
   const claude = join(root, '.claude');
-  mkdirSync(claude, { recursive: true });
-  for (const d of ['skills', 'workflows', 'tests']) cpSync(join(SRC, d), join(claude, d), { recursive: true });
-  cpSync(join(SRC, 'office'), join(claude, 'office'), { recursive: true, filter: (p) => !p.includes(`${join('office', 'electron', 'node_modules')}`) });
   mkdirSync(join(claude, 'work'), { recursive: true });
   const git = (cwd, args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const repos = {};
@@ -40,7 +37,7 @@ export function setup(dir, opts = {}) {
     git(repo, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main']);
     repos[name] = repo;
   }
-  const real = existsSync(join(SRC, 'tiers.json')) ? JSON.parse(readFileSync(join(SRC, 'tiers.json'), 'utf8')) : {};
+  const real = opts.tiers && existsSync(opts.tiers) ? JSON.parse(readFileSync(opts.tiers, 'utf8')) : {};
   const models = { low: opts.low || real.low || 'low', medium: opts.medium || real.medium || 'medium', high: opts.high || real.high || 'high' };
   // a ceiling its tiers agree with: the real install's, unless the bed names its own models — then the ladder is those models, smallest first
   const named = ['low', 'medium', 'high'].some((r) => opts[r]);
@@ -49,14 +46,14 @@ export function setup(dir, opts = {}) {
     : { ceiling: models.high, ladder: [...new Set([models.low, models.medium, models.high])] };
   writeFileSync(join(claude, 'tiers.json'), JSON.stringify({ ...ceiling, ...models, prices: real.prices || { low: 1, medium: 5, high: 25 }, doctor: { checks: [] } }, null, 2) + '\n');
   const fixture = join(claude, 'tracker.fixture.json');
-  writeFileSync(fixture, readFileSync(join(SRC, 'tests', 'fixtures', 'tracker.json'), 'utf8'));
+  writeFileSync(fixture, readFileSync(join(PLUGIN_ROOT, 'tests', 'fixtures', 'tracker.json'), 'utf8'));
   writeFileSync(join(claude, 'tracker.json'), JSON.stringify({ kind: 'fixture', path: fixture }, null, 2) + '\n');
   writeFileSync(join(claude, 'office.json'), JSON.stringify({ team: 'Demo CRM', projects: ['api', 'web'], poll: 2500, linger: 120 }, null, 2) + '\n');
   writeFileSync(join(claude, 'notify.json'), JSON.stringify({ tool: null, target: null, project: 'demo', levels: ['stop', 'done', 'error'], setAt: new Date().toISOString() }, null, 2) + '\n');
-  const allow = [`Bash(node ${claude}/skills/_lib/*)`, `Bash(node ${claude}/office/*)`, 'Bash(node --test *)', 'Bash(node --check *)', 'Bash(git status*)', 'Bash(git diff*)', 'Bash(git log*)', 'Bash(git show*)', 'Bash(git fetch*)', 'Bash(git rev-parse*)', 'Bash(git merge-base*)', 'Bash(git branch*)', 'Bash(git worktree *)', 'Bash(git checkout *)', 'Bash(git switch *)', 'Bash(git add *)', 'Bash(git commit *)', 'Bash(git merge *)', 'Bash(git push *)'];
+  const allow = [`Bash(node ${PLUGIN_ROOT}/lib/*)`, `Bash(node ${PLUGIN_ROOT}/office/*)`, 'Bash(node --test *)', 'Bash(node --check *)', 'Bash(git status*)', 'Bash(git diff*)', 'Bash(git log*)', 'Bash(git show*)', 'Bash(git fetch*)', 'Bash(git rev-parse*)', 'Bash(git merge-base*)', 'Bash(git branch*)', 'Bash(git worktree *)', 'Bash(git checkout *)', 'Bash(git switch *)', 'Bash(git add *)', 'Bash(git commit *)', 'Bash(git merge *)', 'Bash(git push *)'];
   writeFileSync(join(claude, 'settings.local.json'), JSON.stringify({ permissions: { allow } }, null, 2) + '\n');
   writeFileSync(join(claude, '.gitignore'), 'work/\n');
-  return { root, claude, repos, fixture, models };
+  return { root, claude, repos, fixture, models, plugin: PLUGIN_ROOT };
 }
 
 // run as a command only when this file is the entry point — compared by real path, so a symlinked temp folder (macOS /var) counts
@@ -65,16 +62,18 @@ if (process.argv[1] && isMain(import.meta.url)) {
   const args = process.argv.slice(2);
   const opts = {};
   for (const a of args) { const m = /^(low|medium|high)=(.+)$/.exec(a); if (m) opts[m[1]] = m[2]; }
-  const dir = args.find((a) => !a.startsWith('--') && !/^(low|medium|high)=/.test(a));
+  const tiersAt = args.indexOf('--tiers');
+  if (tiersAt >= 0) opts.tiers = resolve(args[tiersAt + 1]);
+  const dir = args.find((a, i) => !a.startsWith('--') && !/^(low|medium|high)=/.test(a) && args[i - 1] !== '--tiers');
   const r = setup(dir, opts);
   console.log(`simulation bed: ${r.root}
-  .claude/        the pipeline (tracker: ${r.fixture})
+  .claude/        the project's configuration (tracker: ${r.fixture}); the pipeline is the plugin at ${r.plugin}
   api/  web/      two repos on main, each with a bare remote (${r.root}/<name>.git)
   models          ${Object.entries(r.models).map(([k, v]) => `${k}=${v}`).join(' ')}
-next: open a session in ${r.root} and try
+next: cd ${r.root} && claude --plugin-dir ${r.plugin}   and try
   /tp:doctor
   /tp:plan-day date=2026-09-21 dry=true          (sprint 4 from the fixture)
   /tp:run-ticket DEMO-4 until=implement           (a direct bug fix, no tracker or hosting account needed)
-  node .claude/office/serve.mjs                (the office for this bed)
-/tp:create-pr onwards needs a real hosting platform — the bed stops at the push (README § Using it, Simulation).`);
+  node ${r.plugin}/office/serve.mjs --work ${r.claude}/work     (the office for this bed)
+/tp:create-pr onwards needs a real hosting platform — the bed stops at the push (reference/README.md § Using it, Simulation).`);
 }

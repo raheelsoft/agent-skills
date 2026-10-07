@@ -1,5 +1,5 @@
 export const meta = {
-  name: 'tp:run-ticket-unattended',
+  name: 'run-ticket-unattended',
   description: 'Unattended ticket pipeline: start → triage → (plan → check →) implement → create-pr → merge → release → accept → close, one stage per agent, stops returned as needs_input',
   whenToUse: 'Run one or many tickets without watching them; re-run with resumeFromRunId and args.answers after a stop. Interactive work stays with the /tp:run-ticket skill.',
   phases: [
@@ -15,27 +15,30 @@ export const meta = {
   ],
 }
 
-// args: { claudeDir: "/abs/path/.claude", tickets: ["ABC-123", ...],
+// args: { claudeDir: "/abs/path/.claude", pluginRoot: "/abs/path/to/the/tp/plugin", tickets: ["ABC-123", ...],
+//         (claudeDir: the project's configuration and work/; pluginRoot: the plugin's scripts and reference — ${CLAUDE_PLUGIN_ROOT} of the skill that launches this)
 //         options?: { mode, promote, where, env, round, until, retro, merge: "auto"|"ask", tier: "low"|"medium"|"high"|"strong" },
 //         answers?: { "ABC-123": { "<stage>": "<text>" } }, owner?: "workflow",
 //         tiers: { low: "<model>", medium: "<model>", high: "<model>", ceiling?: "<model>", ladder?: ["<model>", …] }   — the contents of <.claude>/tiers.json }
 // Every planned ticket's first run ends as a needs_input row at "plan" — the person's approval of the checked
-// plan — resumed with args.answers[<id>].plan = "go-ahead" (skills/README.md § Using it, When it stops).
-// The same chain as the /tp:run-ticket skill (skills/README.md § Unattended runs). Every stage is one
+// plan — resumed with args.answers[<id>].plan = "go-ahead" (reference/README.md § Using it, When it stops).
+// The same chain as the /tp:run-ticket skill (reference/README.md § Unattended runs). Every stage is one
 // agent that invokes the stage skill through the Skill tool and reports the state the skill left in
 // the ticket's work directory; the script never reads files itself. A stage that stops ends the
 // ticket's pipeline with needs_input; the session that ran the script interviews the person with the
-// row's question (skills/README.md § Definitions, Asking the user) and the answer goes in on the next run under
+// row's question (reference/README.md § Definitions, Asking the user) and the answer goes in on the next run under
 // args.answers[<ticket>][<stage>] (the stage named in the returned row) with resumeFromRunId —
 // the changed prompt re-runs only that stage, earlier stages come back from the cache.
-// Each stage agent is the stage skill's dedicated agent (it passes inline=true, skills/README.md
+// Each stage agent is the stage skill's dedicated agent (it passes inline=true, reference/README.md
 // § Definitions), so nothing is spawned underneath it except the skill's own sub-agents.
 // Each stage agent takes the ticket's run lock (idempotent for the same owner, so a resumed run
 // re-takes the lock its stopping agent released); the stopping or final agent releases it.
 // Pass a distinct `owner` per launch when several launches may overlap on the same ticket.
 
 const claudeDir = typeof args?.claudeDir === 'string' ? args.claudeDir.replace(/\/+$/, '') : ''
-if (!claudeDir.startsWith('/')) throw new Error('args.claudeDir must be the absolute path of the .claude directory that contains skills/')
+if (!claudeDir.startsWith('/')) throw new Error('args.claudeDir must be the absolute path of the project\'s .claude directory (its configuration and work/)')
+const pluginRoot = typeof args?.pluginRoot === 'string' ? args.pluginRoot.replace(/\/+$/, '') : ''
+if (!pluginRoot.startsWith('/')) throw new Error('args.pluginRoot must be the absolute path of the tp plugin (its lib/, skills/ and reference/)')
 const tickets = Array.isArray(args?.tickets) ? args.tickets : []
 if (!tickets.length) throw new Error('args.tickets must list at least one ticket id')
 for (const t of tickets) if (typeof t !== 'string' || !/^[\w.-]+$/.test(t) || t === 'next') throw new Error(`args.tickets: "${t}" is not a ticket id (ids only — "next" and URLs are for the interactive skill)`)
@@ -48,17 +51,17 @@ const past = (stage) => ORDER.indexOf(stage) > ORDER.indexOf(last) // beyond the
 const ended = (prev) => prev.status === 'done' && prev.data && prev.data.next === null // nothing left: finished, or closed early (triage `close`)
 const closes = !opt.until // a full run ends with the close-out agent, which releases the lock
 // Model and effort per stage agent follow the ticket's current complexity rating — the `complexity` the
-// previous stage's state reported (skills/README.md § Models and budget) — never the stage's name. Pickup, before any
+// previous stage's state reported (reference/README.md § Models and budget) — never the stage's name. Pickup, before any
 // rating exists, is bounded work (medium); the close-out is mechanical (low); a stage whose job is to catch
 // what others missed (accept) runs one effort step up. options.tier is a minimum rating for every agent
 // ("strong" = "high"); a stage that reports escalate:true is re-run once, one rating up.
 const RATINGS = ['low', 'medium', 'high']
 const EFFORT = ['low', 'medium', 'high', 'max']
-// the model behind each rating comes from the environment's tiers.json (skills/README.md § Models and budget), passed in args
+// the model behind each rating comes from the environment's tiers.json (reference/README.md § Models and budget), passed in args
 const tiers = args?.tiers && typeof args.tiers === 'object' ? args.tiers : null
 if (!tiers || RATINGS.some((r) => typeof tiers[r] !== 'string')) throw new Error('args.tiers must map low, medium and high to model names — the contents of <.claude>/tiers.json')
 // the ceiling the person set at setup (tiers.ceiling, one of tiers.ladder — the runtime's models, smallest first): no agent runs on a model above it,
-// whatever a tier names — the rule model.mjs pick applies (skills/README.md § Models and budget, The ceiling); a model off the ladder cannot be compared and passes
+// whatever a tier names — the rule model.mjs pick applies (reference/README.md § Models and budget, The ceiling); a model off the ladder cannot be compared and passes
 const ladder = Array.isArray(tiers.ladder) ? tiers.ladder.map(String) : []
 const top = typeof tiers.ceiling === 'string' ? ladder.indexOf(tiers.ceiling) : -1
 const underCeiling = (model) => (top >= 0 && ladder.indexOf(model) > top ? ladder[top] : model)
@@ -85,30 +88,30 @@ const answersFor = (id, stage) => (args?.answers?.[id]?.[stage] ? ` answers=${JS
 const STAGE = {
   type: 'object',
   properties: {
-    status: { type: 'string', enum: ['done', 'stopped', 'error', 'continue'], description: 'continue: the agent checkpointed where model.mjs compact told it to and must be re-run with continue=true (skills/README.md § Context management, rule 7)' },
+    status: { type: 'string', enum: ['done', 'stopped', 'error', 'continue'], description: 'continue: the agent checkpointed where model.mjs compact told it to and must be re-run with continue=true (reference/README.md § Context management, rule 7)' },
     summary: { type: 'string' },
     question: { type: 'string', description: 'stopped: the exact question for the user' },
     diagnosis: { type: 'string', description: 'error: what went wrong, from the skill or the state script (the error form\'s error and tried lines)' },
     resume: { type: 'string', description: 'error: the exact invocation that continues from the checkpoint (the error form\'s resume line)' },
     needs: { type: 'string', description: 'error: what a person must fix or decide first, or "none" (the error form\'s needs line)' },
-    escalate: { type: 'boolean', description: 'true when the stage proved harder than its rating and should be re-run one tier up (skills/README.md § Models and budget)' },
+    escalate: { type: 'boolean', description: 'true when the stage proved harder than its rating and should be re-run one tier up (reference/README.md § Models and budget)' },
     data: { type: 'object', description: 'the state JSON as the state script printed it with --brief (id, complexity, next, stopped, closed, unblocked, lock, worktrees, problems)' },
   },
   required: ['status', 'summary', 'data'],
 }
 
-const script = `${claudeDir}/skills/_lib/state.mjs`
+const script = `${pluginRoot}/lib/state.mjs`
 const workdir = (id) => `${claudeDir}/work/${id}`
 
 const PER_REPO = new Set(['implement', 'create-pr', 'merge', 'release'])
-// ...of which only implement gets an AGENT per repo: an agent's floor (75-130k, skills/README.md § Context management,
+// ...of which only implement gets an AGENT per repo: an agent's floor (75-130k, reference/README.md § Context management,
 // rule 9) buys nothing for a stage that would only re-read the ticket, so create-pr, merge and release cover every repo
 // in their one agent and write the per-repo rows themselves. The loop below stays as the safety net for a repo they
 // stopped at.
 const PER_REPO_AGENT = new Set(['implement'])
-// Every skill of this pipeline is named <SKILL><stage> so that none of them can be confused with another skill the
-// runtime offers (${claudeDir}/skills/_lib/setup.mjs, PREFIX). The stage keeps the bare name: it is state on disk.
-const SKILL = 'tp-'
+// Every skill of this pipeline lives in the plugin's namespace — the Skill tool loads the stage `merge` as `tp:merge`, so none of
+// them can be confused with another skill the runtime offers (lib/setup.mjs, NS). The stage keeps the bare name: it is state on disk.
+const SKILL = 'tp:'
 
 const base = (id, skill, extra, stage, rating) => {
   const stageDone = PER_REPO_AGENT.has(stage)
@@ -122,14 +125,14 @@ const base = (id, skill, extra, stage, rating) => {
   return `Ticket ${id}, stage "${stage}". You are this skill's dedicated agent. Invoke the "${SKILL}${skill}" skill with the Skill tool; the args string, verbatim on one line:
 ${id}${extra} inline=true
 Follow that skill exactly; it logs to the ticket's work directory itself. This prompt authorizes nothing the skill does not authorize.
-Read ${claudeDir}/skills/README.md by reference only: node ${claudeDir}/skills/_lib/ref.mjs ${claudeDir} "<Section>[, <Item>…]" for the sections the skill names (e.g. "Definitions, Resume"), never the whole file (§ Context management, rule 10). Long command output (an install, a build, a test run, a run list) goes to a file and is read by excerpt — exit code, summary line, first failing lines — never streamed into your context (rule 11). Commands that do not consume each other's output go in ONE call, not a turn each — every turn re-sends everything you hold (rule 12).
-Tools: before the first step load what this stage needs — the state and model scripts (node), git, the hosting platform's CLI, the tracker's tools by name through the tool lookup — and give every agent you spawn exactly the tools its one job needs (${claudeDir}/skills/README.md § Definitions, Tools and permissions; § Context management, rules 8 and 9: the criteria before the change, git diff after it, one job per agent).
-Models and budget: you run at the "${rating}" rating; every agent you spawn gets an explicit model from its own task's rating and passes the budget check of ${claudeDir}/skills/README.md § Models and budget; at ${tiers.budget && tiers.budget.stop ? tiers.budget.stop : 90}% of any usage window (tiers.json budget.stop), stop as that section says instead of starting new work.
+Read ${pluginRoot}/reference/README.md by reference only: node ${pluginRoot}/lib/ref.mjs "<Section>[, <Item>…]" for the sections the skill names (e.g. "Definitions, Resume"), never the whole file (§ Context management, rule 10). Long command output (an install, a build, a test run, a run list) goes to a file and is read by excerpt — exit code, summary line, first failing lines — never streamed into your context (rule 11). Commands that do not consume each other's output go in ONE call, not a turn each — every turn re-sends everything you hold (rule 12).
+Tools: before the first step load what this stage needs — the state and model scripts (node), git, the hosting platform's CLI, the tracker's tools by name through the tool lookup — and give every agent you spawn exactly the tools its one job needs (${pluginRoot}/reference/README.md § Definitions, Tools and permissions; § Context management, rules 8 and 9: the criteria before the change, git diff after it, one job per agent).
+Models and budget: you run at the "${rating}" rating; every agent you spawn gets an explicit model from its own task's rating and passes the budget check of ${pluginRoot}/reference/README.md § Models and budget; at ${tiers.budget && tiers.budget.stop ? tiers.budget.stop : 90}% of any usage window (tiers.json budget.stop), stop as that section says instead of starting new work.
 If this stage's own work proves harder than "${rating}" (an unexpected design decision, a second area, a risk nobody named), do not push through: return escalate: true with the reason in summary and the state as data — the stage is re-run one rating up.
-Context: at every step boundary ask node ${claudeDir}/skills/_lib/model.mjs compact '{ rating: "${rating}", used: <your own running estimate of the tokens you hold — the usage tool reports the session's window, not yours>, stepsLeft, stepsTotal, nextStep: { bytes }, handoffs: <from the checkpoint you resumed from, else 0>, claudeDir: "${claudeDir}" }' (${claudeDir}/skills/README.md § Context management, rule 7). On "checkpoint", write checkpoint.<stage>[.<repo>].md in the work directory (hand-offs so far included) plus the note in progress.md exactly as that rule says and return status "continue" with the checkpoint path in summary and the state as data — you will be re-run with continue=true and must then start from that file. On "stop", log the stage stopped "hand-off budget spent — <next step>" and return status "stopped" with that as the question.
+Context: at every step boundary ask node ${pluginRoot}/lib/model.mjs compact '{ rating: "${rating}", used: <your own running estimate of the tokens you hold — the usage tool reports the session's window, not yours>, stepsLeft, stepsTotal, nextStep: { bytes }, handoffs: <from the checkpoint you resumed from, else 0>, claudeDir: "${claudeDir}" }' (${pluginRoot}/reference/README.md § Context management, rule 7). On "checkpoint", write checkpoint.<stage>[.<repo>].md in the work directory (hand-offs so far included) plus the note in progress.md exactly as that rule says and return status "continue" with the checkpoint path in summary and the state as data — you will be re-run with continue=true and must then start from that file. On "stop", log the stage stopped "hand-off budget spent — <next step>" and return status "stopped" with that as the question.
 The state JSON you return carries the ticket's current rating (complexity) — the next stage's model is chosen from it, so return the --brief state as printed.
 Work directory: ${wd}. State script: ${script} (run it with node: node ${script} <subcommand> ${wd} …).
-Office: you are the lead for this stage. Before step 1 below, register (the work root exists whether or not the ticket's directory does): node ${script} agent join ${claudeDir}/work '{ "id": "${id}:<stage>:lead", "level": "lead", "stage": "<stage>", "ticket": "${id}", "parent": null, "rating": "${rating}" }' — <stage> being the stage as the state names it (${PER_REPO_AGENT.has(stage) ? `${stage}:<repo> on a cross-repo ticket, else ` : ''}${stage}) in both the id and the stage field — and pass that id as the parent of every agent you spawn (${claudeDir}/skills/README.md § Definitions, Office presence). Before returning, whatever the status: node ${script} agent leave ${claudeDir}/work ${id}:<stage>:lead <done|stopped|gone>; a sub-agent of yours that returned nothing is left gone the same way.
+Office: you are the lead for this stage. Before step 1 below, register (the work root exists whether or not the ticket's directory does): node ${script} agent join ${claudeDir}/work '{ "id": "${id}:<stage>:lead", "level": "lead", "stage": "<stage>", "ticket": "${id}", "parent": null, "rating": "${rating}" }' — <stage> being the stage as the state names it (${PER_REPO_AGENT.has(stage) ? `${stage}:<repo> on a cross-repo ticket, else ` : ''}${stage}) in both the id and the stage field — and pass that id as the parent of every agent you spawn (${pluginRoot}/reference/README.md § Definitions, Office presence). Before returning, whatever the status: node ${script} agent leave ${claudeDir}/work ${id}:<stage>:lead <done|stopped|gone>; a sub-agent of yours that returned nothing is left gone the same way.
 Before invoking the skill, when the work directory exists:
 1. node ${script} state ${wd} --brief — ${newRound ? 'skip this check (a new round re-runs the stage)' : `when ${stageDone.replace(' this invocation ran', ' this invocation would run').replace(' this invocation covered', ' this invocation would cover')} already, and not stale, return status "done" with that state JSON as data, without invoking the skill`}.
 2. node ${script} lock ${wd} ${owner} — exit code 3 means another run holds this ticket: return status "stopped" with the script's message as the question and the state JSON as data, and do nothing else (no unlock).
@@ -138,7 +141,7 @@ When the skill finishes and the work directory still does not exist, the skill s
 Otherwise: node ${script} state ${wd} --brief — that JSON is data (the decision fields; the full form is for the skill's own steps), and decides the status:
 - its stopped is not null → "stopped", question = stopped.question (whatever stage it names: nothing can proceed until it is answered);
 - else ${stageDone} → "done";
-- else → "error": the skill already auto-resolved within its bound and checkpointed (${claudeDir}/skills/README.md § Failures and escalation) — diagnosis = its error and tried lines (or the state's problems, or the tool failure), resume = its resume line, needs = its needs line or "none". Never retry a stage's error yourself; never guess an answer or work around a permission.
+- else → "error": the skill already auto-resolved within its bound and checkpointed (${pluginRoot}/reference/README.md § Failures and escalation) — diagnosis = its error and tried lines (or the state's problems, or the tool failure), resume = its resume line, needs = its needs line or "none". Never retry a stage's error yourself; never guess an answer or work around a permission.
 ${final
     ? `This is the run's last stage: release the lock (node ${script} unlock ${wd} ${owner}) on "stopped", on "error", and on "done"${PER_REPO.has(stage) ? ` unless the state's next is another "${stage}:<repo>" stage still to run` : ''}.`
     : `On "stopped" or "error": node ${script} unlock ${wd} ${owner}`}
@@ -210,13 +213,13 @@ const results = await pipeline(
     if (prev.status !== 'done' || !closes) return prev
     const wd = workdir(id)
     const closeRating = opt.retro ? [ratingFor('close', prev), 'medium'].sort((a, b) => RATINGS.indexOf(b) - RATINGS.indexOf(a))[0] : ratingFor('close', prev)
-    const r = await agent(`Close out ticket ${id} as step 9 of the ${SKILL}run-ticket skill describes (${claudeDir}/skills/run-ticket/SKILL.md § 9. Close out).
-Work directory: ${wd}. State script: ${script}. The README by reference only: node ${claudeDir}/skills/_lib/ref.mjs ${claudeDir} "<Section>[, <Item>…]" for what the step names, never the whole file.
-${prev.data?.closed ? `The ticket is CLOSED early (the state's closed: ${JSON.stringify(prev.data.closed.why || '')}): do the closed-ticket close-out the skill's step 9 opens with (worktrees and never-pushed branches removed, the ticket commented with the why and what to close it as, no retro), and log run-ticket done "closed: <why>".\n` : `The run's one cleanup moment (${claudeDir}/skills/README.md § Worktrees): accept's done removed the ticket's worktrees; any still under ${wd}/wt/ go now (${claudeDir}/skills/start-ticket/instructions/branch-and-pull.md § 4; a worktree another ticket's ticket.json still names stays).\n`}${opt.retro && !prev.data?.closed ? `First invoke the "tp:retro" skill with the Skill tool; the args string, verbatim: ${id}${minTier ? ` tier=${minTier}` : ''} inline=true (you are its dedicated agent; it writes retro.md / retro.json and reports proposals by target). If the skill is not installed (${claudeDir}/pipeline.json says tp:retro: false), skip it and say so in the summary.\n` : ''}Append to ${wd}/report.md: the deviations and implementation summary from plan.md, the minutes and tokens per stage (node ${script} durations ${wd}; node ${script} usage ${wd}), and every stop in progress.md with how answers.md resolved it.
+    const r = await agent(`Close out ticket ${id} as step 9 of the ${SKILL}run-ticket skill describes (${pluginRoot}/skills/run-ticket/SKILL.md § 9. Close out).
+Work directory: ${wd}. State script: ${script}. The README by reference only: node ${pluginRoot}/lib/ref.mjs "<Section>[, <Item>…]" for what the step names, never the whole file.
+${prev.data?.closed ? `The ticket is CLOSED early (the state's closed: ${JSON.stringify(prev.data.closed.why || '')}): do the closed-ticket close-out the skill's step 9 opens with (worktrees and never-pushed branches removed, the ticket commented with the why and what to close it as, no retro), and log run-ticket done "closed: <why>".\n` : `The run's one cleanup moment (${pluginRoot}/reference/README.md § Worktrees): accept's done removed the ticket's worktrees; any still under ${wd}/wt/ go now (${pluginRoot}/skills/start-ticket/instructions/branch-and-pull.md § 4; a worktree another ticket's ticket.json still names stays).\n`}${opt.retro && !prev.data?.closed ? `First invoke the "tp:retro" skill with the Skill tool; the args string, verbatim: ${id}${minTier ? ` tier=${minTier}` : ''} inline=true (you are its dedicated agent; it writes retro.md / retro.json and reports proposals by target). If the skill is not installed (${claudeDir}/pipeline.json says retro: false), skip it and say so in the summary.\n` : ''}Append to ${wd}/report.md: the deviations and implementation summary from plan.md, the minutes and tokens per stage (node ${script} durations ${wd}; node ${script} usage ${wd}), and every stop in progress.md with how answers.md resolved it.
 Office: first node ${script} agent join ${claudeDir}/work '{ "id": "${id}:${opt.retro && !prev.data?.closed ? 'retro' : 'run-ticket'}:lead", "level": "lead", "role": "close-out", "stage": "${opt.retro && !prev.data?.closed ? 'retro' : 'run-ticket'}", "ticket": "${id}", "rating": "${closeRating}" }'; before returning node ${script} agent leave ${claudeDir}/work ${id}:${opt.retro && !prev.data?.closed ? 'retro' : 'run-ticket'}:lead done.
 Then: node ${script} log ${wd} run-ticket note "tokens partial — stage leads unrecorded" (an unattended run's stage leads never report their own tokens to this script: totals for this ticket are partial, README § Unattended runs), node ${script} log ${wd} run-ticket done "<one line>" and, whatever happened above, node ${script} unlock ${wd} ${owner} — the run ends here either way.
 Then invoke the "tp:notify" skill with the Skill tool, args: ${id} · done · <the one-line outcome> <the PR link> level=done inline=true (a silent no-op without a chat tool; its result goes at the end of your summary).
-Finish with node ${script} state ${wd} --brief as data. Return status "done" with the one-line report in summary${opt.retro ? ' (including the retro proposal count by target)' : ''}; "error" with diagnosis, resume and needs (the error form, ${claudeDir}/skills/README.md § Failures and escalation) if any step failed.`,
+Finish with node ${script} state ${wd} --brief as data. Return status "done" with the one-line report in summary${opt.retro ? ' (including the retro proposal count by target)' : ''}; "error" with diagnosis, resume and needs (the error form, ${pluginRoot}/reference/README.md § Failures and escalation) if any step failed.`,
       { label: `close:${id}`, phase: 'Close', schema: STAGE, agentType: 'general-purpose', ...modelFor('close', closeRating) })
     return r ? { ...r, stage: 'close' } : { status: 'error', summary: 'close-out agent returned nothing', diagnosis: 'the agent was skipped or died', stage: 'close' }
   },

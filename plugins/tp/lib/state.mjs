@@ -36,7 +36,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, basename, dirname, resolve, isAbsolute } from 'node:path';
 import { status as dayStatus } from './day.mjs';
-import { offStages } from './setup.mjs';
+import { offStages, modern } from './setup.mjs';
 
 const EVENTS = new Set(['started', 'done', 'stopped', 'note']);
 const ORDER = ['start-ticket', 'triage', 'plan', 'plan-check', 'implement', 'create-pr', 'merge', 'release', 'accept'];
@@ -122,7 +122,7 @@ function parseProgress(workdir, problems) {
       problems.push(`progress.md:${i + 1} does not match "- <UTC> · <stage> · <event> · <summary> · <links>"`);
       return;
     }
-    entries.push({ i, ts, stage, event, summary: f[3] || '', links: f.slice(4).join(SEP) });
+    entries.push({ i, ts, stage, event, summary: modern(f[3] || ''), links: f.slice(4).join(SEP) }); // an older install's `/tp-x` reads as `/tp:x`
   });
   return entries;
 }
@@ -640,7 +640,7 @@ function scratchStops(workroot) {
   const dir = join(workroot, '_scratch');
   if (!isDir(dir)) return [];
   return readdirSync(dir).filter((f) => f.endsWith('.stop.json'))
-    .map((f) => { const x = readJson(join(dir, f), []); return x && typeof x.id === 'string' && x.question ? { ...x, file: join(dir, f) } : null; })
+    .map((f) => { const x = readJson(join(dir, f), []); return x && typeof x.id === 'string' && x.question ? { ...x, question: modern(x.question), resume: modern(x.resume), file: join(dir, f) } : null; })
     .filter(Boolean);
 }
 

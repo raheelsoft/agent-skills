@@ -4,8 +4,7 @@ import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { CLAUDE_DIR, tmp, rm, writeJson, readJson, pickedUp, stampAgo, script } from './helpers.mjs';
-import { CATALOGUE } from '../skills/_lib/setup.mjs';
+import { PLUGIN_ROOT, LIB, tmp, rm, writeJson, readJson, pickedUp, stampAgo, script } from './helpers.mjs';
 
 const DOCTOR = script('doctor.mjs');
 function doctor(...args) {
@@ -38,14 +37,13 @@ function repoWithRemote(root, name) {
   git(repo, ['remote', 'add', 'origin', bare]); git(repo, ['push', '-q', 'origin', 'main']);
   return repo;
 }
-/** A throw-away <.claude>: every catalogue skill's folder (+ setup), tiers.json, settings with the Install rules, an empty work root. */
+/** A throw-away project `.claude`: tiers.json, settings with the Install rules (naming the plugin's scripts), an empty work root. The skills are the plugin's. */
 function install(root, tiers = {}) {
   const c = join(root, '.claude');
-  for (const name of [...Object.keys(CATALOGUE), 'tp-setup']) { mkdirSync(join(c, 'skills', name), { recursive: true }); writeFileSync(join(c, 'skills', name, 'SKILL.md'), `---\nname: ${name}\ndescription: x\n---\n`); }
   mkdirSync(join(c, 'work'), { recursive: true });
   writeJson(c, 'tiers.json', { ceiling: 'c', ladder: ['a', 'b', 'c'], low: 'a', medium: 'b', high: 'c', prices: { low: 1, medium: 2, high: 3 }, ...tiers });
   writeJson(c, 'notify.json', { tool: 'chat', target: '#dev', project: 'p', levels: ['stop'], setAt: 'x' });
-  writeJson(c, 'settings.local.json', { permissions: { allow: [`Bash(node ${c}/skills/_lib/*)`, `Bash(node ${c}/office/*)`, 'Bash(node --test *)', 'Bash(git *)'] } });
+  writeJson(c, 'settings.local.json', { permissions: { allow: [`Bash(node ${LIB}/*)`, `Bash(node ${PLUGIN_ROOT}/office/*)`, 'Bash(node --test *)', 'Bash(git *)'] } });
   return c;
 }
 
@@ -144,10 +142,30 @@ describe('doctor.mjs', () => {
     rm(r3);
   });
 
-  it('refuses a directory without skills/', () => {
-    const r = doctor('run', tmp('doctor-'));
+  it('refuses a path that is not a folder', () => {
+    const r = doctor('run', join(tmp('doctor-'), 'not-there'));
     assert.equal(r.code, 2);
-    assert.match(r.stderr, /not a \.claude directory/);
+    assert.match(r.stderr, /is not a folder — it is the project's \.claude/);
+  });
+
+  it('warns while a copy of the pipeline is still in the project\'s .claude, and says so when none is', () => {
+    const r6 = tmp('doctor-'); const c6 = install(r6);
+    assert.equal(byName(doctor('run', c6).json, 'project copy').status, 'ok');
+    mkdirSync(join(c6, 'skills', 'tp-merge'), { recursive: true });
+    const w = byName(doctor('run', c6).json, 'project copy');
+    assert.equal(w.status, 'warn');
+    assert.match(w.detail, /skills\/tp-merge/);
+    assert.match(w.fix, /setup\.mjs migrate/);
+    rm(r6);
+  });
+
+  it('checks the allowlist against the plugin\'s own scripts, wherever the plugin is installed', () => {
+    const r5 = tmp('doctor-'); const c5 = install(r5);
+    writeJson(c5, 'settings.local.json', { permissions: { allow: ['Bash(node /somewhere/else/lib/*)', 'Bash(git *)', 'Bash(node --test *)'] } });
+    const d = doctor('run', c5).json;
+    assert.equal(byName(d, 'allowlist').status, 'warn');
+    assert.ok(byName(d, 'allowlist').detail.includes(`node ${LIB}/*`), 'the missing rule names this plugin\'s lib folder');
+    rm(r5);
   });
 });
 
@@ -169,7 +187,7 @@ describe('doctor.mjs — the ceiling', () => {
     const c = byName(d, 'ceiling');
     assert.equal(c.status, 'warn');
     assert.match(c.detail, /no ceiling/);
-    assert.match(c.fix, /\/tp-setup/);
+    assert.match(c.fix, /\/tp:setup/);
     assert.equal(byName(d, 'starting model'), undefined);
     assert.equal(byName(d, 'session model'), undefined);
   });
@@ -190,7 +208,7 @@ describe('doctor.mjs — the ceiling', () => {
     assert.match(c.detail, /medium=custom is not on the ladder/);
     c = byName(doctor('run', at('no-ladder', { ceiling: 'standard-model', ladder: undefined })).json, 'ceiling');
     assert.match(c.detail, /has no ladder/);
-    assert.match(c.fix, /\/tp-setup/, 'with no ladder the script cannot derive the tiers: the interview writes it');
+    assert.match(c.fix, /\/tp:setup/, 'with no ladder the script cannot derive the tiers: the interview writes it');
   });
 
   it('warns when the model the settings start a session on is above the ceiling, and passes one within it', () => {

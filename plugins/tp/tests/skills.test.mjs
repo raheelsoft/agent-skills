@@ -5,32 +5,36 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { CLAUDE_DIR } from './helpers.mjs';
-import { CATALOGUE, PREFIX } from '../skills/_lib/setup.mjs';
+import { PLUGIN_ROOT } from './helpers.mjs';
+import { CATALOGUE } from '../lib/setup.mjs';
 
-const SKILLS = join(CLAUDE_DIR, 'skills');
+const SKILLS = join(PLUGIN_ROOT, 'skills');
+const REFERENCE = join(PLUGIN_ROOT, 'reference');
+const LIB = join(PLUGIN_ROOT, 'lib');
 const README = 'README.md';
 
-/** Every markdown file under skills/, by its path relative to skills/. */
+/** Every markdown file a person or an agent reads: the skills' (keyed relative to skills/, `plan-day/SKILL.md`) and the reference's (`README.md`, `flowcharts.md`). */
 function docs() {
   const out = [];
   const walk = (dir, prefix) => {
     for (const n of readdirSync(dir)) {
-      if (n.startsWith('_') && n !== '_lib') continue;
+      if (n.startsWith('_')) continue;
       const p = join(dir, n);
       const rel = prefix ? `${prefix}/${n}` : n;
-      if (statSync(p).isDirectory()) { if (n !== '_lib') walk(p, rel); continue; }
+      if (statSync(p).isDirectory()) { walk(p, rel); continue; }
       if (n.endsWith('.md')) out.push(rel);
     }
   };
   walk(SKILLS, '');
+  for (const n of readdirSync(REFERENCE)) if (n.endsWith('.md')) out.push(n);
   return out;
 }
+const where = (f) => (existsSync(join(SKILLS, f)) ? join(SKILLS, f) : join(REFERENCE, f));
 const ALL = docs();
 // flowcharts.md is a map of the rules, not a statement of them: it names commands and files on purpose, and its own
 // tests below keep every reference honest. It is therefore exempt from the one-owner guard.
 const MAP = 'flowcharts.md';
-const text = new Map(ALL.map((f) => [f, readFileSync(join(SKILLS, f), 'utf8')]));
+const text = new Map(ALL.map((f) => [f, readFileSync(where(f), 'utf8')]));
 const holders = (pattern) => ALL.filter((f) => (pattern instanceof RegExp ? pattern.test(text.get(f)) : text.get(f).includes(pattern)));
 
 // rule -> the files allowed to state it. The owner is first; a caller may name the command it runs only where noted.
@@ -69,7 +73,7 @@ describe('skills — one owner per rule', () => {
 
 describe('skills — a parent points at its children', () => {
   it('every pipeline stage skill states its own Input, Stops and inline=true rating', () => {
-    const stages = ['start-ticket', 'triage', 'plan', 'implement', 'create-pr', 'merge', 'release', 'accept', 'retro', 'verify', 'review'].map((n) => PREFIX + n);
+    const stages = ['start-ticket', 'triage', 'plan', 'implement', 'create-pr', 'merge', 'release', 'accept', 'retro', 'verify', 'review'];
     for (const s of stages) {
       const t = text.get(`${s}/SKILL.md`);
       assert.ok(t, `${s}/SKILL.md exists`);
@@ -103,7 +107,7 @@ describe('skills — a parent points at its children', () => {
 describe('flowcharts.md — a map that cannot rot quietly', () => {
   const chart = text.get(MAP);
   it('exists, is linked from the README, and says it is not for agents', () => {
-    assert.ok(chart, 'skills/flowcharts.md exists');
+    assert.ok(chart, 'reference/flowcharts.md exists');
     assert.match(text.get(README), /\[`flowcharts\.md`\]\(flowcharts\.md\)/, 'the README links it');
     assert.match(chart, /Agents do not read this file/);
   });
@@ -111,7 +115,7 @@ describe('flowcharts.md — a map that cannot rot quietly', () => {
   it('every file it points at exists', () => {
     const refs = [...new Set([...chart.matchAll(/`([\w./-]+\.(?:md|mjs|js))`/g)].map((m) => m[1]))];
     assert.ok(refs.length > 15, `it maps branches to files (${refs.length} found)`);
-    const missing = refs.filter((r) => !existsSync(join(SKILLS, r)) && !existsSync(join(SKILLS, '_lib', r)) && !existsSync(join(CLAUDE_DIR, r)));
+    const missing = refs.filter((r) => !existsSync(join(SKILLS, r)) && !existsSync(join(REFERENCE, r)) && !existsSync(join(LIB, r)) && !existsSync(join(PLUGIN_ROOT, r)));
     assert.deepEqual(missing, [], `flowcharts.md points at files that do not exist: ${missing.join(', ')}`);
   });
 
@@ -141,36 +145,42 @@ describe('flowcharts.md — a map that cannot rot quietly', () => {
   });
 });
 
-describe('skills — the prefix, so nothing can be confused with another skill', () => {
-  // The names these skills would otherwise carry — status, doctor, review, plan, merge, schedule, setup — are words
-  // a runtime, a plugin or a person's own skill already uses. Every one of them is <PREFIX><name>, in the folder, in
-  // the frontmatter and in every invocation; a reference that loses the prefix invokes something else, silently.
-  const BARE = Object.keys(CATALOGUE).map((n) => n.slice(PREFIX.length)).concat('setup').sort((a, b) => b.length - a.length);
+describe('skills — the namespace, so nothing can be confused with another skill', () => {
+  // The names these skills carry — status, doctor, review, plan, merge, schedule, setup — are words a runtime, another plugin or a
+  // person's own skill already uses. Here they are bare in the folder and the frontmatter, and the plugin's namespace makes every
+  // invocation `/tp:<name>`; a reference that loses the namespace invokes something else, silently.
+  const NAMES = [...Object.keys(CATALOGUE), 'setup', 'run-ticket-unattended'].sort((a, b) => b.length - a.length);
+  const sources = () => [
+    ...ALL.map((f) => [f, text.get(f)]),
+    ...[LIB, join(PLUGIN_ROOT, 'workflows')].flatMap((d) => readdirSync(d).filter((n) => /\.(mjs|js)$/.test(n)).map((n) => [`${d.slice(PLUGIN_ROOT.length + 1)}/${n}`, readFileSync(join(d, n), 'utf8')])),
+  ];
 
-  it('every doc names its skills prefixed — no invocation left bare', () => {
+  it('every invocation carries the namespace — none bare, none in the old prefixed form', () => {
     // a slash command, not a path: <.claude>/notify.json and workflows/run-ticket.js are files, not invocations
-    const re = new RegExp(`(^|[^\\w./-])/(${BARE.join('|')})(?![\\w-]|\\.[a-z])`, 'gm');
-    const bare = [];
-    for (const f of ALL) for (const m of text.get(f).matchAll(re)) bare.push(`${f}: ${m[0].trim()}`);
-    // and the scripts that print the commands a person types: a bare one there is a command that does not exist
-    for (const p of [...readdirSync(join(SKILLS, '_lib')).map((n) => join(SKILLS, '_lib', n)), ...readdirSync(join(CLAUDE_DIR, 'workflows')).map((n) => join(CLAUDE_DIR, 'workflows', n))]) {
-      if (!/\.(mjs|js)$/.test(p)) continue;
-      for (const m of readFileSync(p, 'utf8').matchAll(re)) bare.push(`${p.slice(CLAUDE_DIR.length + 1)}: ${m[0].trim()}`);
+    const bare = new RegExp(`(^|[^\\w./:-])/(${NAMES.join('|')})(?![\\w:-]|\\.[a-z])`, 'gm');
+    const old = new RegExp(`(^|[^\\w./:-])/tp-(${NAMES.join('|')})(?![\\w-])`, 'gm');
+    const found = [];
+    for (const [f, body] of sources()) {
+      for (const m of body.matchAll(bare)) found.push(`${f}: bare ${m[0].trim()}`);
+      for (const m of body.matchAll(old)) found.push(`${f}: old prefix ${m[0].trim()}`);
     }
-    assert.deepEqual(bare, [], `an unprefixed invocation invokes another skill or nothing: ${bare.join(', ')}`);
+    assert.deepEqual(found, [], `an unqualified invocation invokes another skill or nothing: ${found.join(', ')}`);
   });
 
-  it('every skill folder, and nothing else under skills/, carries the prefix', () => {
-    const folders = readdirSync(SKILLS).filter((n) => !n.startsWith('_') && !n.endsWith('.md'));
-    assert.deepEqual(folders.filter((n) => !n.startsWith(PREFIX)), [], 'a folder without the prefix is a skill that can collide');
-    for (const n of folders) assert.match(text.get(`${n}/SKILL.md`), new RegExp(`^name: ${n}$`, 'm'), `${n}'s frontmatter names its folder`);
+  it('every skill folder is a catalogue skill, named by its folder, with no prefix of its own', () => {
+    const folders = readdirSync(SKILLS).filter((n) => !n.startsWith('_'));
+    assert.deepEqual(folders.sort(), [...Object.keys(CATALOGUE), 'setup'].sort(), 'the plugin ships the catalogue, the interview, and nothing else');
+    for (const n of folders) {
+      assert.ok(!n.startsWith('tp-') && !n.includes(':'), `${n} carries no prefix: the namespace is the plugin's`);
+      assert.match(text.get(`${n}/SKILL.md`), new RegExp(`^name: ${n}$`, 'm'), `${n}'s frontmatter names its folder`);
+    }
   });
 
   it('the unattended workflow is named apart from the skill it mirrors', () => {
-    const wf = readFileSync(join(CLAUDE_DIR, 'workflows', 'tp-run-ticket-unattended.js'), 'utf8');
+    const wf = readFileSync(join(PLUGIN_ROOT, 'workflows', 'run-ticket-unattended.js'), 'utf8');
     const name = /^\s*name: '([^']+)'/m.exec(wf);
-    assert.ok(name && name[1].startsWith(PREFIX), 'the workflow script carries the prefix too — it is listed beside the skills');
-    assert.notEqual(name[1], `${PREFIX}run-ticket`, 'and it is not the same name as the skill');
+    assert.ok(name && !name[1].startsWith('tp-') && !name[1].includes(':'), 'the workflow is named bare too: its plugin\'s namespace is added by the runtime');
+    assert.notEqual(name[1], 'run-ticket', 'and it is not the same name as the skill');
   });
 });
 
@@ -181,7 +191,7 @@ describe('skills — what a run costs is the number of agents', () => {
     const readme = text.get(README);
     assert.match(readme, /^12\. \*\*Independent commands in one call\.\*\*/m);
     assert.match(readme, /one\n  call rather than one turn each \(rule 12\)/, 'the spawn template in § Definitions hands it over');
-    assert.match(readFileSync(join(CLAUDE_DIR, 'workflows', 'tp-run-ticket-unattended.js'), 'utf8'), /go in ONE call, not a turn each/, "the unattended runner's stage prompts too");
+    assert.match(readFileSync(join(PLUGIN_ROOT, 'workflows', 'run-ticket-unattended.js'), 'utf8'), /go in ONE call, not a turn each/, "the unattended runner's stage prompts too");
   });
 
   it('a list of things is filtered by command before any agent reads one', () => {
@@ -208,12 +218,12 @@ describe('skills — what a run costs is the number of agents', () => {
   });
 
   it('implement is the only stage that takes an agent per repo', () => {
-    for (const s of ['tp-create-pr', 'tp-merge', 'tp-release']) {
+    for (const s of ['create-pr', 'merge', 'release']) {
       assert.match(text.get(`${s}/SKILL.md`), /this one agent covers every repo/, `${s} covers every repo in its own agent`);
       assert.match(text.get(`${s}/SKILL.md`), /\*\*The steps below are one repo's\.\*\*/, `${s} says how it loops`);
     }
     assert.match(text.get('implement/SKILL.md'), /one repo per invocation/, 'implement keeps its split');
-    assert.match(readFileSync(join(CLAUDE_DIR, 'workflows', 'tp-run-ticket-unattended.js'), 'utf8'), /const PER_REPO_AGENT = new Set\(\['implement'\]\)/, 'and the runner agrees');
+    assert.match(readFileSync(join(PLUGIN_ROOT, 'workflows', 'run-ticket-unattended.js'), 'utf8'), /const PER_REPO_AGENT = new Set\(\['implement'\]\)/, 'and the runner agrees');
   });
 });
 
@@ -267,10 +277,10 @@ describe('/tp:setup — the ceiling', () => {
 describe('skills — no model is named outside tiers.json', () => {
   it('no skill, script, workflow or office file writes a model name: the ceiling and the ladder are data', () => {
     const files = [
-      ...ALL.map((f) => join(SKILLS, f)),
-      ...readdirSync(join(SKILLS, '_lib')).filter((f) => f.endsWith('.mjs')).map((f) => join(SKILLS, '_lib', f)),
-      ...readdirSync(join(CLAUDE_DIR, 'workflows')).filter((f) => f.endsWith('.js')).map((f) => join(CLAUDE_DIR, 'workflows', f)),
-      ...['app.js', 'serve.mjs', 'index.html'].map((f) => join(CLAUDE_DIR, 'office', f)).filter(existsSync),
+      ...ALL.map((f) => where(f)),
+      ...readdirSync(LIB).filter((f) => f.endsWith('.mjs')).map((f) => join(LIB, f)),
+      ...readdirSync(join(PLUGIN_ROOT, 'workflows')).filter((f) => f.endsWith('.js')).map((f) => join(PLUGIN_ROOT, 'workflows', f)),
+      ...['app.js', 'serve.mjs', 'index.html'].map((f) => join(PLUGIN_ROOT, 'office', f)).filter(existsSync),
     ];
     assert.ok(files.length > 20, `it scans the pipeline (${files.length} files)`);
     const named = files.filter((f) => /\b(haiku|sonnet|opus|fable)\b/i.test(readFileSync(f, 'utf8')));

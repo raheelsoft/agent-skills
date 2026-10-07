@@ -25,6 +25,19 @@ npx @raheelsoft/agent-skills --force           Overwrite an existing install wit
 npx @raheelsoft/agent-skills -y                Assume "yes" to any prompt (non-interactive)
 ```
 
+## Install a plugin
+
+Plugins are installed from this repository as a Claude Code marketplace, not through `npx`:
+
+```
+/plugin marketplace add raheelsoft/agent-skills
+/plugin install tp@agent-skills
+```
+
+| Plugin | What it does |
+|---|---|
+| [`tp`](plugins/tp) | The ticket pipeline: a tracker ticket through triage, plan, implementation, pull request, unbiased review, merge, release and acceptance — each stage in its own agent, every fact on disk so any run resumes. Skills are `/tp:run-ticket`, `/tp:plan-day`, `/tp:status`, …; `/tp:setup` picks which ones a project uses. |
+
 ## What's in here
 
 | Skill | What it does |

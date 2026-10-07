@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmp, rm, CLAUDE_DIR, writeJson, script } from './helpers.mjs';
+import { tmp, rm, PLUGIN_ROOT, writeJson, script } from './helpers.mjs';
 
 const HOOKS = script('hooks.mjs');
 const hooks = (...args) => { const r = spawnSync(process.execPath, [HOOKS, ...args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a)))], { encoding: 'utf8' }); let json = null; try { json = JSON.parse(r.stdout); } catch { /* an error */ } return { code: r.status, json, err: r.stderr }; };

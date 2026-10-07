@@ -47,23 +47,23 @@ Working a ticket end to end in one conversation fails in predictable ways:
 ## The skills
 
 Twenty-one skills, in five groups. `/tp:setup` asks which groups and skills a project
-wants; a skill that is off is not installed (its folder waits under `skills/_off/`),
-and everything that depends on it adapts — a run ends at the last active stage, a
-merge without `/tp:review` stops for a person's review, a review without
+wants and records the answer in `pipeline.json`; a skill that is off is not run (the
+plugin is shared by every project that enables it, so nothing is uninstalled), and
+everything that depends on it adapts — a run ends at the last active stage, a merge
+without `/tp:review` stops for a person's review, a review without
 `/tp:create-ticket` lists a pre-existing defect as *ticket needed*.
 
-**Every name carries the `tp-` prefix**, and that is the point: the words these skills
-would otherwise want — `status`, `plan`, `review`, `merge`, `doctor`, `setup`,
-`schedule` — are words a runtime command, a plugin or a person's own skill already
-uses, and a collision does not announce itself: the wrong skill simply runs. The folder,
-the `name:` in its frontmatter and the slash command are one string
-(`skills/verify/SKILL.md` is invoked as `/tp:verify`), so a new skill added to this
-pipeline takes the prefix too, and every reference to it — in a skill, in the runner, in
-a script that prints a command for a person to type — uses the full name. Stage names on
-disk do **not**: a stage is a row in the ticket's record (`implement`, `merge`), not
-something anyone invokes, and records already written keep their meaning. `PREFIX` in
-`lib/setup.mjs` is the one declaration; `tests/skills.test.mjs` fails on any
-invocation that loses it.
+**Every skill lives in the `tp` plugin's namespace**, and that is the point: the words
+these skills would otherwise want — `status`, `plan`, `review`, `merge`, `doctor`,
+`setup`, `schedule` — are words a runtime command, another plugin or a person's own
+skill already uses, and a collision does not announce itself: the wrong skill simply
+runs. The folder and the `name:` in the frontmatter are the bare word
+(`skills/verify/SKILL.md`, `name: verify`); the plugin's name in front makes the command
+`/tp:verify` and the name the Skill tool loads it by, so every reference to a skill — in
+a skill, in the runner, in a script that prints a command for a person to type — uses the
+full `tp:` form. Stage names on disk do **not**: a stage is a row in the ticket's record
+(`implement`, `merge`), not something anyone invokes. `NS` in `lib/setup.mjs` is the one
+declaration; `tests/skills.test.mjs` fails on any invocation that loses it.
 
 | Skill | Group | What it does |
 |---|---|---|
@@ -141,7 +141,7 @@ each):
 | — | `/tp:eod [date=]` | its agent; the session asks the actual hours once | `_day/<date>.eod.json/.md` — the day's close; `ticket.json.actual` per finished ticket; one line to the channel |
 | — | `/tp:doctor [repos=] [tests=true] [session=<model>]` | its agent (one tracker read) | `_doctor.json` — the preflight: toolchain, remotes, the platform CLI, the tracker, the files, the allowlist, the work directory — each with its fix |
 | — | `/tp:schedule on\|off\|status` | its agent | the runtime's scheduled tasks: a probe, then the morning, advance and end-of-day tasks; `_schedule/tasks.json`, `probe.json` |
-| — | `/tp:setup [all=true \| skills=a,b \| ceiling=<model> \| models=… \| status]` | the invoking context — it asks the person | `pipeline.json` (which skills are on), `tiers.json` (the ceiling, the ladder, the three tiers), the folders of skills that are off moved to `skills/_off/`; the allowlist lines printed |
+| — | `/tp:setup [all=true \| skills=a,b \| ceiling=<model> \| models=… \| status \| migrate]` | the invoking context — it asks the person | `pipeline.json` (which skills are on), `tiers.json` (the ceiling, the ladder, the three tiers); the allowlist lines printed |
 
 Five ideas carry all of it:
 
@@ -171,14 +171,23 @@ person's standing instructions, never from a skill.
 
 ### Install
 
-1. Copy `skills/`, `workflows/`, `tests/` and (optionally) `office/` into
-   `<project>/.claude/` — the folder that holds your repo, or the parent folder of
-   several repos worked together (the skills find the git checkouts at or under where
-   the session runs). Add `.claude/work/`, `.claude/tiers.json`, `.claude/notify.json`,
-   `.claude/office.json`, `.claude/tracker.json` and
-   `.claude/office/electron/node_modules/` to `.gitignore` (per machine and per
-   project); `.claude/pipeline.json` — which skills the project uses — is the
-   project's and is versioned.
+1. Add the marketplace and install the plugin at **project scope**, so its skills and
+   hooks belong to this project and travel with it:
+   ```
+   /plugin marketplace add raheelsoft/agent-skills
+   /plugin install tp@agent-skills
+   ```
+   (To try it without installing: `claude --plugin-dir <agent-skills>/plugins/tp`.) The
+   plugin carries everything that is the same for every project — the skills, the
+   scripts, this reference, the unattended workflow, the office, the tests — and a
+   project keeps only its own configuration and state in `<project>/.claude/`:
+   `pipeline.json` (which skills it uses — versioned), `tiers.json`, `notify.json`,
+   `office.json`, `tracker.json`, `settings.local.json` and `work/`. Add every one of
+   them but `pipeline.json` to `.gitignore` (per machine): `.claude/work/`,
+   `.claude/tiers.json`, `.claude/notify.json`, `.claude/office.json`,
+   `.claude/tracker.json`, `.claude/settings.local.json`. `<project>` is the folder that
+   holds your repo, or the parent folder of several repos worked together (the skills
+   find the git checkouts at or under where the session runs).
 2. Run **`/tp:setup`** — the integration interview (`skills/setup/SKILL.md`). It asks,
    one question per group, which skills to activate (§ The skills: the core is
    preselected, `/tp:schedule` is not; a dependency left out is added and named), asks
@@ -187,11 +196,10 @@ person's standing instructions, never from a skill.
    the offer to start this project's sessions on that model, offers to put each
    repo's own gate commands in its **pre-commit and pre-push hooks**, which is what
    makes those gates free for the pipeline (§ Verification rules), writes
-   `pipeline.json`, moves the folders of skills that are off to `skills/_off/`,
-   prints the permission lines the selection needs, runs `/tp:notify setup` when
-   notifications are on, and ends with `/tp:doctor`. `/tp:setup all=true` takes every skill
-   without asking and `ceiling=<model>` answers the ceiling; `/tp:setup` again changes
-   either; `/tp:setup status` shows the selection.
+   `pipeline.json`, prints the permission lines the selection needs, runs
+   `/tp:notify setup` when notifications are on, and ends with `/tp:doctor`.
+   `/tp:setup all=true` takes every skill without asking and `ceiling=<model>` answers
+   the ceiling; `/tp:setup` again changes either; `/tp:setup status` shows the selection.
    Have available: `git`; Node 18+ (the scripts); the hosting platform's CLI or tool;
    a connection to your tracker; optionally a chat tool the session can post to.
    The permission lines `/tp:setup` prints — the pipeline's own commands, allowed once so
@@ -199,14 +207,16 @@ person's standing instructions, never from a skill.
    (`<.claude>/settings.json`, `permissions.allow`; adjust the command syntax to your
    runtime); the full set is:
    ```
-   Bash(node <lib>/*)   Bash(node <.claude>/office/*)   Bash(node --test *)
+   Bash(node <lib>/*)   Bash(node <plugin>/office/*)   Bash(node --test *)
    Bash(git status*) Bash(git diff*) Bash(git log*) Bash(git show*) Bash(git fetch*) Bash(git rev-parse*)
    Bash(git merge-base*) Bash(git branch*) Bash(git worktree *) Bash(git checkout *) Bash(git switch *)
    Bash(git add *) Bash(git commit *) Bash(git merge *) Bash(git push *)
    Bash(<hosting CLI> pr *) Bash(<hosting CLI> run *) Bash(<hosting CLI> api *)
    Bash(<the gate commands the conventions file names>)
    ```
-   plus the tracker's and chat tool's read tools as the runtime lists them (§ Definitions,
+   The first two name the plugin's own folder, which moves when the plugin updates:
+   `/tp:doctor` flags a rule that no longer matches and `/tp:setup` prints the new line.
+   Add the tracker's and chat tool's read tools as the runtime lists them (§ Definitions,
    Tracker — a fixture tracker needs none). Everything
    else stays a prompt (§ Definitions, Tools and permissions). In `tiers.json`, set
    `prices` (§ Models and budget, Cost — without it costs stay empty) and
@@ -224,17 +234,26 @@ person's standing instructions, never from a skill.
    when the pipeline picks the next ticket. Anything missing is asked once, recorded in
    the ticket's `answers.md`, and `/tp:retro` later proposes moving recurring answers into
    the conventions file.
-4. Check the scripts on your Node: `node --test '<.claude>/tests/*.test.mjs'`. What
-   is on and off, and any inconsistency between `pipeline.json` and the folders, is
-   `/tp:setup status` (also a `/tp:doctor` check).
+4. Check the scripts on your Node: `node --test '<plugin>/tests/*.test.mjs'`. What is on
+   and off, and any inconsistency in `pipeline.json`, is `/tp:setup status` (also a
+   `/tp:doctor` check).
 5. Optional — the office (§ Observability): `<.claude>/office.json` names the team, the
-   projects always drawn and the name pools; `node <.claude>/office/serve.mjs` serves
-   it at `http://127.0.0.1:4820/` (`--sim` for a demo loop of every panel — the inbox,
-   the day board, the drawer, the gauge); `cd <.claude>/office/electron
-   && npm install && npm start` opens the same page as a desktop window, with the
-   number of stops waiting on a person as the dock badge.
+   projects always drawn and the name pools; `node <plugin>/office/serve.mjs --work
+   <.claude>/work` serves it at `http://127.0.0.1:4820/` (`--sim` for a demo loop of
+   every panel — the inbox, the day board, the drawer, the gauge); `cd
+   <plugin>/office/electron && npm install && npm start -- --work=<.claude>/work` opens
+   the same page as a desktop window, with the number of stops waiting on a person as
+   the dock badge.
+6. A project that ran the pipeline from a copy in its own `.claude/` (`skills/`,
+   `workflows/`, `tests/`, `office/`) removes those folders once the plugin is on;
+   `work/`, `tiers.json`, `pipeline.json` and the other files keep working as they are.
+   A `pipeline.json` that names a skill `tp-merge` is read as `merge`, and a command an
+   older run stored with the old hyphenated prefix is shown with the namespace
+   (`/tp:run-ticket …`).
+   `node <lib>/setup.mjs migrate <.claude>` lists what is left of the copy and which
+   permission lines name it.
 
-### Configuration — what you set, and where
+
 
 Every file below sits in `<project>/.claude/` unless it says otherwise. `/tp:setup`
 writes the first two and prints the allowlist; the rest you set once, or never.
@@ -331,8 +350,9 @@ the orchestrators are spawned together, so the tickets run in parallel from the 
 minute; `/tp:run-ticket next count=3` picks three that are unblocked and independent of
 each other and does the same; `/tp:plan-day` is the full form (blockers, dependencies,
 the day's plan, § A day at a time). For a batch nobody will watch, the same chain
-exists as a script for the runtime's workflow-script tool (`workflows/run-ticket-unattended.js`,
-opt-in — § Unattended runs).
+exists as a script for the runtime's workflow-script tool (the plugin's
+`workflows/run-ticket-unattended.js`, run as `/tp:run-ticket-unattended`, opt-in —
+§ Unattended runs).
 
 ### A day at a time
 
@@ -370,13 +390,14 @@ without starting.
 
 ### Simulation
 
-`node <.claude>/tests/sim/setup.mjs [<dir>]` builds a throw-away install: the
-skills, workflows, tests and office copied into `<dir>/.claude`, two small repos
-(`api`, `web`) on `main` with a conventions file and a bare remote each, `tiers.json`
-with this machine's models, `tracker.json` pointing at a copy of the fixture tracker
+`node <plugin>/tests/sim/setup.mjs [<dir>] [--tiers <tiers.json>]` builds a throw-away
+project: two small repos (`api`, `web`) on `main` with a conventions file and a bare
+remote each, and a `.claude` holding `tiers.json` (the models of the file given with
+`--tiers`, else placeholders), `tracker.json` pointing at a copy of the fixture tracker
 (`tests/fixtures/tracker.json`: a sprint, an epic with children, a blocked ticket, a
-bug, a tracker estimate, a finished ticket), a silent `notify.json` and the allowlist.
-A session opened there runs the pipeline against no tracker account and no hosting
+bug, a tracker estimate, a finished ticket), a silent `notify.json` and the allowlist; the
+pipeline itself is not copied — a session opened there loads the plugin by path
+(`claude --plugin-dir <plugin>`) and runs it against no tracker account and no hosting
 account: `/tp:doctor`, `/tp:plan-day` (the sprint from the fixture), `/tp:status`, `/tp:inbox`,
 `/tp:eod`, and `/tp:run-ticket <id>` through pickup, triage, plan and implement —
 `/tp:create-pr` onwards needs a real hosting platform (the bed stops at the push), and
@@ -443,9 +464,9 @@ each rule below to the branch it decides, if a picture is the faster way in.
   means this definition by "the tracker"; a fixture ticket's link is
   `fixture://<id>`.
 - **Active skills** — `<.claude>/pipeline.json` (`/tp:setup`; absent = everything on)
-  says which skills this project uses; a skill that is off has no folder under
-  `skills/` (it waits in `skills/_off/`). What depends on it adapts, and this is the
-  one place it is said: the state script leaves the stage of an off `tp:merge`,
+  says which skills this project uses; a skill that is off is not run — the plugin
+  stays whole, because every project that enables it shares it. What depends on it
+  adapts, and this is the one place it is said: the state script leaves the stage of an off `tp:merge`,
   `tp:release` or `tp:accept` out of a ticket's expected stages, so `next` skips it and a
   run ends at the last active stage (`/tp:run-ticket`'s close-out then removes the
   worktrees); `/tp:merge` without `/tp:review` stops for a person's review (its hand-off,
@@ -459,8 +480,14 @@ each rule below to the branch it decides, if a picture is the faster way in.
   necessarily the remote default). Detected once per repo, recorded in `ticket.json`:
   conventions file → base of recent merged PRs → the remote's default; ask once if two
   candidates remain.
-- **`<.claude>`** — the `.claude` directory that contains this `skills/` folder,
-  resolved to an absolute path once; every path handed to an agent is absolute.
+- **`<.claude>`** — the project's `.claude` directory (`${CLAUDE_PROJECT_DIR}/.claude`):
+  its configuration and `work/`, resolved to an absolute path once; every path handed
+  to an agent is absolute.
+- **`<plugin>`, `<lib>`** — the plugin's own folder (`${CLAUDE_PLUGIN_ROOT}`, which moves
+  when the plugin updates) and its `lib/`, where the scripts are. A SKILL.md defines
+  `<lib>` and `<.claude>` once, in its first line, because Claude Code substitutes the
+  variables in a skill's body and not in the files it reads: those files say `<lib>` and
+  mean that line's.
 - **Repo name** — `basename(<repo path>)`, the key everywhere a repo is named:
   `wt/<name>`, `<file>.<name>.json`, `checkpoint.<stage>.<name>.md`, `repo=<name>`, and
   the stage names `implement:<name>` / `create-pr:<name>` / `merge:<name>` /
@@ -1323,8 +1350,9 @@ stops the same way unless a standing instruction says to spend it.
   or `retro.md` read-only; the **budget gauge** — the last usage reading `pick`
   recorded (`_budget.json`) with its age; the **doctor chip** — the last preflight
   (§ Using it, Preflight); and the **totals** — tokens and cost, today and all time.
-  Serve it with `node <.claude>/office/serve.mjs` (port 4820; `--sim` plays a
-  demo of every panel) or open the Electron wrapper in `<.claude>/office/electron`.
+  Serve it with `node <plugin>/office/serve.mjs --work <.claude>/work` (port 4820;
+  `--sim` plays a demo of every panel) or open the Electron wrapper in
+  `<plugin>/office/electron`.
 - `/tp:retro` turns the record into proposals for the person to apply or not.
 
 ### Verification rules — every stage, every agent
@@ -1408,12 +1436,13 @@ stops the same way unless a standing instruction says to spend it.
 
 ### Unattended runs
 
-`<.claude>/workflows/run-ticket-unattended.js` is the same pipeline as a script for the runtime's
+The plugin's `workflows/run-ticket-unattended.js` is the same pipeline as a script for the runtime's
 workflow-script tool: one agent per stage per ticket, each the stage skill's dedicated agent
 (it invokes the skill with `inline=true`), stages chained per ticket with no barrier
 between tickets. Opt-in: it spawns many agents, so the person starts it explicitly;
 `/tp:run-ticket` in a session is the interactive default. The script's header documents
-its arguments (`claudeDir`, `tickets`, `tiers` — the contents of `tiers.json`, required
+its arguments (`claudeDir` — the project's `.claude`, `pluginRoot` — `${CLAUDE_PLUGIN_ROOT}` of the
+skill that starts it, `tickets`, `tiers` — the contents of `tiers.json`, required
 because a script reads no files — `options`, `answers`, `owner`), its rows and how a
 stopped ticket resumes (`resumeFromRunId` + `answers[<id>][<stage>]`, the stage from
 the row; `answers=resume` after a usage pause; `retry` after an error row, whose

@@ -1,18 +1,19 @@
 // Shared helpers for the pipeline's script tests. Node's built-in runner, no dependencies:
-//   node --test <.claude>/tests/
+//   node --test <plugin>/tests/
 import { spawnSync, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const CLAUDE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
-export const LIB = join(CLAUDE_DIR, 'skills', '_lib');
+/** The plugin's own folder — the code, the skills, the reference. A project's `.claude` (its config and work/) is a different folder. */
+export const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+export const LIB = join(PLUGIN_ROOT, 'lib');
 /** A shared script by file name — the one place the tests spell out where the scripts live. */
 export const script = (name) => join(LIB, name);
 export const STATE = script('state.mjs');
-export const WORKFLOW = join(CLAUDE_DIR, 'workflows', 'tp-run-ticket-unattended.js');
-export const SERVE = join(CLAUDE_DIR, 'office', 'serve.mjs');
+export const WORKFLOW = join(PLUGIN_ROOT, 'workflows', 'run-ticket-unattended.js');
+export const SERVE = join(PLUGIN_ROOT, 'office', 'serve.mjs');
 export const DAY = script('day.mjs');
 export const SEP = ' · ';
 

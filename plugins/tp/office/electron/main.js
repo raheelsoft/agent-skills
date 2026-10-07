@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { start } from '../serve.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CLAUDE_DIR = resolve(HERE, '..', '..');
+const projectWork = () => join(resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd()), '.claude', 'work'); // pass --work=<.claude>/work when started elsewhere
 const sim = process.argv.includes('--sim');
 const workArg = process.argv.find((a) => a.startsWith('--work='));
 
@@ -29,7 +29,7 @@ async function refreshBadge() {
 }
 
 app.whenReady().then(async () => {
-  server = await start({ port: 0, host: '127.0.0.1', workroot: workArg ? resolve(workArg.slice(7)) : join(CLAUDE_DIR, 'work'), sim });
+  server = await start({ port: 0, host: '127.0.0.1', workroot: workArg ? resolve(workArg.slice(7)) : projectWork(), sim });
   const win = new BrowserWindow({
     width: 1280, height: 860, minWidth: 720, minHeight: 480,
     title: 'Office', backgroundColor: '#1b1f2a', autoHideMenuBar: true,

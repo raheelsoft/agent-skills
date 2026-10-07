@@ -42,7 +42,9 @@ import { fileURLToPath } from 'node:url';
 export const GATES = ['types', 'lint', 'format', 'tests', 'build'];
 const DEFAULTS = { trust: true, plan: { 'pre-commit': ['lint', 'format'], 'pre-push': ['types', 'tests'] } };
 const HOOK_NAMES = ['pre-commit', 'pre-push', 'commit-msg', 'pre-merge-commit'];
-const MARKER = '# written by the ticket pipeline (skills/_lib/hooks.mjs) — edit freely; it is yours';
+const MARKER = '# written by the ticket pipeline (lib/hooks.mjs) — edit freely; it is yours';
+const LEGACY_MARKER = '# written by the ticket pipeline (skills/_lib/hooks.mjs) — edit freely; it is yours'; // hooks a project-local install wrote
+const isOurs = (body) => body.includes(MARKER) || body.includes(LEGACY_MARKER);
 
 const readJson = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return undefined; } };
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
@@ -327,7 +329,7 @@ export function detect(input) {
       if (basename(d) === '_' ) continue; // husky's own wrapper, not the project's script
       const body = readFileSync(f, 'utf8');
       const commands = body.split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith('#')).flatMap((l) => expand(repo, l, targetsByRunner));
-      hooks.push({ hook, file: f, ours: body.includes(MARKER), commands });
+      hooks.push({ hook, file: f, ours: isOurs(body), commands });
       break;
     }
   }
@@ -400,7 +402,7 @@ export function install(input) {
   for (const hook of HOOK_NAMES) {
     if (p.hooks[hook]) continue;
     const file = join(dir, hook);
-    if (!isFile(file) || !readFileSync(file, 'utf8').includes(MARKER)) continue;
+    if (!isFile(file) || !isOurs(readFileSync(file, 'utf8'))) continue;
     removed.push({ hook, file, why: 'the plan no longer includes this hook' });
     if (!input?.dry) rmSync(file, { force: true });
   }
@@ -408,7 +410,7 @@ export function install(input) {
     const file = join(dir, hook);
     const text = body(hook, cmds);
     bodies[hook] = text;
-    if (isFile(file) && !readFileSync(file, 'utf8').includes(MARKER) && !input?.force) { skipped.push({ hook, file, why: 'the project already has this hook — read it, then pass force to replace it' }); continue; }
+    if (isFile(file) && !isOurs(readFileSync(file, 'utf8')) && !input?.force) { skipped.push({ hook, file, why: 'the project already has this hook — read it, then pass force to replace it' }); continue; }
     if (input?.dry) { written.push({ hook, file, dry: true }); continue; }
     mkdirSync(dir, { recursive: true });
     writeFileSync(file, text, { encoding: 'utf8' }); // LF only: a CRLF sh script does not run, on any OS

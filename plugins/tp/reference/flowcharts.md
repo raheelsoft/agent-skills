@@ -255,7 +255,7 @@ flowchart TD
     I7 -->|"yes"| I8["hooks.mjs install → .husky/pre-commit, pre-push"]
     I7 -->|"a command rewrites files<br/>with no check-only form"| I9(["nothing written: use a staged runner,<br/>or move the gate to pre-push"])
     I7 -->|"no"| I10
-    I8 --> I10["setup.mjs apply → pipeline.json;<br/>skills that are off move to skills/_off/"]
+    I8 --> I10["setup.mjs apply → pipeline.json<br/>(a skill that is off is a record, not a moved folder)"]
     I10 --> I11["the allowlist lines, .gitignore, /tp:notify setup"]
     I11 --> I12(["/tp:doctor — the preflight closes the setup"])
 ```

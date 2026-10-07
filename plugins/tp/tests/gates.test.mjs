@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmp, rm, CLAUDE_DIR, writeJson, script } from './helpers.mjs';
+import { tmp, rm, PLUGIN_ROOT, writeJson, script } from './helpers.mjs';
 
 const GATES = script('gates.mjs');
 

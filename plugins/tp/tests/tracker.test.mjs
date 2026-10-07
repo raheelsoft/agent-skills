@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CLAUDE_DIR, tmp, rm, readJson, script } from './helpers.mjs';
+import { PLUGIN_ROOT, tmp, rm, readJson, script } from './helpers.mjs';
 
 const TRACKER = script('tracker.mjs');
 function tracker(...args) {
@@ -17,7 +17,7 @@ describe('tracker.mjs', () => {
   let root, file, claude;
   before(() => {
     root = tmp('tracker-'); file = join(root, 'fixture.json');
-    copyFileSync(join(CLAUDE_DIR, 'tests', 'fixtures', 'tracker.json'), file);
+    copyFileSync(join(PLUGIN_ROOT, 'tests', 'fixtures', 'tracker.json'), file);
     claude = join(root, '.claude'); mkdirSync(join(claude, 'skills', '_lib'), { recursive: true });
     writeFileSync(join(claude, 'tracker.json'), JSON.stringify({ kind: 'fixture', path: file }));
   });

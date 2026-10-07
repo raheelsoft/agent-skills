@@ -12,7 +12,7 @@
 //   node tracker.mjs comment <id> '<text>'                      -> append a comment
 //   node tracker.mjs create '<ticket json>'                     -> a new ticket (id from the team prefix and the next number)
 //   node tracker.mjs iterations | labels | states | me          -> the fixture's iterations (name, start, end), labels, states, the person
-//   --file <path> or --claude <.claude> select the fixture explicitly (default: <.claude>/tracker.json next to this skills/ folder)
+//   --file <path> or --claude <.claude> select the fixture explicitly (default: tracker.json in the .claude folder of the project the session runs in)
 //
 // Fixture shape: { project, team, me, states: [...], iterations: [{ name, start, end }], labels: [{ name, description? }],
 //                  tickets: [{ id, title, description, state, assignee, labels, parent, priority, estimate, blockedBy, iteration,
@@ -39,7 +39,7 @@ function flags(list) {
 
 export function fixturePath(opts = {}) {
   if (opts.file) return resolve(opts.file);
-  const claudeDir = opts.claude ? resolve(opts.claude) : resolve(HERE, '..', '..');
+  const claudeDir = opts.claude ? resolve(opts.claude) : resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd(), '.claude');
   const cfg = join(claudeDir, 'tracker.json');
   if (!existsSync(cfg)) throw new Error(`${cfg} missing — this install uses the connected tracker tool, not a fixture`);
   let c; try { c = JSON.parse(readFileSync(cfg, 'utf8')); } catch (e) { throw new Error(`${cfg} is not valid JSON: ${e.message}`); }

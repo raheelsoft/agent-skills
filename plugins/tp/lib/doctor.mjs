@@ -24,12 +24,14 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSy
 import { spawnSync } from 'node:child_process';
 import { join, dirname, resolve, basename, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { status as skillsStatus } from './setup.mjs';
+import { status as skillsStatus, migrate as projectCopy } from './setup.mjs';
 import { cover as hookCover } from './hooks.mjs';
 import { ceilingStatus } from './model.mjs';
 import { status as codegenStatus } from './codegen.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const LIB = HERE;                      // the plugin's scripts
+const PLUGIN_ROOT = resolve(HERE, '..'); // the plugin: lib/, office/, tests/ … — a project's `.claude` (its config and work/) is another folder
 const DEFAULTS = { maxAgeHours: 24, timeoutMs: 8000, checks: [] };
 const RATINGS = ['low', 'medium', 'high'];
 const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -110,9 +112,9 @@ function baseOf(claudeDir, repoPath, timeoutMs = DEFAULTS.timeoutMs) {
   return cur.code === 0 && cur.stdout.trim() && cur.stdout.trim() !== 'HEAD' ? cur.stdout.trim() : null;
 }
 
-// the allow rules the Install step asks for, with <.claude> substituted; a broader rule (a shorter prefix ending in *) covers one
-function expectedRules(claudeDir) {
-  return [`Bash(node ${claudeDir}/skills/_lib/*)`, `Bash(node ${claudeDir}/office/*)`, 'Bash(node --test *)',
+// the allow rules the Install step asks for, naming this plugin's scripts; a broader rule (a shorter prefix ending in *) covers one
+function expectedRules() {
+  return [`Bash(node ${LIB}/*)`, `Bash(node ${PLUGIN_ROOT}/office/*)`, 'Bash(node --test *)',
     'Bash(git status*)', 'Bash(git diff*)', 'Bash(git log*)', 'Bash(git show*)', 'Bash(git fetch*)', 'Bash(git rev-parse*)', 'Bash(git merge-base*)',
     'Bash(git branch*)', 'Bash(git worktree *)', 'Bash(git checkout *)', 'Bash(git switch *)', 'Bash(git add *)', 'Bash(git commit *)', 'Bash(git merge *)', 'Bash(git push *)'];
 }
@@ -123,7 +125,7 @@ function covered(rule, allow) {
 
 export function run(claudeDir, opts = {}) {
   claudeDir = resolve(claudeDir);
-  if (!isDir(join(claudeDir, 'skills'))) throw new Error(`${claudeDir} is not a .claude directory with skills/`);
+  if (!isDir(claudeDir)) throw new Error(`${claudeDir} is not a folder — it is the project's .claude (its configuration and work/)`);
   const { tiers, doctor } = config(claudeDir);
   const work = join(claudeDir, 'work');
   const checks = [];
@@ -138,12 +140,12 @@ export function run(claudeDir, opts = {}) {
 
   // the pipeline's own files
   const tiersFile = join(claudeDir, 'tiers.json');
-  if (!isFile(tiersFile)) add('tiers.json', 'fail', 'missing', `/tp:setup — it asks for the largest model the pipeline may use; or node ${claudeDir}/skills/_lib/model.mjs tiers ${claudeDir} ceiling=<model> ladder=<smallest>,…,<largest>`);
+  if (!isFile(tiersFile)) add('tiers.json', 'fail', 'missing', `/tp:setup — it asks for the largest model the pipeline may use; or node ${LIB}/model.mjs tiers ${claudeDir} ceiling=<model> ladder=<smallest>,…,<largest>`);
   else if (!readJson(tiersFile)) add('tiers.json', 'fail', 'not valid JSON', 'fix the file');
   else {
     const missing = RATINGS.filter((r) => typeof tiers[r] !== 'string' || !tiers[r]);
     const b = { economy: 70, stop: 90, ...(tiers.budget || {}) };
-    if (missing.length) add('tiers.json', 'fail', `no model for ${missing.join(', ')}`, `/tp:setup — it asks for the largest model the pipeline may use; or node ${claudeDir}/skills/_lib/model.mjs tiers ${claudeDir} ceiling=<model> ladder=<smallest>,…,<largest>`);
+    if (missing.length) add('tiers.json', 'fail', `no model for ${missing.join(', ')}`, `/tp:setup — it asks for the largest model the pipeline may use; or node ${LIB}/model.mjs tiers ${claudeDir} ceiling=<model> ladder=<smallest>,…,<largest>`);
     else if (!(Number(b.economy) < Number(b.stop) && Number(b.stop) <= 100)) add('tiers.json', 'fail', `budget.economy (${b.economy}) must be below budget.stop (${b.stop}) ≤ 100`, 'fix tiers.json budget');
     else add('tiers.json', 'ok', `${RATINGS.map((r) => `${r}=${tiers[r]}`).join(' ')}`);
     if (!tiers.prices || !RATINGS.some((r) => Number(tiers.prices[r]) >= 0)) add('prices', 'warn', 'tiers.json has no prices: tokens stay unpriced', 'set tiers.json prices { low, medium, high } (currency per 1M tokens) — README § Models and budget, Cost');
@@ -151,7 +153,7 @@ export function run(claudeDir, opts = {}) {
     const c = ceilingStatus({ tiers, claudeDir, session: opts.session });
     if (!c.ceiling) add('ceiling', 'warn', 'no ceiling: every model the tiers name is allowed', '/tp:setup — it asks for the largest model the pipeline may use');
     else if (c.problems.length) add('ceiling', 'warn', c.problems.join('; '), c.allowed
-      ? `node ${claudeDir}/skills/_lib/model.mjs tiers ${claudeDir} ceiling=${c.ceiling} — derives the three tiers again from the ladder in tiers.json`
+      ? `node ${LIB}/model.mjs tiers ${claudeDir} ceiling=${c.ceiling} — derives the three tiers again from the ladder in tiers.json`
       : '/tp:setup — it asks for the ceiling again and writes the ladder with it');
     else add('ceiling', 'ok', `${c.ceiling} — the pipeline uses ${c.allowed.join(', ')}`);
     const standing = (name, s, what, fix) => {
@@ -162,7 +164,7 @@ export function run(claudeDir, opts = {}) {
     };
     if (c.allowed) {
       standing('session model', c.session, 'this session runs on', `/model ${c.ceiling} — the pipeline cannot cap a session`);
-      standing('starting model', c.startup, `${c.startup?.file} starts sessions on`, `node ${claudeDir}/skills/_lib/model.mjs pin ${claudeDir}, or edit "model" in ${c.startup?.file}`);
+      standing('starting model', c.startup, `${c.startup?.file} starts sessions on`, `node ${LIB}/model.mjs pin ${claudeDir}, or edit "model" in ${c.startup?.file}`);
     }
   }
   const notify = readJson(join(claudeDir, 'notify.json'));
@@ -193,7 +195,7 @@ export function run(claudeDir, opts = {}) {
       const problems = rows.filter((r) => r.status !== 'error' && (r.problems || []).length);
       if (problems.length) add('problems', 'warn', problems.map((r) => `${r.id}: ${r.problems.join('; ')}`).join(' | '), '/tp:status problems — an error stop each: fix, then answers=retry');
       const stale = rows.filter((r) => r.lock?.stale);
-      if (stale.length) add('locks', 'warn', `stale run lock on ${stale.map((r) => `${r.id} (${r.lock.owner})`).join(', ')}`, stale.map((r) => `node ${claudeDir}/skills/_lib/state.mjs unlock ${join(work, r.id)} ${r.lock.owner}`).join(' ; '));
+      if (stale.length) add('locks', 'warn', `stale run lock on ${stale.map((r) => `${r.id} (${r.lock.owner})`).join(', ')}`, stale.map((r) => `node ${LIB}/state.mjs unlock ${join(work, r.id)} ${r.lock.owner}`).join(' ; '));
       const orphans = rows.filter((r) => (r.status === 'done' || r.status === 'closed') && (r.worktrees || []).length);
       if (orphans.length) add('worktrees', 'warn', `finished tickets still holding a worktree: ${orphans.map((r) => `${r.id} (${r.worktrees.join(', ')})`).join('; ')}`, '/tp:status lists the exact cleanup commands');
     }
@@ -223,7 +225,7 @@ export function run(claudeDir, opts = {}) {
     try {
       const g = codegenStatus({ repo: p, claudeDir });
       if (!g.command) add(`generated code ${name}`, 'ok', g.source);
-      else if (g.stale) add(`generated code ${name}`, 'warn', `${g.generator || 'generated code'} is behind: ${g.why}`, `run it in ${p}: ${g.command} (then node <.claude>/skills/_lib/codegen.mjs mark '{ "repo": "${p}", "claudeDir": "${claudeDir}" }')`);
+      else if (g.stale) add(`generated code ${name}`, 'warn', `${g.generator || 'generated code'} is behind: ${g.why}`, `run it in ${p}: ${g.command} (then node ${LIB}/codegen.mjs mark '{ "repo": "${p}", "claudeDir": "${claudeDir}" }')`);
       else add(`generated code ${name}`, 'ok', `${g.generator || 'generated'} current (${g.command})`);
     } catch (e) { add(`generated code ${name}`, 'warn', `codegen.mjs could not check: ${firstLine(e.message)}`); }
     // the gates this repo's own hooks own: every one of them is a gate the pipeline never runs (README § Verification rules)
@@ -244,27 +246,33 @@ export function run(claudeDir, opts = {}) {
   }
   if (!doctor.checks.length) add('platform CLI', 'warn', 'no hosting-CLI check configured', 'tiers.json doctor.checks — e.g. { "name": "hosting CLI", "run": ["<cli>", "auth", "status"] } (README § Install, step 2)');
 
-  // the active skills (pipeline.json, /tp:setup): every skill on has its folder, every dependency is on
+  // the active skills (pipeline.json, /tp:setup): every dependency of a skill that is on is on too
   try {
     const sk = skillsStatus(claudeDir);
-    if (sk.problems.length) add('skills', 'fail', sk.problems.join('; '), '/tp:setup (or node <.claude>/skills/_lib/setup.mjs apply) puts the folders where pipeline.json says');
+    if (sk.problems.length) add('skills', 'fail', sk.problems.join('; '), '/tp:setup repairs the selection (or edit pipeline.json: a skill that is on needs the skills it requires)');
     else add('skills', 'ok', sk.pipeline ? `${sk.on.length} on, ${sk.off.length} off (${sk.pipeline.setAt})` : `every skill on (no pipeline.json — /tp:setup picks a selection)`);
   } catch (e) { add('skills', 'warn', `setup.mjs could not read the skills: ${firstLine(e.message)}`); }
+  // a copy of the pipeline kept in the project's own .claude is what the plugin replaces: both loaded is two sets of the same skills
+  try {
+    const m = projectCopy(claudeDir);
+    if (m.nothingLeft) add('project copy', 'ok', 'no copy of the pipeline in .claude — the plugin is the only one');
+    else add('project copy', 'warn', [...m.copy, ...m.pipeline.legacyKeys.map((k) => `pipeline.json: ${k}`), ...m.permissions.map((p) => `${p.file}: ${p.rule}`)].slice(0, 6).join(', '), `node ${LIB}/setup.mjs migrate ${claudeDir} lists them (--fix rewrites pipeline.json's keys); remove the folders once the plugin is on`);
+  } catch (e) { add('project copy', 'warn', `setup.mjs could not look for a project copy: ${firstLine(e.message)}`); }
 
   // the runtime's allowlist
   const allow = ['settings.json', 'settings.local.json'].flatMap((f) => { const s = readJson(join(claudeDir, f)); return Array.isArray(s?.permissions?.allow) ? s.permissions.allow : []; });
   if (!allow.length) add('allowlist', 'warn', 'no permissions.allow in settings.json or settings.local.json: every pipeline command will prompt', 'README § Install, step 2');
   else {
-    const missing = expectedRules(claudeDir).filter((r) => !covered(r, allow));
+    const missing = expectedRules().filter((r) => !covered(r, allow));
     if (missing.length) add('allowlist', 'warn', `${missing.length} of the Install rules missing: ${missing.slice(0, 4).join(', ')}${missing.length > 4 ? ', …' : ''}`, 'add them to permissions.allow (README § Install, step 2)');
     else add('allowlist', 'ok', `${allow.length} rules, the Install set covered`);
   }
 
   // the tests, on request
   if (opts.tests) {
-    const r = cmd([process.execPath, '--test', join(claudeDir, 'tests', '*.test.mjs')], { timeoutMs: 600000 });
+    const r = cmd([process.execPath, '--test', join(PLUGIN_ROOT, 'tests', '*.test.mjs')], { timeoutMs: 600000 });
     const summary = /# pass (\d+)[\s\S]*# fail (\d+)/.exec(r.stdout) || /ℹ pass (\d+)[\s\S]*ℹ fail (\d+)/.exec(r.stdout);
-    add('tests', r.code === 0 ? 'ok' : 'fail', summary ? `${summary[1]} passed, ${summary[2]} failed` : r.error || `exit ${r.code}`, r.code === 0 ? null : `node --test '${join(claudeDir, 'tests', '*.test.mjs')}'`);
+    add('tests', r.code === 0 ? 'ok' : 'fail', summary ? `${summary[1]} passed, ${summary[2]} failed` : r.error || `exit ${r.code}`, r.code === 0 ? null : `node --test '${join(PLUGIN_ROOT, 'tests', '*.test.mjs')}'`);
   }
 
   const out = { at: nowIso(), ok: !checks.some((c) => c.status === 'fail'), node: process.versions.node, claudeDir, checks };

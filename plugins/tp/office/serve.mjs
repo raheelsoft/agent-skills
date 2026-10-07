@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // The office server: static files from this folder plus /office.json, computed live by the state script
-// (skills/README.md § Observability). Node only, no dependencies.
+// (reference/README.md § Observability). Node only, no dependencies.
 //
 //   node office/serve.mjs [--port 4820] [--host 127.0.0.1] [--work <.claude>/work] [--sim]
+//   (--work defaults to the work/ of the project the command runs in: $CLAUDE_PROJECT_DIR, else the current folder, then .claude/work)
 //
 //   GET /                 the office page
 //   GET /office.json      `state.mjs office <work>` — memoised for one second, never cached by the browser
@@ -24,8 +25,8 @@ import { join, dirname, resolve, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CLAUDE_DIR = resolve(HERE, '..');
-const STATE = join(CLAUDE_DIR, 'skills', '_lib', 'state.mjs');
+const STATE = join(HERE, '..', 'lib', 'state.mjs'); // the plugin's script, found from this file — never from the project
+const projectWork = () => resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd(), '.claude', 'work');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 const FRAME_MS = 8000; // how long each sim frame is shown
 const FILES = new Set(['plan.md', 'ticket.md', 'triage.md', 'report.md', 'accept.md', 'retro.md']); // what the drawer may read
@@ -76,7 +77,7 @@ function officeJson(workroot) {
   });
 }
 
-export function start({ port = 4820, host = '127.0.0.1', workroot = join(CLAUDE_DIR, 'work'), sim = false } = {}) {
+export function start({ port = 4820, host = '127.0.0.1', workroot = projectWork(), sim = false } = {}) {
   let cache = { at: 0, promise: null };
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
@@ -135,7 +136,7 @@ function isMain(url) { try { return realpathSync(process.argv[1]) === fileURLToP
 if (process.argv[1] && isMain(import.meta.url)) {
   const args = process.argv.slice(2);
   const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : dflt; };
-  start({ port: Number(opt('--port', 4820)), host: opt('--host', '127.0.0.1'), workroot: resolve(opt('--work', join(CLAUDE_DIR, 'work'))), sim: args.includes('--sim') })
+  start({ port: Number(opt('--port', 4820)), host: opt('--host', '127.0.0.1'), workroot: resolve(opt('--work', projectWork())), sim: args.includes('--sim') })
     .then(({ url }) => console.log(`office: ${url}`))
     .catch((e) => { console.error(e.message); process.exit(1); });
 }

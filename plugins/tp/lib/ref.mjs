@@ -1,19 +1,20 @@
 #!/usr/bin/env node
-// ref.mjs — read the README by reference (skills/README.md § Context management, rule 10). The README is the one place
+// ref.mjs — read the README by reference (reference/README.md § Context management, rule 10). The README is the one place
 // every rule is stated, and it is long; an agent needs the few sections and items a skill names, never the whole file.
 //
-//   node ref.mjs <.claude> "<Section>" ["<Section>, <Item>[, <Item>…]" …]
+//   node ref.mjs "<Section>" ["<Section>, <Item>[, <Item>…]" …]
 //        -> each section or item under a `## § …` header, in the order asked
-//   node ref.mjs <.claude> list         -> the table of contents: every heading and the items under it
+//   node ref.mjs list                   -> the table of contents: every heading and the items under it
 //
 // A section is any `##`/`###`/`####` heading, matched by the text before " — " (case-insensitive: "Definitions",
 // "Context management", "Using it", "Commits"). An item inside it is a `- **Name**` bullet (§ Definitions), a `**Name**`
 // paragraph (§ Models and budget, "Estimates"; § Unattended runs, "Scheduled runs"), a numbered rule ("rule 8" or "8")
 // or a sub-heading ("Using it, Preflight") — with everything up to the next item, so a table or list under it comes too.
-// A query may also be a README path instead of <.claude>. A name that matches nothing prints the contents and exits 1.
+// The README is the plugin's own (reference/README.md, next to lib/); a first argument that is a .md path reads that file instead, and
+// one that is a folder (the old `<.claude>` form) is ignored. A name that matches nothing prints the contents and exits 1.
 // No dependencies.
 
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -90,20 +91,22 @@ export function contents(doc) {
   return doc.sections.map((s) => `${'  '.repeat(s.level - 2)}${s.title.split(' — ')[0]}${s.items.filter((i) => i.kind !== 'heading').length ? ` — ${s.items.filter((i) => i.kind !== 'heading').map((i) => (i.kind === 'rule' ? `rule ${i.key}` : i.key)).join(' · ')}` : ''}`).join('\n');
 }
 
-function readme(arg) {
-  const p = /\.md$/i.test(arg) ? arg : join(arg, 'skills', 'README.md');
-  return parse(readFileSync(p, 'utf8'));
-}
+const README = join(dirname(fileURLToPath(import.meta.url)), '..', 'reference', 'README.md');
+const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
 
 function isMain(url) { try { return realpathSync(process.argv[1]) === fileURLToPath(url); } catch { return false; } }
 if (isMain(import.meta.url)) {
-  const [where, ...queries] = process.argv.slice(2);
-  if (!where || !queries.length) {
-    console.error('usage: ref.mjs <.claude> "<Section>[, <Item>…]" …  |  ref.mjs <.claude> list');
+  let [first, ...queries] = process.argv.slice(2);
+  let file = README;
+  if (first && /\.md$/i.test(first)) file = first;
+  else if (first && isDir(first)) { /* the old <.claude> argument: nothing to select, the README is the plugin's */ }
+  else if (first) queries = [first, ...queries];
+  if (!queries.length) {
+    console.error('usage: ref.mjs "<Section>[, <Item>…]" …  |  ref.mjs list');
     process.exit(2);
   }
   let doc;
-  try { doc = readme(where); } catch (e) { console.error(`cannot read the README: ${e.message}`); process.exit(2); }
+  try { doc = parse(readFileSync(file, 'utf8')); } catch (e) { console.error(`cannot read the README: ${e.message}`); process.exit(2); }
   if (queries.length === 1 && queries[0] === 'list') { console.log(contents(doc)); process.exit(0); }
   const out = [];
   let missed = false;
