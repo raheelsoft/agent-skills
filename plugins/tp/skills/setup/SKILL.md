@@ -33,9 +33,11 @@ same skills.
   plugin does not have) — `node <lib>/setup.mjs status <.claude>`; nothing changes.
 - `migrate` → what is left of a copy of the pipeline kept in this project's own
   `.claude`: `node <lib>/setup.mjs migrate <.claude>` lists the folders to remove, the
-  `tp-` keys in `pipeline.json` and the allow rules that name the copy. Show the list;
-  with the person's yes run it again with `--fix` (it rewrites only the keys of
-  `pipeline.json`) and give the `rm` lines for the folders — never delete them yourself.
+  `tp-` keys in `pipeline.json`, the allow rules that name the copy and the `launch.json`
+  entries that start the copy's office. Show the list; with the person's yes run it again
+  with `--fix` (it rewrites only the keys of `pipeline.json` and those launch entries, to
+  the plugin's office and this project's `work/`) and give the `rm` lines for the folders
+  — never delete them yourself.
 - `inline=true` — accepted and meaningless: this skill always runs where it is
   invoked.
 

@@ -265,7 +265,7 @@ export function run(claudeDir, opts = {}) {
   try {
     const m = projectCopy(claudeDir);
     if (m.nothingLeft) add('project copy', 'ok', 'no copy of the pipeline in .claude — the plugin is the only one');
-    else add('project copy', 'warn', [...m.copy, ...m.pipeline.legacyKeys.map((k) => `pipeline.json: ${k}`), ...m.permissions.map((p) => `${p.file}: ${p.rule}`)].slice(0, 6).join(', '), `node ${LIB}/setup.mjs migrate ${claudeDir} lists them (--fix rewrites pipeline.json's keys); remove the folders once the plugin is on`);
+    else add('project copy', 'warn', [...m.copy, ...m.pipeline.legacyKeys.map((k) => `pipeline.json: ${k}`), ...m.permissions.map((p) => `${p.file}: ${p.rule}`), ...m.launch.map((l) => `launch.json: ${l.name}`)].slice(0, 6).join(', '), `node ${LIB}/setup.mjs migrate ${claudeDir} lists them (--fix rewrites pipeline.json's keys and points launch.json's office at the plugin's); remove the folders once the plugin is on`);
   } catch (e) { add('project copy', 'warn', `setup.mjs could not look for a project copy: ${firstLine(e.message)}`); }
 
   // the JSON the stages hand each other against its schemas (schemas/README.md): drift is reported, never an error stop — an old ticket still reads

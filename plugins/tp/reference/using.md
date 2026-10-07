@@ -97,8 +97,9 @@ Install, run, resume, schedule, simulate: how a person uses the pipeline.
    A `pipeline.json` that names a skill `tp-merge` is read as `merge`, and a command an
    older run stored with the old hyphenated prefix is shown with the namespace
    (`/tp:run-ticket …`).
-   `node <lib>/setup.mjs migrate <.claude>` lists what is left of the copy and which
-   permission lines name it.
+   `node <lib>/setup.mjs migrate <.claude>` lists what is left of the copy, which
+   permission lines name it and which `launch.json` entries start its office (`--fix`
+   points them at the plugin's office, and again after an update moved the plugin).
 
 
 

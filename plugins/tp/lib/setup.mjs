@@ -14,9 +14,10 @@
 //   node setup.mjs status <.claude>                     -> { pipeline, on, off, problems: [..], drift: { missing, stale } } — a dependency that is off, a
 //                                                          name nobody knows; a deny rule missing or left over; exit 1 on either
 //   node setup.mjs stages <.claude>                     -> { off: [stage names the state script leaves out] }   (release, accept, merge when off)
-//   node setup.mjs migrate <.claude> [--fix]            -> { copy, pipeline, permissions, nothingLeft }: what is left of a copy of the pipeline kept in the
-//                                                          project's own .claude (folders to remove, `tp-` keys in pipeline.json, allow rules naming the copy);
-//                                                          exit 1 while something is left. --fix rewrites pipeline.json's keys; nothing is ever deleted
+//   node setup.mjs migrate <.claude> [--fix]            -> { copy, pipeline, permissions, launch, nothingLeft }: what is left of a copy of the pipeline kept in the
+//                                                          project's own .claude (folders to remove, `tp-` keys in pipeline.json, allow rules naming the copy,
+//                                                          launch.json entries that start an office server other than this plugin's); exit 1 while something
+//                                                          is left. --fix rewrites pipeline.json's keys and those launch entries; nothing is ever deleted
 //
 // pipeline.json: { "skills": { "<name>": true|false … }, "setAt": "<iso>", "by": "setup"|"<who>" }
 // Enforcement has three readers of that one file: the state script (a stage whose skill is off is skipped), the deny rules this script generates
@@ -25,7 +26,7 @@
 // No dependencies.
 
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, renameSync, realpathSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -81,6 +82,7 @@ export const modern = (text) => (typeof text === 'string' ? text.replace(LEGACY_
 
 const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const readJson = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return undefined; } };
+const writeJson = (file, obj) => { writeFileSync(`${file}.tmp`, JSON.stringify(obj, null, 2) + '\n'); renameSync(`${file}.tmp`, file); };
 const isDir = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
 
 const pipelineFile = (claudeDir) => join(resolve(String(claudeDir)), 'pipeline.json');
@@ -130,7 +132,7 @@ export function apply(claudeDir, input) {
   const file = pipelineFile(claudeDir);
   const pipeline = { skills: Object.fromEntries(Object.keys(CATALOGUE).map((n) => [n, r.skills.includes(n)])), setAt: nowIso(), by: input?.by || 'setup' };
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(`${file}.tmp`, JSON.stringify(pipeline, null, 2) + '\n'); renameSync(`${file}.tmp`, file);
+  writeJson(file, pipeline);
   return { on: r.skills, off: r.off, added: r.added, pipeline, settings: sync(claudeDir) };
 }
 
@@ -177,7 +179,7 @@ export function sync(claudeDir) {
   const next = { ...settings, permissions };
   if (!Object.keys(permissions).length) delete next.permissions;
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(`${file}.tmp`, JSON.stringify(next, null, 2) + '\n'); renameSync(`${file}.tmp`, file);
+  writeJson(file, next);
   return { file, added: missing, removed: stale };
 }
 
@@ -188,7 +190,33 @@ export function offStages(claudeDir) {
   return Object.entries(STAGE_OF).filter(([skill]) => !isOn(pipeline, skill)).map(([, stage]) => stage);
 }
 
-/** What is left of a project-local copy of the pipeline in `<.claude>` — read-only, except `fix`, which rewrites an older pipeline.json's `tp-` keys as bare names. */
+const OFFICE = join('office', 'serve.mjs');
+/**
+ * The `launch.json` entries that start an office server other than this plugin's: the project's own copy (`node office/serve.mjs`, run from
+ * `<.claude>`) or the folder of another version of the plugin in the runtime's cache, which an update leaves behind.
+ */
+function officeLaunches(root) {
+  const file = join(root, 'launch.json');
+  const doc = readJson(file);
+  const here = join(PLUGIN_ROOT, OFFICE);
+  const old = (arg, c) => {
+    const abs = isAbsolute(arg) ? arg : resolve(c.cwd ? resolve(root, c.cwd) : dirname(root), arg);
+    return abs !== here && (abs === join(root, OFFICE) || /\/plugins\/cache\/[^/]+\/tp\/[^/]+\/office\/serve\.mjs$/.test(abs));
+  };
+  const entries = (Array.isArray(doc?.configurations) ? doc.configurations : []).filter((c) => c?.runtimeExecutable === 'node' && Array.isArray(c.runtimeArgs) && c.runtimeArgs.some((a) => typeof a === 'string' && old(a, c)));
+  return { file, doc, entries, old };
+}
+
+/** Points those entries at this plugin's server and at this project's work directory (the copy found `work/` by sitting next to it). */
+function repointOffice(root, { file, doc, entries, old }) {
+  for (const c of entries) {
+    c.runtimeArgs = c.runtimeArgs.map((a) => (typeof a === 'string' && old(a, c) ? join(PLUGIN_ROOT, OFFICE) : a));
+    if (!c.runtimeArgs.includes('--work')) c.runtimeArgs.push('--work', join(root, 'work'));
+  }
+  writeJson(file, doc);
+}
+
+/** What is left of a project-local copy of the pipeline in `<.claude>` — read-only, except `fix`, which rewrites an older pipeline.json's `tp-` keys as bare names and points a launch.json office entry at the plugin's server. */
 export function migrate(claudeDir, { fix = false } = {}) {
   const root = resolve(String(claudeDir));
   const copy = [];
@@ -203,7 +231,7 @@ export function migrate(claudeDir, { fix = false } = {}) {
   let fixed = false;
   if (fix && legacyKeys.length) {
     const next = { ...raw, skills: Object.fromEntries(Object.entries(raw.skills).map(([k, v]) => [normalize(k), v])) };
-    writeFileSync(`${file}.tmp`, JSON.stringify(next, null, 2) + '\n'); renameSync(`${file}.tmp`, file);
+    writeJson(file, next);
     fixed = true;
   }
   const permissions = [];
@@ -212,7 +240,10 @@ export function migrate(claudeDir, { fix = false } = {}) {
       if (String(rule).includes(`${root}/skills/_lib`) || String(rule).includes(`${root}/office`)) permissions.push({ file: name, rule: String(rule) });
     }
   }
-  return { copy, pipeline: { legacyKeys, fixed }, permissions, nothingLeft: !copy.length && !legacyKeys.length && !permissions.length };
+  const launches = officeLaunches(root);
+  if (fix && launches.entries.length) repointOffice(root, launches);
+  const launch = launches.entries.map((c) => ({ name: c.name, fixed: fix }));
+  return { copy, pipeline: { legacyKeys, fixed }, permissions, launch, nothingLeft: !copy.length && !legacyKeys.length && !permissions.length && !launch.length };
 }
 
 function isMain(url) { try { return realpathSync(process.argv[1]) === fileURLToPath(url); } catch { return false; } }

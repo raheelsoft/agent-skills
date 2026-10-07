@@ -168,6 +168,10 @@ describe('setup — moving from a project-local copy', () => {
     for (const f of ['skills/README.md', 'skills/_lib/state.mjs', 'office/serve.mjs', 'tests/helpers.mjs', 'tests/state.test.mjs']) writeFileSync(join(claude, f), 'x');
     writeJson(claude, 'pipeline.json', { skills: { 'tp-merge': false, review: true }, setAt: 'x', by: 'an older install' });
     writeJson(claude, 'settings.local.json', { permissions: { allow: [`Bash(node ${claude}/skills/_lib/*)`, `Bash(node ${claude}/office/*)`, 'Bash(git status*)'] } });
+    writeJson(claude, 'launch.json', { version: '0.0.1', configurations: [
+      { name: 'app', runtimeExecutable: 'npm', runtimeArgs: ['run', 'dev'], port: 3000 },
+      { name: 'office', runtimeExecutable: 'node', runtimeArgs: ['office/serve.mjs', '--port', '4820'], cwd: claude, port: 4820 },
+    ] });
     return claude;
   }
 
@@ -180,6 +184,7 @@ describe('setup — moving from a project-local copy', () => {
     assert.deepEqual(r.json.pipeline, { legacyKeys: ['tp-merge'], fixed: false });
     assert.equal(r.json.permissions.length, 2);
     assert.ok(r.json.permissions.every((p) => p.file === 'settings.local.json'));
+    assert.deepEqual(r.json.launch, [{ name: 'office', fixed: false }], 'the launch entry that starts the copy\'s office');
     assert.ok(existsSync(join(claude, 'skills', 'tp-merge')) && existsSync(join(claude, 'office', 'serve.mjs')), 'nothing was removed');
   });
 
@@ -192,6 +197,35 @@ describe('setup — moving from a project-local copy', () => {
     assert.deepEqual([p.skills.merge, p.skills.review, 'tp-merge' in p.skills, p.by], [false, true, false, 'an older install']);
     assert.deepEqual(setup('migrate', claude).json.pipeline.legacyKeys, [], 'the old keys are gone');
     assert.ok(existsSync(join(claude, 'skills', '_lib', 'state.mjs')), 'the copy itself is the person\'s to remove');
+  });
+
+  it('--fix points the office launch entry at the plugin\'s server and this project\'s work directory, and touches no other entry', (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    const claude = legacy(root);
+    const before = JSON.parse(readFileSync(join(claude, 'launch.json'), 'utf8'));
+    const r = setup('migrate', claude, '--fix');
+    assert.deepEqual(r.json.launch, [{ name: 'office', fixed: true }]);
+    const after = JSON.parse(readFileSync(join(claude, 'launch.json'), 'utf8'));
+    assert.deepEqual(after.configurations[0], before.configurations[0], 'the app entry is untouched');
+    assert.deepEqual(after.configurations[1].runtimeArgs, [join(PLUGIN_ROOT, 'office', 'serve.mjs'), '--port', '4820', '--work', join(claude, 'work')]);
+    assert.equal(after.configurations[1].port, 4820, 'the rest of the entry is kept');
+    assert.deepEqual(setup('migrate', claude).json.launch, [], 'once pointed at this plugin, nothing is left to point');
+  });
+
+  it('a launch entry naming another version of the plugin in the cache is repointed at this one; an unrelated office server is left alone', (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    const claude = project(root);
+    const cached = '/Users/someone/.claude/plugins/cache/agent-skills/tp/0.1.0/office/serve.mjs';
+    writeJson(claude, 'launch.json', { configurations: [
+      { name: 'office', runtimeExecutable: 'node', runtimeArgs: [cached, '--port', '4820', '--work', join(claude, 'work')] },
+      { name: 'my-office', runtimeExecutable: 'node', runtimeArgs: ['office/serve.mjs'], cwd: join(root, 'somewhere-else') },
+    ] });
+    assert.deepEqual(setup('migrate', claude).json.launch, [{ name: 'office', fixed: false }]);
+    setup('migrate', claude, '--fix');
+    const c = JSON.parse(readFileSync(join(claude, 'launch.json'), 'utf8')).configurations;
+    assert.equal(c[0].runtimeArgs[0], join(PLUGIN_ROOT, 'office', 'serve.mjs'));
+    assert.deepEqual(c[0].runtimeArgs.slice(1), ['--port', '4820', '--work', join(claude, 'work')], '--work is not added twice');
+    assert.deepEqual(c[1].runtimeArgs, ['office/serve.mjs'], 'a server that is not the pipeline\'s is not ours to rewrite');
   });
 
   it('a project with no copy has nothing left, and says so with exit 0', (t) => {
