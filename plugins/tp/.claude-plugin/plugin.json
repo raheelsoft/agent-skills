@@ -1,0 +1,10 @@
+{
+  "name": "tp",
+  "displayName": "Ticket Pipeline",
+  "version": "0.2.0",
+  "description": "Takes a tracker ticket from pickup through triage, plan, implementation, pull request, unbiased review, merge, release and acceptance — each stage in its own agent, every fact on disk so any run resumes and several tickets run in parallel.",
+  "author": { "name": "Raheel Butt" },
+  "repository": "https://github.com/raheelsoft/agent-skills",
+  "license": "MIT",
+  "keywords": ["tickets", "pipeline", "review", "release", "workflow"]
+}

@@ -1,0 +1,66 @@
+{
+  "project": "Demo CRM",
+  "team": "DEMO",
+  "me": "dev",
+  "states": ["Backlog", "Todo", "In Progress", "In Review", "Done", "Canceled"],
+  "iterations": [
+    { "name": "Sprint 4", "start": "2026-09-14", "end": "2026-09-25" },
+    { "name": "Sprint 5", "start": "2026-09-28", "end": "2026-10-09" }
+  ],
+  "labels": [
+    { "name": "Sprint 4", "description": "2026-09-14 → 2026-09-25" },
+    { "name": "api" },
+    { "name": "web" },
+    { "name": "bug" },
+    { "name": "data-model" }
+  ],
+  "tickets": [
+    {
+      "id": "DEMO-1", "title": "Epic: contact export", "description": "Export contacts as CSV from the web app through a new API endpoint.",
+      "state": "Todo", "assignee": null, "labels": ["Sprint 4"], "parent": null, "priority": 2, "estimate": null, "blockedBy": [], "iteration": "Sprint 4",
+      "comments": [], "history": [], "createdAt": "2026-09-10T09:00:00Z", "updatedAt": "2026-09-10T09:00:00Z"
+    },
+    {
+      "id": "DEMO-2", "title": "BE: GET /contacts/export returns CSV",
+      "description": "Acceptance criteria:\n- GET /contacts/export answers 200 with text/csv\n- one row per contact, columns id,name,email\n- an empty list gives the header row only\n\nAI Implementation Brief: follow src/handlers/list.js; add src/handlers/export.js and register it in src/app.js.",
+      "state": "Todo", "assignee": null, "labels": ["Sprint 4", "api"], "parent": "DEMO-1", "priority": 2, "estimate": 3, "blockedBy": [], "iteration": "Sprint 4",
+      "comments": [], "history": [], "createdAt": "2026-09-10T09:05:00Z", "updatedAt": "2026-09-10T09:05:00Z"
+    },
+    {
+      "id": "DEMO-3", "title": "FE: Export button on the contacts page",
+      "description": "Acceptance criteria:\n- an Export button on the contacts page downloads /contacts/export\n- disabled while the download runs\n\nDepends on DEMO-2.",
+      "state": "Todo", "assignee": null, "labels": ["Sprint 4", "web"], "parent": "DEMO-1", "priority": 3, "estimate": null, "blockedBy": ["DEMO-2"], "iteration": "Sprint 4",
+      "comments": [], "history": [], "createdAt": "2026-09-10T09:10:00Z", "updatedAt": "2026-09-10T09:10:00Z"
+    },
+    {
+      "id": "DEMO-4", "title": "BE: contacts list ignores the `q` filter",
+      "description": "Acceptance criteria:\n- GET /contacts?q=ann returns only contacts whose name contains \"ann\" (case-insensitive)\n- no q → every contact",
+      "state": "Todo", "assignee": null, "labels": ["Sprint 4", "api", "bug"], "parent": null, "priority": 1, "estimate": 1, "blockedBy": [], "iteration": "Sprint 4",
+      "comments": [], "history": [], "createdAt": "2026-09-11T08:00:00Z", "updatedAt": "2026-09-11T08:00:00Z"
+    },
+    {
+      "id": "DEMO-5", "title": "BE: soft-delete contacts (data model)",
+      "description": "Acceptance criteria:\n- DELETE /contacts/:id marks the contact deleted instead of removing it\n- deleted contacts never appear in GET /contacts\n\nWaits on DEMO-6 (the deletedAt column).",
+      "state": "Todo", "assignee": null, "labels": ["Sprint 4", "api", "data-model"], "parent": null, "priority": 2, "estimate": null, "blockedBy": ["DEMO-6"], "iteration": "Sprint 4",
+      "comments": [], "history": [], "createdAt": "2026-09-11T08:30:00Z", "updatedAt": "2026-09-11T08:30:00Z"
+    },
+    {
+      "id": "DEMO-6", "title": "BE: add deletedAt to contacts",
+      "description": "Add a nullable deletedAt column to the contacts store.",
+      "state": "In Progress", "assignee": "someone-else", "labels": ["Sprint 4", "api", "data-model"], "parent": null, "priority": 2, "estimate": 1, "blockedBy": [], "iteration": "Sprint 4",
+      "comments": [], "history": [], "createdAt": "2026-09-11T08:35:00Z", "updatedAt": "2026-09-15T10:00:00Z"
+    },
+    {
+      "id": "DEMO-7", "title": "FE: contact avatars",
+      "description": "Acceptance criteria:\n- each contact row shows an avatar with the person's initials",
+      "state": "Backlog", "assignee": null, "labels": ["web"], "parent": null, "priority": 4, "estimate": 2, "blockedBy": [], "iteration": null,
+      "comments": [], "history": [], "createdAt": "2026-09-01T12:00:00Z", "updatedAt": "2026-09-01T12:00:00Z"
+    },
+    {
+      "id": "DEMO-8", "title": "BE: healthcheck endpoint",
+      "description": "GET /health answers 200 { ok: true }.",
+      "state": "Done", "assignee": "dev", "labels": ["api"], "parent": null, "priority": 3, "estimate": 1, "blockedBy": [], "iteration": "Sprint 4",
+      "comments": [{ "at": "2026-09-15T16:00:00Z", "text": "merged in #1" }], "history": [], "createdAt": "2026-09-08T12:00:00Z", "updatedAt": "2026-09-15T16:00:00Z"
+    }
+  ]
+}

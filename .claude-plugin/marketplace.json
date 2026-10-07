@@ -1,0 +1,12 @@
+{
+  "name": "agent-skills",
+  "owner": { "name": "Raheel Butt" },
+  "metadata": { "description": "Claude Code plugins by raheelsoft" },
+  "plugins": [
+    {
+      "name": "tp",
+      "source": "./plugins/tp",
+      "description": "The ticket pipeline: pickup, triage, plan, implement, pull request, review, merge, release and acceptance, with a day planner, inbox and status board."
+    }
+  ]
+}
