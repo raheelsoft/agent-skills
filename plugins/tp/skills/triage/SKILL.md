@@ -4,7 +4,7 @@ description: Decide from evidence whether a ticket is implemented directly, plan
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first, a valid example of each in `schemas/examples/` — never through the file tools or a shell redirect: a hook refuses a raw write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/triage-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write.
 
 Decide **direct**, **plan**, **needs-input**, **close** or **blocked** for one ticket
 and record why. The decision is made by a fresh agent — this skill's dedicated agent,

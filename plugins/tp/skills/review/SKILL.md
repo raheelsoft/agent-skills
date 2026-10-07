@@ -160,7 +160,7 @@ Rate confidence 1–5. Below 4, re-read with a different focus.
 
 The review is data, and the comment is derived from it. Write
 `<.claude>/work/_scratch/review-<slug>.json` in the shape of `schemas/examples/review-findings.json`
-(`schemas/README.md` § Reviews):
+(`examples/review-findings.md` has good and bad passes; `schemas/README.md` § Reviews):
 
 - `round`, `sha` (the head reviewed), `mode` (`full`, `delta`, `resolution`), `confidence`
   (1–5);

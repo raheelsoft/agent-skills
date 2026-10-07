@@ -4,7 +4,7 @@ description: After the merge: watch the deployment or publish it triggered, run 
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first, a valid example of each in `schemas/examples/` — never through the file tools or a shell redirect: a hook refuses a raw write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/release-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write.
 
 Stage 7 of the workflow (`reference/README.md`): from "merged into the base branch" to
 "running where the project runs it, with the follow-ups done". Nothing here changes
