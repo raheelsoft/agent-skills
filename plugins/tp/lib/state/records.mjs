@@ -15,7 +15,7 @@ export function recordBlockers(workdir, payload) {
   const ticket = readJson(file, []);
   if (!ticket) { throw new CliError(`${file} missing or invalid`, 2); }
   const now = nowIso();
-  ticket.blockedBy = rows.map((r) => ({ id: r.id, state: r.state ?? null, resolved: r.resolved === true, soft: r.soft === true, checkedAt: r.checkedAt || now }));
+  ticket.blockedBy = rows.map((r) => ({ id: r.id, state: r.state ?? null, resolved: r.resolved === true, soft: r.soft === true, checkedAt: r.checkedAt === null ? null : r.checkedAt || now })); // an explicit null is a blocker nobody has looked up yet
   writeAtomic(file, ticket);
   const unblocked = ticket.blockedBy.length > 0 && ticket.blockedBy.every((b) => b.resolved || b.soft);
   const st = computeState(workdir);

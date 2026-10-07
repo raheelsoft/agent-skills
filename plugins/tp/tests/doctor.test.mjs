@@ -43,6 +43,7 @@ function install(root, tiers = {}) {
   mkdirSync(join(c, 'work'), { recursive: true });
   writeJson(c, 'tiers.json', { ceiling: 'c', ladder: ['a', 'b', 'c'], low: 'a', medium: 'b', high: 'c', prices: { low: 1, medium: 2, high: 3 }, ...tiers });
   writeJson(c, 'notify.json', { tool: 'chat', target: '#dev', project: 'p', levels: ['stop'], setAt: 'x' });
+  writeJson(join(c, 'work'), '_heartbeat.json', { at: new Date().toISOString(), source: 'startup', session: 's', plugin: '0.2.0' }); // what the plugin's SessionStart hook writes
   writeJson(c, 'settings.local.json', { permissions: { allow: [`Bash(node ${LIB}/*)`, `Bash(node ${PLUGIN_ROOT}/office/*)`, 'Bash(node --test *)', 'Bash(git *)'] } });
   return c;
 }
@@ -178,6 +179,25 @@ describe('doctor.mjs', () => {
     writeJson(dir, 'plan.json', { steps: [1, 2], openQuestions: [], complexity: 'low' }); // an older plan: read mode accepts it
     assert.equal(byName(doctor('run', c8).json, 'contracts').status, 'ok');
     rm(r8);
+  });
+
+  it('warns when the plugin\'s hooks have left no heartbeat, or an old one, and says so when they have', () => {
+    const r9 = tmp('doctor-'); const c9 = install(r9);
+    let h = byName(doctor('run', c9).json, 'hooks heartbeat');
+    assert.equal(h.status, 'ok');
+    assert.match(h.detail, /^startup 0h ago, plugin 0\.2\.0$/);
+    writeJson(join(c9, 'work'), '_heartbeat.json', { at: new Date(Date.now() - 100 * 3600000).toISOString(), source: 'resume', session: 's', plugin: '0.2.0' });
+    h = byName(doctor('run', c9).json, 'hooks heartbeat');
+    assert.equal(h.status, 'warn');
+    assert.match(h.detail, /the last heartbeat is 100h old .*doctor\.heartbeatHours is 72/);
+    writeJson(c9, 'tiers.json', { ceiling: 'c', ladder: ['a', 'b', 'c'], low: 'a', medium: 'b', high: 'c', prices: { low: 1, medium: 2, high: 3 }, doctor: { heartbeatHours: 200 } });
+    assert.equal(byName(doctor('run', c9).json, 'hooks heartbeat').status, 'ok', 'the window is configurable');
+    rm(join(c9, 'work', '_heartbeat.json'));
+    h = byName(doctor('run', c9).json, 'hooks heartbeat');
+    assert.equal(h.status, 'warn');
+    assert.match(h.detail, /no heartbeat: the plugin's hooks have not run in this project, so its guards are not active/);
+    assert.match(h.fix, /SessionStart writes it/);
+    rm(r9);
   });
 
   it('warns while a copy of the pipeline is still in the project\'s .claude, and says so when none is', () => {

@@ -2,7 +2,7 @@
 // (schemas/README.md); a document that does not conform is refused with the errors, so the stage that wrote it fixes it while it still has the
 // facts in hand, and the next stage never reads a malformed one. Stamps `schemaVersion`; writes atomically.
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { CliError, isDir, writeAtomic } from './util.mjs';
 import { ARTIFACTS, SCHEMA_VERSION, artifactOf, checkArtifact } from '../contract/index.mjs';
 
@@ -26,6 +26,7 @@ export function payloadText({ arg, from } = {}) {
  */
 export function putArtifact(workdir, name, payload, { merge = false } = {}) {
   if (!isDir(workdir)) throw new CliError(`${usageLine}\n${workdir} is not a work directory`, 2);
+  if (basename(dirname(resolve(workdir))) !== 'work') throw new CliError(`${usageLine}\n${workdir} is not a ticket's work directory (<.claude>/work/<id>): the folder the ticket's other files are in`, 2);
   const file = `${String(name || '').replace(/\.json$/, '')}.json`;
   const kind = /^[\w.-]+$/.test(file) ? artifactOf(file) : null;
   if (!kind) throw new CliError(`${usageLine}\n"${name}" is not an artifact: ${ARTIFACTS.join(', ')} (implement, pr and release take a repo suffix: implement.<repo>)`, 2);

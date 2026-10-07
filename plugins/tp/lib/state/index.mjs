@@ -2,7 +2,7 @@
 // reads or writes the work directory and returns data; none prints or exits — a refusal is a CliError (util.mjs) the caller catches.
 export { CliError } from './util.mjs';
 export { log, parseProgress } from './progress.mjs';
-export { lockRun, unlockRun, readLock } from './lock.mjs';
+export { lockRun, unlockRun, readLock, liveLocks } from './lock.mjs';
 export { computeState, brief, durations, rowOf, ticketDirs, all, totals } from './compute.mjs';
 export { usage } from './usage.mjs';
 export { pendingAnswer } from './answers.mjs';

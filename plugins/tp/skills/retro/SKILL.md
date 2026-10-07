@@ -4,7 +4,7 @@ description: After acceptance, compare the plan with what happened — deviation
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first, a valid example of each in `schemas/examples/` — never through the file tools or a shell redirect: a hook refuses a raw write.
 
 The improvement loop, optional and after the fact: the work directory holds the plan,
 the check, the implementation summary, the review, every stop and answer, and the
@@ -31,7 +31,7 @@ proposes changes; the user decides which land. Conventions and the state script:
 `state.mjs state <workdir>` then `state.mjs log <workdir> retro started`
 (`reference/README.md` § Definitions, Resume). This agent reads the record itself — no
 second agent for the same reading (tools: read, the hosting platform's CLI reads, the
-state script; write only `retro.md`, `retro.json` and `checkpoint.retro.md`; it asks
+state script; write only `retro.md` and `checkpoint.retro.md`, and `retro.json` through `state.mjs put`; it asks
 `model.mjs compact` between the questions below, rule 7): from the work directory,
 the files the questions name — `plan.md` (§ Implementation summary), `plan-check.json`,
 `implement[.repo].json`, `answers.md`, `accept.json`, `ticket.json` (estimate,

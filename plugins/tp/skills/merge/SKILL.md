@@ -4,7 +4,7 @@ description: Take an open PR through the incremental review loop (an unbiased /t
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first, a valid example of each in `schemas/examples/` — never through the file tools or a shell redirect: a hook refuses a raw write.
 
 From "a described, gated PR is up" to "merged into the base branch, merge recorded"
 — or a stop that says exactly what a person must decide. The worktree stays: the
@@ -91,7 +91,7 @@ round is `create-pr`'s (its § Stops): return it as the report without logging a
 `instructions/review-loop.md` § Merge: the conditions, the strategy the repo uses, the
 base branch only. `merge=ask` and no answer yet → `stopped "review <verdict> —
 merge (merge), or send fixes (fix <what>)? (no default)"`. After the merge:
-`state.mjs log … note "merged" <sha>`, `merged: <sha>` in `pr[.repo].json`.
+`state.mjs log … note "merged" <sha>`, `merged: <sha>` in `pr[.repo].json` (`state.mjs put <workdir> pr[.<repo>] '{ "merged": "<sha>" }' --merge`).
 
 ### 5. After the merge
 The worktree stays — `/tp:release` reads and `/tp:accept` walks in it, and the run's end

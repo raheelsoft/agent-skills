@@ -68,7 +68,7 @@
         "state": { "type": ["string", "null"] },
         "resolved": { "type": "boolean" },
         "soft": { "type": "boolean" },
-        "checkedAt": { "$ref": "#/$defs/timestamp" }
+        "checkedAt": { "anyOf": [ { "$ref": "#/$defs/timestamp" }, { "type": "null" } ], "description": "When the state was looked up; null for a blocker nobody has looked up yet." }
       }
     },
     "environment": {

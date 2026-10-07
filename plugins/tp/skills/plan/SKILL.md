@@ -4,7 +4,7 @@ description: Write a self-contained implementation plan for a ticket, have a fre
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first, a valid example of each in `schemas/examples/` — never through the file tools or a shell redirect: a hook refuses a raw write.
 
 Write `plan.md` for one ticket, prove it holds, and put it in front of the person.
 A fresh agent plans — this skill's dedicated agent, which knows nothing but its
@@ -46,7 +46,7 @@ other derived wait (open questions, the approval) → step 3 again, nothing re-r
 `check-only=true` → step 2 (a full check when `plan.prev.md` is missing or older
 than the last `plan-check done`), then step 3. Otherwise `state.mjs log <workdir> plan started` and
 **plan — this agent is the planner**: restricted to reading the worktree (searches,
-read-only commands and type checks) and writing only `plan.md` and `plan.json`, from
+read-only commands and type checks) and writing only `plan.md` and, through `state.mjs put`, `plan.json`, from
 the absolute work directory; `ticket.md`, `triage.md`, `answers.md`, the `findings`
 file when given; each repo's worktree, branch, base and conventions file from
 `ticket.json` (the conventions bind the plan); the template
@@ -76,13 +76,13 @@ loop below, with no checker spawned. Otherwise spawn the checker — the one age
 skill spawns, because the check must be independent of the planner (§ Context
 management, rule 2) — with the script's advisory lines (they go in step 3's presentation
 too, and the checker does not repeat them): a fresh writing agent, restricted to reading
-the worktree and writing only `plan-check.json`,
+the worktree and writing only `plan-check.json` (through `state.mjs put`),
 rated `plan.json.complexity` with
 the catching step, office id `<id>:plan-check:qa` with this agent as `parent` (the
 join/leave commands in its prompt), prompt: the absolute work directory; `plan.md`, `ticket.md`; each
 repo's worktree and conventions file; the criteria (`instructions/check-criteria.md`,
 absolute path); the frontier (rule 8: the files the plan names and the acceptance
-criteria, nothing wider); the tools it has (read and search; write only its one
+criteria, nothing wider); the tools it has (read and search; `state.mjs put` for its one
 file); the task — check every criterion and write `plan-check.json`
 (`{ verdict, round, override: null, findings }`, `round` = this check's number for the
 ticket's round; the plan's `complexity` is the planner's and is never rewritten); the

@@ -1,5 +1,5 @@
 // lock.mjs — the run lock: one run at a time per ticket. A lock nobody refreshed for six hours belongs to a dead run and is never revived by a note.
-import { writeFileSync, unlinkSync } from 'node:fs';
+import { writeFileSync, unlinkSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCK_STALE_MS } from './constants.mjs';
 import { CliError, isDir, nowStamp, readJson } from './util.mjs';
@@ -29,6 +29,17 @@ export function unlockRun(workdir, owner, force) {
   if (cur.owner !== owner && !force && !cur.stale) { throw new CliError(`locked by ${cur.owner}; pass --force to release it`, 3); }
   unlinkSync(file);
   return `unlocked (${cur.owner})\n`;
+}
+
+// every ticket of a work root whose run lock is live — what a hook asks to know whether a run is in progress
+export function liveLocks(workroot) {
+  if (!isDir(workroot)) return [];
+  const out = [];
+  for (const id of readdirSync(workroot).filter((d) => !d.startsWith('_')).sort()) {
+    const lock = readLock(join(workroot, id));
+    if (lock && !lock.stale) out.push({ id, owner: lock.owner, since: lock.since, updated: lock.updated });
+  }
+  return out;
 }
 
 // any progress refreshes a live lock; a stale one belongs to a dead run and is never revived by a note

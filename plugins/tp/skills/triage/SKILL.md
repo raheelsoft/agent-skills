@@ -4,7 +4,7 @@ description: Decide from evidence whether a ticket is implemented directly, plan
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first, a valid example of each in `schemas/examples/` — never through the file tools or a shell redirect: a hook refuses a raw write.
 
 Decide **direct**, **plan**, **needs-input**, **close** or **blocked** for one ticket
 and record why. The decision is made by a fresh agent — this skill's dedicated agent,
@@ -33,8 +33,8 @@ user).
 ### 1. Read the state, log, size the change
 `state.mjs state <workdir>` then `state.mjs log <workdir> triage started` (§ Definitions,
 Resume). This agent does the sizing itself, restricted to reading the worktree and
-writing only `triage.md` and `triage.json` (its tools: read and search in the
-worktrees, write only its two files), from: the absolute work directory; `ticket.md`,
+writing only `triage.md` and, through `state.mjs put`, `triage.json` (its tools: read and search in the
+worktrees, write `triage.md`, `state.mjs put` for the JSON), from: the absolute work directory; `ticket.md`,
 `answers.md`; each repo's worktree and conventions file from `ticket.json`; the
 criteria file (`instructions/criteria.md`). The task — locate the code the ticket
 touches (its frontier: the acceptance criteria and the code they name —
@@ -59,8 +59,9 @@ agent, sequential at the depth that cannot spawn.
   close-out. The tracker status stays the person's call (§ Tickets) — the report says
   what to close it as. A new round (`round=`) or `force=true` reopens it.
 - **blocked** → other tickets must land first (`instructions/criteria.md` § Blocked):
-  copy `blockedBy` into `ticket.json.blockedBy` as rows `{ id, state: null, resolved:
-  false, soft: false, checkedAt: null }` (the pickup's blocked-check states when it
+  record `blockedBy` in `ticket.json` as the pickup's re-check does
+  (`start-ticket/instructions/blocked-check.md` § Re-check), each row with `state`
+  and `checkedAt` null — nobody has looked them up yet (the pickup's blocked-check states when it
   found them soft), add the blocked-by relations in the tracker when it has them and
   they are missing, and comment on the ticket that it is parked and on what. The
   stage logs `done`; the script derives the stop `blocked by <ids> — nothing to
@@ -76,7 +77,7 @@ A `mode=` override wins; the report says so.
 Refine the estimate with the evidence (§ Models and budget, Estimates): `model.mjs
 estimate '{ rating: <triage's>, repos, flags: <the risk flags>, unclear: <criteria
 partly or missing>, novelty: <no existing pattern>, claudeDir }'` → `triage.json.
-estimate`; when `ticket.json.estimate.source` is `pipeline`, replace it there and in
+estimate`; when `ticket.json.estimate.source` is `pipeline`, replace it there (`state.mjs put <workdir> ticket '{ "estimate": … }' --merge`) and in
 the tracker's estimate field — a person's estimate (`source: tracker`) is only
 reported against, never changed. `state.mjs log <workdir> triage done "<decision>
 (<confidence>) - <complexity>" triage.md`. Report the decision, confidence, the rating,

@@ -4,7 +4,7 @@ description: Implement a ticket from its approved plan (or the triage approach f
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first, a valid example of each in `schemas/examples/` — never through the file tools or a shell redirect: a hook refuses a raw write.
 
 Execute the work for one ticket in a **fresh agent** — never the agent that wrote the
 plan. That agent is this skill's own dedicated agent (`reference/README.md`
@@ -119,7 +119,7 @@ deviations: none | <one line each>
 gates: <one line per gate: name PASS/FAIL (+ first lines on FAIL)>
 manual steps: <numbered, for user-facing changes; else "none">
 ```
-and write `implement.json` (`implement.<name>.json` for a cross-repo ticket):
+and put `implement` (`implement.<name>` for a cross-repo ticket):
 `{ repo, done, total, commits, gates, deviations, stopped, complexity }` — `complexity`
 the rating it experienced, `higher` when it escalated. Then, while the change is
 still in this context, **draft the PR description**: `pr-body.md` (`pr-body.<name>.md`

@@ -10,11 +10,13 @@
 //                                                                    than tiers.json.doctor.maxAgeHours, 2 failing
 //   node doctor.mjs add <.claude> '{ "name", "status", "detail", "fix" }' -> add or replace one check (the skill's own tool-based check)
 //
-// tiers.json.doctor (defaults): { maxAgeHours: 24, timeoutMs: 8000,
+// tiers.json.doctor (defaults): { maxAgeHours: 24, heartbeatHours: 72, timeoutMs: 8000,
 //                                 checks: [{ name, run: [argv…], expect?: "<substring>" }] }   ← e.g. the hosting CLI's auth status
 // The ceiling (README § Models and budget, The ceiling): `ceiling` says whether tiers.json records one and agrees with it (every tier on the ladder
 // at or below it); `starting model` is the `model` the project's settings start a session on; `session model` is `--session <the model the invoking
 // context runs on>` — a warning when either is above the ceiling, never a block: the pipeline can ask for a session within it, not cap one.
+// `contracts` reads every JSON the stages left in the work directory against its schema (schemas/README.md; read mode: an older shape is not an error);
+// `hooks heartbeat` is the file the plugin's SessionStart hook writes — missing or older than doctor.heartbeatHours means the plugin's guards are not running here.
 // Repos: --repos, else the paths every work directory's ticket.json names, else the git checkouts at or one level under
 // the folder that holds <.claude>. Remote reachability is `git ls-remote` with prompts disabled, so a missing key or
 // an expired credential fails here, in seconds, instead of inside a run (§ Remote access failures).
@@ -33,7 +35,7 @@ import { checkWorkroot } from './contract/index.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = HERE;                      // the plugin's scripts
 const PLUGIN_ROOT = resolve(HERE, '..'); // the plugin: lib/, office/, tests/ … — a project's `.claude` (its config and work/) is another folder
-const DEFAULTS = { maxAgeHours: 24, timeoutMs: 8000, checks: [] };
+const DEFAULTS = { maxAgeHours: 24, heartbeatHours: 72, timeoutMs: 8000, checks: [] };
 const RATINGS = ['low', 'medium', 'high'];
 const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const readJson = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return undefined; } };
@@ -272,6 +274,16 @@ export function run(claudeDir, opts = {}) {
     if (c.invalid.length) add('contracts', 'warn', `${c.invalid.length} of ${c.checked} artifacts do not match their schema: ${c.invalid.slice(0, 3).map((i) => `${i.file} (${i.errors[0]})`).join('; ')}${c.invalid.length > 3 ? '; …' : ''}`, `node ${LIB}/validate.mjs work ${work} lists them all; a stage rewrites its own through state.mjs put`);
     else add('contracts', 'ok', c.checked ? `${c.checked} artifacts match their schemas` : 'no artifacts yet');
   } catch (e) { add('contracts', 'warn', `validate could not read the work directory: ${firstLine(e.message)}`); }
+
+  // the plugin's hooks fire here: SessionStart writes work/_heartbeat.json — a hook that fails open is otherwise silent, and with it the guards
+  try {
+    const hb = readJson(join(work, '_heartbeat.json'));
+    const limit = doctor.heartbeatHours;
+    const age = hb?.at ? (Date.now() - Date.parse(hb.at)) / 3600000 : null;
+    if (!hb?.at || Number.isNaN(age)) add('hooks heartbeat', 'warn', 'no heartbeat: the plugin\'s hooks have not run in this project, so its guards are not active', 'open a new session in the project (SessionStart writes it); if it stays missing, the plugin is not enabled at project scope or hooks are disabled (disableAllHooks)');
+    else if (age > limit) add('hooks heartbeat', 'warn', `the last heartbeat is ${Math.round(age)}h old (${hb.at}, tiers.json doctor.heartbeatHours is ${limit})`, 'open a new session in the project; if the heartbeat does not move, the plugin\'s hooks are not running');
+    else add('hooks heartbeat', 'ok', `${hb.source || 'session'} ${Math.round(age)}h ago, plugin ${hb.plugin || '?'}`);
+  } catch (e) { add('hooks heartbeat', 'warn', `could not read the heartbeat: ${firstLine(e.message)}`); }
 
   // the runtime's allowlist
   const allow = ['settings.json', 'settings.local.json'].flatMap((f) => { const s = readJson(join(claudeDir, f)); return Array.isArray(s?.permissions?.allow) ? s.permissions.allow : []; });

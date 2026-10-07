@@ -1455,8 +1455,30 @@ stops the same way unless a standing instruction says to spend it.
   pipeline is not configured for. A hook that crashes lets the action through with a note
   on stderr (a hook must never break a session); only a handler's own `block` or `deny`
   stops anything. A skill's text states a rule once and says which hook enforces it; it
-  does not ask the agent to remember it. Today: `off-skill` (a typed `/tp:<skill>` that
-  `pipeline.json` turned off is refused before the model sees it, at no token cost).
+  does not ask the agent to remember it. Today:
+  - `off-skill` — a typed `/tp:<skill>` that `pipeline.json` turned off is refused before the
+    model sees it, at no token cost.
+  - `bash` (PreToolUse) — in a run (a sub-agent's call, a call in a ticket's work directory, or
+    while a run lock is live) refuses `--no-verify`, a plain force-push (`--force-with-lease`
+    after a rebase is fine), a changed remote URL and a write to the shell's, ssh's, git's or
+    cloud configuration; anywhere, refuses a raw write to a file the state script owns (the
+    stage JSON, `progress.md`, `lock.json`) and says which `state.mjs` command writes it; and
+    lets a bare `node <plugin>/lib|office|hooks/<script> …` call through without a permission
+    rule, so the allowlist need not name the plugin's versioned folder (a command with
+    anything in front of or after it — `export PATH=…;`, a pipe — goes through the rules).
+  - `write` (PreToolUse on Write, Edit, MultiEdit) — the same refusal of a raw write to those
+    files, for the file tools.
+  - `agent-ceiling` (PreToolUse on Agent) — a sub-agent asked for a model above `tiers.json`'s
+    ceiling runs on the ceiling instead, every other field of the spawn kept.
+  - `model-switch` (PreModelSwitch) — a session switch to a model above the ceiling asks the
+    person first, and is refused while a run holds a lock.
+  - `session-start` (SessionStart) — writes `work/_heartbeat.json` (`/tp:doctor` warns when
+    it is missing or old: a hook that fails open is otherwise silent) and tells the session,
+    in at most five lines, the open stops and the live runs.
+
+  The write guards stand down while a copy of the pipeline's skills (`skills/tp-*`) is still
+  in the project's own `.claude`: those skills write the files by hand
+  (`/tp:setup migrate` removes the copy).
 
 ### Unattended runs
 

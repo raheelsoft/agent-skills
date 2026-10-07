@@ -4,7 +4,7 @@ description: Prove a ticket is delivered: walk every acceptance criterion agains
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first, a valid example of each in `schemas/examples/` — never through the file tools or a shell redirect: a hook refuses a raw write.
 
 Stage 8 of the workflow (`reference/README.md`): the closing check. "Delivered" means a
 check proved it — this stage is that check, run by an agent that did not write the code
@@ -62,7 +62,7 @@ never pasted into a prompt.
 ### 2. Walk the criteria — this agent
 This agent is the walker (`reference/README.md` § Definitions, Dedicated agent — fresh,
 no second agent for the same walk; its tools: read and search, a shell for requests,
-queries and CLI reads, write only `accept.md`, `accept.json` and its checkpoint;
+queries and CLI reads, write only `accept.md` and its checkpoint, and `accept.json` through `state.mjs put`;
 frontier: the criteria alone — rule 8), with what step 1 collected: the criteria
 list, the manual steps, per repo the environment and how to reach it (or the checkout
 path), and the constraints — `live` is **read-only** (requests, queries, CLI reads;

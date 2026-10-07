@@ -78,6 +78,16 @@ describe('put — the library', () => {
     assert.deepEqual(readdirSync(dir), []);
   });
 
+  it('refuses a folder that is not a ticket\'s work directory — the project root, a worktree, the work root itself', (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    for (const dir of [root, join(root, 'work'), join(root, 'work', 'T-1', 'wt')]) {
+      mkdirSync(dir, { recursive: true });
+      const e = refusal(() => putArtifact(dir, 'plan', example('plan')));
+      assert.match(e.message, /is not a ticket's work directory \(<\.claude>\/work\/<id>\)/, dir);
+      assert.deepEqual(readdirSync(dir).filter((f) => f.endsWith('.json')), [], 'nothing written there');
+    }
+  });
+
   it('refuses a folder that is not there, JSON that does not parse, and JSON that is not an object', (t) => {
     const dir = workdir(t);
     assert.match(refusal(() => putArtifact(join(dir, 'nowhere'), 'plan', {})).message, /is not a work directory/);

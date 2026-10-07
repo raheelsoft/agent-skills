@@ -927,6 +927,12 @@ describe('blockers and actual hours are recorded through the script', () => {
     assert.equal(state('blockers', dir, '[{ "nope": 1 }]').code, 2);
   });
 
+  it('a blocker nobody has looked up yet keeps checkedAt null, so the next re-check does not take it for a fresh verdict', () => {
+    const r = state('blockers', dir, JSON.stringify([{ id: 'T-3', state: null, resolved: false, soft: false, checkedAt: null }, { id: 'T-4', state: null, resolved: false }]));
+    assert.deepEqual(r.json.blockedBy.map((b) => [b.id, b.checkedAt === null]), [['T-3', true], ['T-4', false]]);
+    assert.equal(state('put', dir, 'ticket', JSON.stringify({ ...readJson(dir, 'ticket.json'), complexity: 'low' })).code, 0, 'and the row is a valid ticket.json');
+  });
+
   it('records the person\'s actual hours, rounded to the half hour', () => {
     const r = state('actual', dir, JSON.stringify({ focusedHours: 5.3, source: 'person', by: 'eod' }));
     assert.deepEqual([r.code, r.json.focusedHours, r.json.source, r.json.by], [0, 5.5, 'person', 'eod']);
