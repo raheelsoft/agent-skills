@@ -263,6 +263,7 @@ writes the first two and prints the allowlist; the rest you set once, or never.
 | `pipeline.json` | `/tp:setup` | yes — the project's choice | which of the skills this project uses; an absent file means all of them |
 | `tiers.json` | `/tp:setup`, then by hand | no — per machine | `ceiling` (the largest model the pipeline may use), `ladder` (the runtime's models, smallest first) and the three tiers `low`/`medium`/`high` derived from them — **the only place a model name is written** (§ Models and budget, The ceiling). Also every tunable, each with a working default: `prices` (§ Models and budget), `budget`, `retries`, `compact`, `review`, `day`, `estimate`, `checks`, `doctor`, `gates`, `hooks`, `codegen` |
 | `notify.json` | `/tp:notify setup` | no — per install | the chat tool and the channel one line per stop goes to; without it notifications are a silent no-op |
+| `settings.json` | you; `/tp:setup` writes only the deny rules | yes — the team's | the plugin enabled at project scope, and one `Skill(skill:tp:<name>)` deny rule per skill that is off. Those rules are the only part `/tp:setup` writes, and it owns only rules of exactly that shape: every other key and rule is yours. `/tp:doctor` flags a rule that no longer matches `pipeline.json`; `setup.mjs sync` regenerates them |
 | `settings.local.json` (or your runtime's settings) | you, from the list `/tp:setup` prints; `model` by `/tp:setup` when you accept its offer | no | the permission allowlist — the commands the skills may run without asking — and the `model` a session in this project starts on (§ Models and budget, The ceiling) |
 | `office.json` | you, optional | no | the office's team name, the projects always drawn, the name pools (§ Observability) |
 | `tracker.json` | you, only for a dry run | no | `{ "kind": "fixture", "path": "<abs>" }` — points the skills at the file-backed tracker instead of a real one (§ Simulation) |
@@ -465,8 +466,11 @@ each rule below to the branch it decides, if a picture is the faster way in.
   `fixture://<id>`.
 - **Active skills** — `<.claude>/pipeline.json` (`/tp:setup`; absent = everything on)
   says which skills this project uses; a skill that is off is not run — the plugin
-  stays whole, because every project that enables it shares it. What depends on it
-  adapts, and this is the one place it is said: the state script leaves the stage of an off `tp:merge`,
+  stays whole, because every project that enables it shares it. Three things read that
+  one file: the state script skips the stage of an off skill, a generated deny rule
+  (`Skill(skill:tp:<name>)`, in `<.claude>/settings.json`) stops the model from invoking
+  it, and the plugin's `off-skill` hook stops the person from typing it (a deny rule
+  does not). What depends on it adapts, and this is the one place it is said: the state script leaves the stage of an off `tp:merge`,
   `tp:release` or `tp:accept` out of a ticket's expected stages, so `next` skips it and a
   run ends at the last active stage (`/tp:run-ticket`'s close-out then removes the
   worktrees); `/tp:merge` without `/tp:review` stops for a person's review (its hand-off,
@@ -1433,6 +1437,14 @@ stops the same way unless a standing instruction says to spend it.
   so `foo` matches `foo-bar`, and a `--include` glob needs quoting under zsh. Where a
   number does earn its place, it carries the command that produced it.
 - "Delivered" means a check proved it — a gate, a test, a request, a query.
+- **The plugin's hooks** (`hooks/hooks.json`) are the rules that must hold every time,
+  moved out of the model: each runs `hooks/run.mjs <handler>` in exec form, decides from
+  files and the payload alone — never from a model — and is silent in a project the
+  pipeline is not configured for. A hook that crashes lets the action through with a note
+  on stderr (a hook must never break a session); only a handler's own `block` or `deny`
+  stops anything. A skill's text states a rule once and says which hook enforces it; it
+  does not ask the agent to remember it. Today: `off-skill` (a typed `/tp:<skill>` that
+  `pipeline.json` turned off is refused before the model sees it, at no token cost).
 
 ### Unattended runs
 

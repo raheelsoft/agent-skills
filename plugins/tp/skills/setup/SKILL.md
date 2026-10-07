@@ -114,8 +114,11 @@ an uncommitted change for the person to commit (or to take through a ticket), an
 
 ### 4. Apply
 `node <lib>/setup.mjs apply <.claude> '{ "skills": [<the selection>],
-"by": "setup" }'` — `pipeline.json` written; the result names what was added for a dependency.
-Then, in this order:
+"by": "setup" }'` — `pipeline.json` written, and with it the deny rules for the skills that are off in
+`<.claude>/settings.json` (it owns only `Skill(skill:tp:<name>)`; every other key and rule
+stays); the result names what was added for a dependency and which rules changed. An
+unreadable `settings.json` stops it before anything is written. `node <lib>/setup.mjs sync
+<.claude>` regenerates the rules from the current `pipeline.json`. Then, in this order:
 1. **The allowlist** — print the permission lines the selection needs (README
    § Install, step 2): the scripts, `git` and `node --test` always; the hosting CLI's
    `pr`/`run`/`api` when `tp:create-pr`, `tp:merge`, `tp:review` or `tp:release` is on; the

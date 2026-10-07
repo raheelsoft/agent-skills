@@ -8,14 +8,20 @@
 //
 //   node setup.mjs list <.claude>                       -> { groups: [{ name, why, skills: [{ name, command, description, requires, default, on }] }], pipeline }
 //   node setup.mjs check <.claude> '{ "skills": [..] }' -> { skills: [the closure], added: [{ name, for }], off: [..] }; exit 1 on an unknown name
-//   node setup.mjs apply <.claude> '{ "skills": [..], "by"? }' -> writes pipeline.json; returns { on, off, added, pipeline }
-//   node setup.mjs status <.claude>                     -> { pipeline, on, off, problems: [..] } (a dependency that is off, a name nobody knows)
+//   node setup.mjs apply <.claude> '{ "skills": [..], "by"? }' -> writes pipeline.json and the deny rules for the skills that are off into
+//                                                          <.claude>/settings.json; returns { on, off, added, pipeline, settings: { file, added, removed } }
+//   node setup.mjs sync <.claude>                       -> regenerates those deny rules from the current pipeline.json (what a person edited by hand)
+//   node setup.mjs status <.claude>                     -> { pipeline, on, off, problems: [..], drift: { missing, stale } } — a dependency that is off, a
+//                                                          name nobody knows; a deny rule missing or left over; exit 1 on either
 //   node setup.mjs stages <.claude>                     -> { off: [stage names the state script leaves out] }   (release, accept, merge when off)
 //   node setup.mjs migrate <.claude> [--fix]            -> { copy, pipeline, permissions, nothingLeft }: what is left of a copy of the pipeline kept in the
 //                                                          project's own .claude (folders to remove, `tp-` keys in pipeline.json, allow rules naming the copy);
 //                                                          exit 1 while something is left. --fix rewrites pipeline.json's keys; nothing is ever deleted
 //
 // pipeline.json: { "skills": { "<name>": true|false … }, "setAt": "<iso>", "by": "setup"|"<who>" }
+// Enforcement has three readers of that one file: the state script (a stage whose skill is off is skipped), the deny rules this script generates
+// (the model cannot invoke an off skill) and the plugin's off-skill hook (the person cannot type one). The rules are the only generated part:
+// `Skill(skill:tp:<name>)` for a catalogue skill is this script's, every other rule and key in settings.json is the project's and is left as it is.
 // No dependencies.
 
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, renameSync, realpathSync } from 'node:fs';
@@ -120,11 +126,12 @@ export function check(input) {
 
 export function apply(claudeDir, input) {
   const r = check(input);
+  loadSettings(claudeDir); // an unreadable settings.json stops everything before anything is written
   const file = pipelineFile(claudeDir);
   const pipeline = { skills: Object.fromEntries(Object.keys(CATALOGUE).map((n) => [n, r.skills.includes(n)])), setAt: nowIso(), by: input?.by || 'setup' };
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(`${file}.tmp`, JSON.stringify(pipeline, null, 2) + '\n'); renameSync(`${file}.tmp`, file);
-  return { on: r.skills, off: r.off, added: r.added, pipeline };
+  return { on: r.skills, off: r.off, added: r.added, pipeline, settings: sync(claudeDir) };
 }
 
 export function status(claudeDir) {
@@ -135,7 +142,43 @@ export function status(claudeDir) {
   for (const n of on) for (const r of CATALOGUE[n].requires) if (!on.includes(r)) problems.push(`${n} needs ${r}, which is off`);
   if (pipeline) for (const n of Object.keys(pipeline.skills)) if (!CATALOGUE[n] && !ALWAYS.includes(n)) problems.push(`pipeline.json names ${n}, which is not a skill of this plugin`);
   for (const n of [...Object.keys(CATALOGUE), ...ALWAYS]) if (!isDir(skillDir(n))) problems.push(`the plugin has no skills/${n}/ — it is incomplete`);
-  return { pipeline, on, off, problems };
+  const { missing, stale } = enforcement(claudeDir);
+  return { pipeline, on, off, problems, drift: { missing, stale } };
+}
+
+// ---- enforcement: the deny rules generated from pipeline.json ----------------------------------------------------------
+/** The rule that stops the model from invoking a skill that is off; this script owns every rule of exactly this shape for a catalogue skill. */
+export const denyRule = (name) => `Skill(skill:${NS}${name})`;
+const OWNED = new RegExp(`^Skill\\(skill:${NS}(?:${Object.keys(CATALOGUE).join('|')})\\)$`);
+const settingsFile = (claudeDir) => join(resolve(String(claudeDir)), 'settings.json');
+function loadSettings(claudeDir) {
+  const file = settingsFile(claudeDir);
+  if (!existsSync(file)) return {};
+  try { return JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Error(`${file} is not valid JSON — fix it first; nothing was changed`); }
+}
+const denied = (settings) => (Array.isArray(settings?.permissions?.deny) ? settings.permissions.deny.map(String) : []);
+
+/** The deny rules pipeline.json calls for, the ones settings.json has, and the difference. */
+export function enforcement(claudeDir) {
+  const pipeline = readPipeline(claudeDir);
+  const expected = Object.keys(CATALOGUE).filter((n) => !isOn(pipeline, n)).map(denyRule);
+  const present = denied(readJson(settingsFile(claudeDir))).filter((r) => OWNED.test(r));
+  return { file: settingsFile(claudeDir), expected, missing: expected.filter((r) => !present.includes(r)), stale: present.filter((r) => !expected.includes(r)) };
+}
+
+/** Writes the generated deny rules into <.claude>/settings.json — every other key and rule stays as it is — and says what changed. */
+export function sync(claudeDir) {
+  const settings = loadSettings(claudeDir);
+  const { file, expected, missing, stale } = enforcement(claudeDir);
+  if (!missing.length && !stale.length) return { file, added: [], removed: [] };
+  const deny = denied(settings).filter((r) => !OWNED.test(r)).concat(expected);
+  const permissions = { ...(settings.permissions || {}) };
+  if (deny.length) permissions.deny = deny; else delete permissions.deny;
+  const next = { ...settings, permissions };
+  if (!Object.keys(permissions).length) delete next.permissions;
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(`${file}.tmp`, JSON.stringify(next, null, 2) + '\n'); renameSync(`${file}.tmp`, file);
+  return { file, added: missing, removed: stale };
 }
 
 /** The stages the state script leaves out: one per off skill that owns a stage. */
@@ -178,14 +221,15 @@ if (isMain(import.meta.url)) {
   const out = (o) => console.log(JSON.stringify(o, null, 2));
   const arg = () => (rest[0] ? JSON.parse(rest[0]) : {});
   try {
-    if (!target) throw new Error('usage: setup.mjs list|check|apply|status|stages|migrate <.claude> [json]');
+    if (!target) throw new Error('usage: setup.mjs list|check|apply|sync|status|stages|migrate <.claude> [json]');
     if (cmd === 'list') out(list(target));
     else if (cmd === 'check') out(check(arg()));
     else if (cmd === 'apply') out(apply(target, arg()));
-    else if (cmd === 'status') { const s = status(target); out(s); process.exit(s.problems.length ? 1 : 0); }
+    else if (cmd === 'sync') out(sync(target));
+    else if (cmd === 'status') { const s = status(target); out(s); process.exit(s.problems.length || s.drift.missing.length || s.drift.stale.length ? 1 : 0); }
     else if (cmd === 'stages') out({ off: offStages(target) });
     else if (cmd === 'migrate') { const m = migrate(target, { fix: rest.includes('--fix') }); out(m); process.exit(m.nothingLeft ? 0 : 1); }
-    else throw new Error('usage: setup.mjs list|check|apply|status|stages|migrate <.claude> [json]');
+    else throw new Error('usage: setup.mjs list|check|apply|sync|status|stages|migrate <.claude> [json]');
   } catch (e) {
     console.error(String(e.message || e));
     process.exit(e.unknown ? 1 : 2);

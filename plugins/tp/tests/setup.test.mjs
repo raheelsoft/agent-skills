@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmp, rm, PLUGIN_ROOT, writeJson, pickedUp, append, ARTEFACTS, state, script } from './helpers.mjs';
-import { GROUPS, CATALOGUE, NS, slash, normalize, modern } from '../lib/setup.mjs';
+import { GROUPS, CATALOGUE, NS, slash, normalize, modern, denyRule } from '../lib/setup.mjs';
 
 const SETUP = script('setup.mjs');
 const setup = (...args) => { const r = spawnSync(process.execPath, [SETUP, ...args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a)))], { encoding: 'utf8' }); let json = null; try { json = JSON.parse(r.stdout); } catch { /* no JSON */ } return { code: r.status, json, err: r.stderr }; };
@@ -73,7 +73,7 @@ describe('setup.mjs — apply, status, and what the pipeline does with an off sk
     assert.equal(r.code, 0, r.err);
     assert.deepEqual(r.json.off.sort(), ['accept', 'create-ticket', 'eod', 'inbox', 'notify', 'plan-day', 'release', 'retro', 'schedule'].sort());
     assert.equal(r.json.moved, undefined, 'the skills are the plugin\'s: nothing is moved');
-    assert.deepEqual(readdirSync(claude).sort(), ['pipeline.json', 'work'], 'the project gained pipeline.json and nothing else');
+    assert.deepEqual(readdirSync(claude).sort(), ['pipeline.json', 'settings.json', 'work'], 'the project gained pipeline.json and the settings.json its deny rules live in — no skill folder');
     const pipeline = JSON.parse(readFileSync(join(claude, 'pipeline.json'), 'utf8'));
     assert.deepEqual([pipeline.skills.merge, pipeline.skills.release, pipeline.by], [true, false, 'test']);
     assert.equal(Object.keys(pipeline.skills).length, 20, 'every catalogue skill is listed explicitly');
@@ -206,5 +206,69 @@ describe('setup — moving from a project-local copy', () => {
     mkdirSync(join(claude, 'tests'), { recursive: true }); writeFileSync(join(claude, 'tests', 'my.test.mjs'), 'x');
     mkdirSync(join(claude, 'office'), { recursive: true }); writeFileSync(join(claude, 'office', 'notes.md'), 'x');
     assert.equal(setup('migrate', claude).json.nothingLeft, true);
+  });
+});
+
+describe('setup — the deny rules generated from pipeline.json', () => {
+  const rules = (claude) => (JSON.parse(readFileSync(join(claude, 'settings.json'), 'utf8')).permissions?.deny || []);
+
+  it('a rule is Skill(skill:tp:<name>); apply writes one per skill that is off and keeps everything the project wrote', (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    const claude = project(root);
+    assert.equal(denyRule('merge'), 'Skill(skill:tp:merge)');
+    writeJson(claude, 'settings.json', { enabledPlugins: { 'tp@agent-skills': true }, permissions: { allow: ['Bash(git status*)'], deny: ['Bash(rm -rf *)', 'Skill(skill:other:merge)'] } });
+    const r = setup('apply', claude, { skills: ['run-ticket', 'merge', 'status', 'doctor'] });
+    assert.equal(r.code, 0, r.err);
+    assert.deepEqual(r.json.settings.added.sort(), r.json.off.map(denyRule).sort());
+    const s = JSON.parse(readFileSync(join(claude, 'settings.json'), 'utf8'));
+    assert.deepEqual(s.enabledPlugins, { 'tp@agent-skills': true }, 'the project\'s own keys stay');
+    assert.deepEqual(s.permissions.allow, ['Bash(git status*)']);
+    assert.ok(s.permissions.deny.includes('Bash(rm -rf *)') && s.permissions.deny.includes('Skill(skill:other:merge)'), 'foreign rules, even another plugin\'s merge, stay');
+    assert.ok(s.permissions.deny.includes('Skill(skill:tp:release)') && !s.permissions.deny.includes('Skill(skill:tp:merge)'));
+  });
+
+  it('applies idempotently, and switching a skill on removes its rule — and the empty permissions it leaves', (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    const claude = project(root);
+    const first = setup('apply', claude, { skills: ['run-ticket', 'status'] });
+    assert.equal(first.json.settings.added.length, 12, 'run-ticket pulls in six more skills, status makes eight on: twelve are off');
+    assert.deepEqual(setup('apply', claude, { skills: ['run-ticket', 'status'] }).json.settings, { file: join(claude, 'settings.json'), added: [], removed: [] }, 'nothing to change the second time');
+    const all = setup('apply', claude, { skills: Object.keys(CATALOGUE) });
+    assert.deepEqual(all.json.settings.removed.sort(), first.json.settings.added.sort(), 'every rule the first apply wrote is removed, and no other');
+    assert.deepEqual(readFileSync(join(claude, 'settings.json'), 'utf8').trim(), '{}', 'with nothing left to deny, the file the script created holds nothing');
+  });
+
+  it('refuses a settings.json it cannot read before it writes anything', (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    const claude = project(root);
+    writeFileSync(join(claude, 'settings.json'), '{ nope');
+    const r = setup('apply', claude, { skills: ['run-ticket'] });
+    assert.equal(r.code, 2);
+    assert.match(r.err, /settings\.json is not valid JSON — fix it first; nothing was changed/);
+    assert.ok(!existsSync(join(claude, 'pipeline.json')), 'pipeline.json was not written either');
+    assert.equal(readFileSync(join(claude, 'settings.json'), 'utf8'), '{ nope');
+  });
+
+  it('status reports a rule that is missing or left over, and sync repairs it from pipeline.json', (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    const claude = project(root);
+    setup('apply', claude, { skills: ['run-ticket', 'merge', 'status'] });
+    assert.deepEqual(setup('status', claude).json.drift, { missing: [], stale: [] });
+    const s = JSON.parse(readFileSync(join(claude, 'settings.json'), 'utf8'));
+    s.permissions.deny = s.permissions.deny.filter((r) => r !== 'Skill(skill:tp:release)').concat('Skill(skill:tp:merge)', 'Skill(skill:mine:x)');
+    writeJson(claude, 'settings.json', s);
+    const st = setup('status', claude);
+    assert.equal(st.code, 1);
+    assert.deepEqual(st.json.drift, { missing: ['Skill(skill:tp:release)'], stale: ['Skill(skill:tp:merge)'] });
+    const fixed = setup('sync', claude);
+    assert.deepEqual([fixed.json.added, fixed.json.removed], [['Skill(skill:tp:release)'], ['Skill(skill:tp:merge)']]);
+    assert.ok(rules(claude).includes('Skill(skill:mine:x)'), 'a rule that is not this script\'s is never touched');
+    assert.equal(setup('status', claude).code, 0);
+  });
+
+  it('a project with no pipeline.json and no settings.json has nothing to deny and nothing to drift', (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    const st = setup('status', project(root));
+    assert.deepEqual([st.code, st.json.drift], [0, { missing: [], stale: [] }]);
   });
 });

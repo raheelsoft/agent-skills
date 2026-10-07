@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "UserPromptExpansion": [
+      {
+        "matcher": "^tp:",
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs", "off-skill"], "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}

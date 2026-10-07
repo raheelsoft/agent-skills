@@ -148,6 +148,21 @@ describe('doctor.mjs', () => {
     assert.match(r.stderr, /is not a folder — it is the project's \.claude/);
   });
 
+  it('warns when the deny rules do not match pipeline.json, and says so when they do', () => {
+    const r7 = tmp('doctor-'); const c7 = install(r7);
+    assert.equal(byName(doctor('run', c7).json, 'skill enforcement').status, 'ok', 'every skill on: nothing to deny');
+    writeJson(c7, 'pipeline.json', { skills: { merge: false }, setAt: 'x', by: 'hand' }); // off in the record, no rule yet
+    let e = byName(doctor('run', c7).json, 'skill enforcement');
+    assert.equal(e.status, 'warn');
+    assert.match(e.detail, /1 deny rule\(s\) missing, 0 left over in settings\.json/);
+    assert.match(e.fix, /setup\.mjs sync/);
+    assert.equal(spawnSync(process.execPath, [script('setup.mjs'), 'sync', c7], { encoding: 'utf8' }).status, 0);
+    e = byName(doctor('run', c7).json, 'skill enforcement');
+    assert.equal(e.status, 'ok');
+    assert.match(e.detail, /1 off skill\(s\) denied to the model/);
+    rm(r7);
+  });
+
   it('warns while a copy of the pipeline is still in the project\'s .claude, and says so when none is', () => {
     const r6 = tmp('doctor-'); const c6 = install(r6);
     assert.equal(byName(doctor('run', c6).json, 'project copy').status, 'ok');

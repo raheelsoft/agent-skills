@@ -24,7 +24,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSy
 import { spawnSync } from 'node:child_process';
 import { join, dirname, resolve, basename, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { status as skillsStatus, migrate as projectCopy } from './setup.mjs';
+import { status as skillsStatus, migrate as projectCopy, enforcement as skillEnforcement } from './setup.mjs';
 import { cover as hookCover } from './hooks.mjs';
 import { ceilingStatus } from './model.mjs';
 import { status as codegenStatus } from './codegen.mjs';
@@ -252,6 +252,12 @@ export function run(claudeDir, opts = {}) {
     if (sk.problems.length) add('skills', 'fail', sk.problems.join('; '), '/tp:setup repairs the selection (or edit pipeline.json: a skill that is on needs the skills it requires)');
     else add('skills', 'ok', sk.pipeline ? `${sk.on.length} on, ${sk.off.length} off (${sk.pipeline.setAt})` : `every skill on (no pipeline.json — /tp:setup picks a selection)`);
   } catch (e) { add('skills', 'warn', `setup.mjs could not read the skills: ${firstLine(e.message)}`); }
+  // an off skill is denied to the model by a generated rule and refused when typed by the plugin's hook: the rules must match pipeline.json
+  try {
+    const e = skillEnforcement(claudeDir);
+    if (e.missing.length || e.stale.length) add('skill enforcement', 'warn', `${e.missing.length} deny rule(s) missing, ${e.stale.length} left over in ${basename(e.file)}`, `node ${LIB}/setup.mjs sync ${claudeDir} regenerates them from pipeline.json`);
+    else add('skill enforcement', 'ok', e.expected.length ? `${e.expected.length} off skill(s) denied to the model; the plugin's hook refuses them when typed` : 'every skill is on: nothing to deny');
+  } catch (e) { add('skill enforcement', 'warn', `setup.mjs could not read the deny rules: ${firstLine(e.message)}`); }
   // a copy of the pipeline kept in the project's own .claude is what the plugin replaces: both loaded is two sets of the same skills
   try {
     const m = projectCopy(claudeDir);
