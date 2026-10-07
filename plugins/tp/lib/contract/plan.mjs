@@ -5,7 +5,7 @@
 //
 // parsePlan(text)               -> the plan as data: header, sections, steps (files, fields, commit), criteria, open questions, citations
 // lintPlan(plan, ctx)           -> { ok, findings: [{ severity, step, text, source: 'lint', rule }], stats, skipped }
-//   ctx: { ticket?, planJson?, repos?: [{ name, worktree, path }], projectRoot?, fs?: true }  — without a worktree the file rules are skipped, and named in `skipped`
+//   ctx: { ticket?, planJson?, research?, repos?: [{ name, worktree, path }], projectRoot?, fs?: true }  — without a worktree the file rules are skipped, and named in `skipped`
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
@@ -284,7 +284,17 @@ export function lintPlan(plan, ctx = {}) {
   });
   for (const x of leftovers.slice(0, 5)) block('—', 'placeholders', `line ${x.line}: ${x.what}`);
 
-  // 7. files and citations against the worktrees
+  // 7. the research the plan leans on: a finding cited (RS1, RS2 …) must exist; findings nobody cites are worth a line
+  if (ctx.research && Array.isArray(ctx.research.findings)) {
+    const ids = new Set(ctx.research.findings.map((f) => f.id));
+    const text = plan.rawLines.filter((l, i) => !plan.fenced[i]).map(withoutCode).join('\n');
+    const cited = [...new Set([...text.matchAll(/\bRS([1-9]\d*)\b/g)].map((m) => `RS${m[1]}`))];
+    const missing = cited.filter((c) => !ids.has(c));
+    if (missing.length) block('—', 'research', `the plan cites ${missing.join(', ')}, but research.json has ${ids.size ? [...ids].join(', ') : 'no findings'}`);
+    else if (ids.size && !cited.length) add('advisory', '—', 'research', `research.json has ${ids.size} finding(s) and the plan cites none (RS1 …): say which step rests on which`);
+  }
+
+  // 8. files and citations against the worktrees
   if (!usable) { skipped.push('files', 'citations'); } else {
     const exists = (rel) => candidates(rel, { ...ctx, repos }).some((p) => isFile(p) || isDir(p)) || bySuffix(rel, { repos }).length > 0;
     const newHere = new Set(plan.steps.flatMap((s) => (s.files || []).filter((f) => f.kind === 'new').map((f) => f.path)));
@@ -342,5 +352,5 @@ export function lintWorkdir(workdir, { fs = true } = {}) {
   // a worktree recorded relative is read against the project folder, then <.claude>, then the work directory — the first that exists (state/util.mjs recordedPath)
   const place = (p) => (!p || isAbsolute(p) ? p || null : [projectRoot, claudeDir, workdir].map((b) => resolve(b, p)).find(isDir) || null);
   const repos = (ticket?.repos || []).map((r) => ({ name: r.name, worktree: place(r.worktree), path: r.path, discarded: r.discarded }));
-  return lintPlan(parsePlan(readFileSync(planFile, 'utf8')), { ticket, planJson: read('plan.json'), repos, projectRoot, fs });
+  return lintPlan(parsePlan(readFileSync(planFile, 'utf8')), { ticket, planJson: read('plan.json'), research: read('research.json'), repos, projectRoot, fs });
 }

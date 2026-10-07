@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "questions": ["How does the repository paginate list endpoints today?", "Does the ORM's cursor pagination support a composite key?"],
+  "precedent": "src/routes/orders/orders.service.ts:40-72 paginates with offset and limit; no cursor pagination exists yet.",
+  "findings": [
+    {
+      "id": "RS1",
+      "claim": "List endpoints take `take`/`skip` and cap `take` at 100 in a shared DTO.",
+      "confidence": "high",
+      "sources": [{ "kind": "code", "ref": "src/shared/dto/pagination.dto.ts:5-18", "quote": "@Max(100) take" }]
+    },
+    {
+      "id": "RS2",
+      "claim": "The ORM supports cursor pagination on a composite unique key through `cursor` with the compound key's name.",
+      "confidence": "medium",
+      "sources": [{ "kind": "doc", "ref": "https://docs.example-orm.dev/pagination#cursor", "quote": "cursor: { id_createdAt: { id, createdAt } }" }]
+    }
+  ],
+  "unknowns": ["Whether the compound key's name is generated the same way in this repository's ORM version."],
+  "confidence": "medium"
+}

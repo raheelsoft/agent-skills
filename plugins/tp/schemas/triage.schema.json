@@ -4,17 +4,93 @@
   "title": "triage.json",
   "description": "What triage decided, with its evidence. The state script derives the wait for the person from decision and questions.",
   "type": "object",
-  "required": ["decision", "confidence", "override", "flags", "questions", "complexity"],
+  "required": [
+    "decision",
+    "confidence",
+    "override",
+    "flags",
+    "questions",
+    "complexity"
+  ],
   "properties": {
-    "schemaVersion": { "type": "integer", "minimum": 1 },
-    "decision": { "enum": ["direct", "plan", "needs-input", "close", "blocked"] },
-    "confidence": { "enum": ["high", "medium", "low"] },
-    "override": { "type": ["string", "null"], "description": "The person's override of the decision, with its timestamp, or null." },
-    "flags": { "type": "array", "items": { "type": "string" } },
-    "questions": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/question" } },
-    "blockedBy": { "type": "array", "items": { "type": "string" }, "description": "blocked: the tickets that must land first." },
-    "complexity": { "$ref": "common.schema.json#/$defs/rating" },
-    "estimate": { "$ref": "common.schema.json#/$defs/estimate" },
-    "why": { "type": ["string", "null"], "description": "close: what delivers or supersedes the ticket; blocked: what must land first." }
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "decision": {
+      "enum": [
+        "direct",
+        "plan",
+        "needs-input",
+        "close",
+        "blocked"
+      ]
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "override": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The person's override of the decision, with its timestamp, or null."
+    },
+    "flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/question"
+      }
+    },
+    "blockedBy": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "blocked: the tickets that must land first."
+    },
+    "complexity": {
+      "$ref": "common.schema.json#/$defs/rating"
+    },
+    "estimate": {
+      "$ref": "common.schema.json#/$defs/estimate"
+    },
+    "why": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "close: what delivers or supersedes the ticket; blocked: what must land first."
+    },
+    "research": {
+      "type": "object",
+      "required": [
+        "needed"
+      ],
+      "properties": {
+        "needed": {
+          "type": "boolean"
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "What the researcher should find out: no precedent in the codebase, or a technical question the documentation can settle."
+        }
+      },
+      "description": "Whether the plan needs research first (the plan stage runs the researcher when needed is true)."
+    }
   }
 }

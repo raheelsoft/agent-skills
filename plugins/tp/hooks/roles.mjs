@@ -12,6 +12,7 @@ import { real, within, workRoot } from './shared.mjs';
 export const ROLES = {
   'tp:plan-checker': { label: 'plan checker', writes: [/^[^/]+\/(plan-check\.json|checkpoint\.plan-check\.md)$/], says: 'plan-check.json (through state.mjs put) and its checkpoint', worktree: false },
   'tp:diff-validator': { label: 'diff validator', writes: [/^[^/]+\/(diff-validation\.md|checkpoint\.create-pr[\w.-]*\.md)$/], says: 'diff-validation.md and its checkpoint', worktree: false },
+  'tp:researcher': { label: 'researcher', writes: [/^[^/]+\/(research\.json|checkpoint\.research\.md)$/], says: 'research.json (through state.mjs put) and its checkpoint', worktree: false },
   'tp:reviewer': { label: 'reviewer', writes: [/^_scratch\//], says: 'under work/_scratch/ (its review, its checkpoint, a checkout of its own)', worktree: true },
 };
 

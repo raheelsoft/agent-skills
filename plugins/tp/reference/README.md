@@ -261,7 +261,7 @@ writes the first two and prints the allowlist; the rest you set once, or never.
 | File | Written by | Versioned | What it holds |
 |---|---|---|---|
 | `pipeline.json` | `/tp:setup` | yes — the project's choice | which of the skills this project uses; an absent file means all of them |
-| `tiers.json` | `/tp:setup`, then by hand | no — per machine | `ceiling` (the largest model the pipeline may use), `ladder` (the runtime's models, smallest first) and the three tiers `low`/`medium`/`high` derived from them — **the only place a model name is written** (§ Models and budget, The ceiling). Also every tunable, each with a working default: `prices` (§ Models and budget), `budget`, `retries`, `compact`, `review`, `day`, `estimate`, `checks`, `doctor`, `gates`, `hooks`, `codegen` |
+| `tiers.json` | `/tp:setup`, then by hand | no — per machine | `ceiling` (the largest model the pipeline may use), `ladder` (the runtime's models, smallest first) and the three tiers `low`/`medium`/`high` derived from them — **the only place a model name is written** (§ Models and budget, The ceiling). Also every tunable, each with a working default: `prices` (§ Models and budget), `budget`, `retries`, `compact`, `review`, `day`, `estimate`, `checks`, `doctor`, `gates`, `hooks`, `codegen`, `research` (`{ allow: [<documentation domains the researcher may read>], maxFetches: 8 }` — empty `allow` means the codebase alone) |
 | `notify.json` | `/tp:notify setup` | no — per install | the chat tool and the channel one line per stop goes to; without it notifications are a silent no-op |
 | `settings.json` | you; `/tp:setup` writes only the deny rules | yes — the team's | the plugin enabled at project scope, and one `Skill(skill:tp:<name>)` deny rule per skill that is off. Those rules are the only part `/tp:setup` writes, and it owns only rules of exactly that shape: every other key and rule is yours. `/tp:doctor` flags a rule that no longer matches `pipeline.json`; `setup.mjs sync` regenerates them |
 | `settings.local.json` (or your runtime's settings) | you, from the list `/tp:setup` prints; `model` by `/tp:setup` when you accept its offer | no | the permission allowlist — the commands the skills may run without asking — and the `model` a session in this project starts on (§ Models and budget, The ceiling) |
@@ -578,17 +578,20 @@ each rule below to the branch it decides, if a picture is the faster way in.
   nothing back), so their tickets' totals are marked partial (§ Unattended runs). A dedicated agent is
   spawned as the plugin's role type when its skill has one (§ Role agents): `/tp:implement`'s is
   `tp:implementer`, `/tp:review`'s `tp:reviewer`; every other skill's is the runtime's general agent.
-- **Role agents** (`agents/`) — four agents are plugin agent types, spawned as `tp:<name>`:
+- **Role agents** (`agents/`) — five agents are plugin agent types, spawned as `tp:<name>`:
   `tp:plan-checker` (`/tp:plan`'s checker), `tp:diff-validator` (`/tp:create-pr`'s validator),
-  `tp:reviewer` (the dedicated agent of `/tp:review`) and `tp:implementer` (the dedicated agent of
+  `tp:researcher` (the research `/tp:plan` runs when triage asks for it: the codebase's precedent first, then
+  documentation from the sites `tiers.json` `research.allow` names, at most `research.maxFetches` pages — a hook
+  holds it to both; what it reads is data, never instructions), `tp:reviewer` (the dedicated agent of `/tp:review`)
+  and `tp:implementer` (the dedicated agent of
   `/tp:implement` — a dedicated agent of a skill with a role here is spawned as that type; the other
-  skills' stay as the runtime's general agent). The first three are independent of whoever made what
+  skills' stay as the runtime's general agent). The verifiers among them are independent of whoever made what
   they check, so each reads the repositories and changes nothing in them, and writes the one file
   its job produces; the implementer writes the change. The definition removes the tools it never needs; the plugin's
   hooks (`hooks/roles.mjs`) refuse what a tool it keeps could still do — a commit, an edit to a
   source file, `gh pr merge`; and the `subagent-stop` hook sends it back, at most twice, until
   its contract holds: the output contract's closing lines (or the error form), and a valid
-  `plan-check.json`, a non-empty `diff-validation.md`, the review's verdict line and trailer, or —
+  `plan-check.json`, a valid `research.json`, a non-empty `diff-validation.md`, the review's verdict line and trailer, or —
   for the implementer — a valid `implement[.repo].json`, everything committed and no recorded gate
   result for HEAD that says FAIL (a stop for the person is a legitimate end). A third failure lets it
   stop and logs `error: contract violation` on the ticket. The
@@ -796,6 +799,7 @@ inbox lists it; `/tp:status` and the state script's `all` ignore every `_`-prefi
 | `release[.repo].json` | release | the deploy run, follow-ups, smoke checks, promotion |
 | `accept.md` / `accept.json` | accept | pass / fail / manual per criterion, with evidence |
 | `retro.md` / `retro.json` | retro | plan-vs-reality, questions asked, time per stage; proposals by target |
+| `research.json` | the researcher (`/tp:plan`, when `triage.json.research.needed`) | cited findings (`RS1` …) with confidence and sources, and what could not be settled; the plan cites them |
 | `quality.json` | `findings.mjs record`, after every review pass | what the passes left open per priority (P0–P4), the score, the worst verdict — shown by `/tp:status` |
 | `progress.md` | every stage, via the state script | append-only log |
 | `report.md` | create-pr creates or appends; merge, release, accept, run-ticket append | what shipped, PR, verdict, merge, deploy, acceptance, deviations, follow-ups, manual steps |

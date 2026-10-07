@@ -81,6 +81,16 @@ describe('role policy — what a verifier may write', () => {
     assert.equal(denied(await bash(p, 'tp:plan-checker', `echo x > ${scratch}/co/src.ts`)), true, 'tmp, but inside a checkout');
   });
 
+  it('the researcher writes research.json (through put) and its checkpoint, and nothing else', async (t) => {
+    const p = project(t); const R = 'tp:researcher';
+    assert.equal(denied(await bash(p, R, `node ${LIB}/state.mjs put ${p.wd} research --from /tmp/r.json`)), false);
+    assert.equal(denied(await write(p, R, join(p.wd, 'checkpoint.research.md'))), false);
+    assert.equal(denied(await write(p, R, join(p.wd, 'research.json'))), true, 'research.json is put, never written');
+    for (const file of [join(p.wd, 'plan.md'), join(p.wd, 'triage.json'), join(p.wt, 'src', 'a.ts')]) assert.equal(denied(await write(p, R, file)), true, file);
+    assert.match(why(await bash(p, R, `echo x > ${p.wt}/src/a.ts`)), /the researcher writes only research\.json/);
+    assert.equal(denied(await bash(p, R, 'git commit -am x')), true);
+  });
+
   it('the diff validator writes diff-validation.md and its checkpoint', async (t) => {
     const p = project(t); const R = 'tp:diff-validator';
     assert.equal(denied(await bash(p, R, `cat > ${p.wd}/diff-validation.md`)), false);

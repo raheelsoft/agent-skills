@@ -9,6 +9,7 @@ schema here, and a script — not the model — checks it: `state.mjs put` befor
 |---|---|---|
 | `ticket.schema.json` | `ticket.json` | start-ticket; triage refines the estimate; `state.mjs blockers` and `actual` |
 | `triage.schema.json` | `triage.json` | triage |
+| `research.schema.json` | `research.json` | the researcher, when triage asked for research |
 | `plan.schema.json` | `plan.json` | plan |
 | `plan-check.schema.json` | `plan-check.json` | plan (`plan-lint.mjs` and the checker) |
 | `implement.schema.json` | `implement[.<repo>].json` | implement |

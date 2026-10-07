@@ -154,6 +154,18 @@ describe('the gate — the other roles', () => {
   });
 });
 
+describe('the gate — the researcher', () => {
+  const research = { schemaVersion: 1, questions: ['q'], precedent: null, findings: [{ id: 'RS1', claim: 'c', confidence: 'high', sources: [{ kind: 'code', ref: 'a.ts:1' }] }], unknowns: [], confidence: 'high' };
+  it('owes a valid research.json written this pass', async (t) => {
+    const b = bed(t);
+    assert.match((await b.stop('tp:researcher', CONTRACT_LINES)).reason, /research\.json is not in the work directory\. Write it with `state\.mjs put <workdir> research …`, then finish\./);
+    writeFileSync(join(b.wd, 'research.json'), JSON.stringify({ ...research, findings: [{ ...research.findings[0], sources: [] }] }));
+    assert.match((await b.stop('tp:researcher', CONTRACT_LINES, { id: 'r2' })).reason, /research\.json does not match its schema: \$\.findings\[0\]\.sources: needs at least 1 item/);
+    writeFileSync(join(b.wd, 'research.json'), JSON.stringify(research));
+    assert.equal(await b.stop('tp:researcher', CONTRACT_LINES, { id: 'r3' }), null);
+  });
+});
+
 describe('the gate — what it leaves alone', () => {
   it('other agent types, a project that never ran /tp:setup, an agent with no id', async (t) => {
     const b = bed(t);
@@ -209,7 +221,7 @@ describe('finding the work directory in a spawn prompt', () => {
 
 describe('the contracts table', () => {
   it('names exactly the plugin\'s role agents', () => {
-    assert.deepEqual(Object.keys(CONTRACTS).sort(), ['tp:diff-validator', 'tp:implementer', 'tp:plan-checker', 'tp:reviewer']);
+    assert.deepEqual(Object.keys(CONTRACTS).sort(), ['tp:diff-validator', 'tp:implementer', 'tp:plan-checker', 'tp:researcher', 'tp:reviewer']);
   });
 });
 

@@ -73,6 +73,20 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "WebFetch|WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run.mjs",
+              "fetch"
+            ],
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PreModelSwitch": [

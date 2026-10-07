@@ -165,6 +165,30 @@ describe('plan-lint — template leftovers and conversation', () => {
   });
 });
 
+describe('plan-lint — the research a plan leans on', () => {
+  const research = { questions: ['q'], findings: [{ id: 'RS1', claim: 'c', confidence: 'high', sources: [{ kind: 'code', ref: 'a.ts:1' }] }, { id: 'RS2', claim: 'c', confidence: 'low', sources: [{ kind: 'doc', ref: 'https://d/x' }] }], unknowns: [], confidence: 'medium' };
+
+  it('a finding the plan cites must exist', () => {
+    says(lint(plan({ current: 'The paging is offset-based (RS1) and cursors work on a composite key (RS3).' }), { research }), /cites RS3, but research\.json has RS1, RS2/);
+    assert.equal(lint(plan({ current: 'The paging is offset-based (RS1) and cursors work on a composite key (RS2).' }), { research }).ok, true);
+  });
+
+  it('findings nobody cites are worth an advisory, not a block', () => {
+    const r = lint(plan(), { research });
+    assert.equal(r.ok, true);
+    assert.ok(r.findings.some((f) => f.severity === 'advisory' && f.rule === 'research' && /2 finding\(s\) and the plan cites none/.test(f.text)));
+  });
+
+  it('a risk numbered R1 is not a citation, and a citation inside code is not counted', () => {
+    assert.equal(lint(plan({ risks: '- R1: the rollout order → deploy the API first' }), { research: { ...research, findings: [] } }).findings.some((f) => f.rule === 'research'), false);
+    assert.equal(lint(plan({ current: 'See `RS9` in the notes.\n```\nRS8\n```' }), { research }).findings.some((f) => f.severity === 'blocking' && f.rule === 'research'), false);
+  });
+
+  it('no research.json, no rule', () => {
+    assert.equal(lint(plan({ current: 'See RS7.' })).findings.some((f) => f.rule === 'research'), false);
+  });
+});
+
 describe('plan-lint — files and citations against the worktree', () => {
   it('passes when every edited file is there, new ones are not, and the citations are in range', (t) => {
     const { repos, root } = tree(t);

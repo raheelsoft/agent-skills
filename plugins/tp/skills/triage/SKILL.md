@@ -44,7 +44,9 @@ every criterion, rate the ticket's complexity from the same evidence
 and `triage.json` (`{ decision, confidence, override, flags, questions, blockedBy,
 complexity, why }` — `why` for `close`: what delivers or supersedes the ticket, for
 `blocked`: what must land first, with the blockers' ids in `blockedBy`; `estimate`
-is added by step 3). Independent areas may be parallel read-only lookups inside this
+is added by step 3; `research: { needed: true, questions: [...] }` when the change has no precedent in the
+codebase, or a criterion turns on a technical fact the documentation can settle — the plan stage then
+runs the researcher). Independent areas may be parallel read-only lookups inside this
 agent, sequential at the depth that cannot spawn.
 
 ### 2. Read the decision

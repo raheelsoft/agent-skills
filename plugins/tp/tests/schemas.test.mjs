@@ -116,6 +116,13 @@ const MISTAKES = {
     ['a criterion without evidence', (a) => delete a.criteria[0].evidence, '$.criteria[0].evidence: required, missing'],
     ['where: somewhere else', (a) => { a.where = 'prod'; }, '$.where: expected one of "live" | "checkout"'],
   ],
+  research: [
+    ['a finding with no source', (r) => { r.findings[0].sources = []; }, '$.findings[0].sources: needs at least 1 item'],
+    ['an id the plan cannot cite', (r) => { r.findings[0].id = 'R1'; }, '$.findings[0].id'],
+    ['no unknowns list', (r) => delete r.unknowns, '$.unknowns: required, missing'],
+    ['no questions asked', (r) => { r.questions = []; }, '$.questions: needs at least 1 item'],
+    ['a source kind that cannot be checked', (r) => { r.findings[1].sources[0].kind = 'memory'; }, '$.findings[1].sources[0].kind'],
+  ],
   quality: [
     ['a priority count missing', (q) => delete q.open.P1, '$.open.P1: required, missing'],
     ['a pass without its repo', (q) => delete q.rounds[0].repo, '$.rounds[0].repo: required, missing'],

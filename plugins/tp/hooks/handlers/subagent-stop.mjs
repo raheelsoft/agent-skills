@@ -42,6 +42,7 @@ export function workdirIn(prompt, ctx) {
   return pick.length === 1 ? pick[0] : null;
 }
 
+const fetchCount = (ctx, id) => join(workRoot(ctx), '_gates', `${String(id).replace(/[^\w.-]/g, '_')}.fetches.json`);
 const counterFile = (ctx, id) => join(workRoot(ctx), '_gates', `${String(id).replace(/[^\w.-]/g, '_')}.json`);
 
 export default function subagentStop(payload, ctx) {
@@ -59,7 +60,7 @@ export default function subagentStop(payload, ctx) {
   if (form === 'done' && (!contract.workdir || workdir)) problems.push(...contract.problems(ctx, { message, workdir, since: spawn.at, prompt: spawn.text }).filter(Boolean));
 
   const counter = counterFile(ctx, payload.agent_id);
-  if (!problems.length) { try { unlinkSync(counter); } catch { /* none to clear */ } return null; }
+  if (!problems.length) { for (const f of [counter, fetchCount(ctx, payload.agent_id)]) { try { unlinkSync(f); } catch { /* none to clear */ } } return null; }
 
   let blocks = 0;
   try { blocks = JSON.parse(readFileSync(counter, 'utf8')).blocks || 0; } catch { /* the first time */ }
@@ -69,7 +70,7 @@ export default function subagentStop(payload, ctx) {
     return { decision: 'block', reason: clip(`tp: before you stop — ${problems.join('; ')}. ${contract.how[0].toUpperCase()}${contract.how.slice(1)}, then finish.`, REASON_MAX) };
   }
   // past the bound: let it stop, and say so where a person looks
-  try { unlinkSync(counter); } catch { /* already gone */ }
+  for (const f of [counter, fetchCount(ctx, payload.agent_id)]) { try { unlinkSync(f); } catch { /* already gone */ } }
   if (workdir && contract.stage) {
     try { log(workdir, contract.stage, 'stopped', `error: contract violation — the ${payload.agent_type.replace('tp:', '')} stopped without: ${problems.join('; ')}`, ''); } catch { /* a ticket in no state to log to */ }
   }

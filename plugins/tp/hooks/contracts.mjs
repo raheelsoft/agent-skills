@@ -82,6 +82,7 @@ function implementProblems(ctx, { workdir, since, prompt }) {
 export const CONTRACTS = {
   'tp:plan-checker': { stage: 'plan-check', how: 'write it with `state.mjs put <workdir> plan-check …`', problems: (ctx, a) => [fileProblem(a.workdir, 'plan-check.json', a.since, 'plan-check')], workdir: true },
   'tp:diff-validator': { stage: 'create-pr', how: 'write the per-file table to <workdir>/diff-validation.md', problems: (ctx, a) => [fileProblem(a.workdir, 'diff-validation.md', a.since)], workdir: true },
+  'tp:researcher': { how: 'write it with `state.mjs put <workdir> research …`', problems: (ctx, a) => [fileProblem(a.workdir, 'research.json', a.since, 'research')], workdir: true },
   'tp:reviewer': { how: 'end with the review: the **Verdict:** line and the `Reviewed:` trailer', problems: (ctx, a) => [reviewProblem(a.message)] },
   'tp:implementer': { stage: 'implement', how: 'record it with `state.mjs put <workdir> implement …`, commit, and run /tp:verify', problems: implementProblems, workdir: true },
 };
