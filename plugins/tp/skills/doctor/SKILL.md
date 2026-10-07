@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: Preflight: can this install run a ticket right now — node, git, remotes, the hosting CLI, the tracker, the active skills, each repo's gate hooks and generated code, the config files, the allowlist, the work directory — each failing check with its fix.
+description: Runs the preflight: whether this install can run a ticket right now — node, git, remotes, the hosting CLI, the tracker, the active skills, each repo's gate hooks and generated code, the config files, the allowlist, the work directory, the plugin's hooks — with a fix for each failing check. Use before a run or when something fails.
 user-invocable: true
 ---
 

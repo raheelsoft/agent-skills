@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Run the project's quality gates (types, lint, build; tests on request) — skipping the ones the repo's own git hooks already enforce — as parallel background processes compared with a cached base, and report pass/fail; results are recorded per commit and reused.
+description: Runs the project's quality gates (types, lint, build; tests on request) — skipping the ones the repo's own git hooks already enforce — as parallel background processes compared with a cached base, and reports pass or fail; results are recorded per commit and reused. Use before a PR or to check a change.
 user-invocable: true
 ---
 

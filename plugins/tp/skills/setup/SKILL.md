@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Integrate the pipeline into a project — an interview that picks which skills to activate (by group, dependencies pulled in), asks for the largest model the pipeline may use and derives the three tiers from it, offers to put the project's gates in its git hooks, writes pipeline.json and tiers.json, prints the allowlist, and ends with the preflight; run it again to change the selection or the ceiling.
+description: Integrates the pipeline into a project through an interview: which skills to activate (by group, dependencies pulled in), the largest model the pipeline may use and the three tiers derived from it, the gates in git hooks; writes pipeline.json and tiers.json, prints the allowlist, ends with the preflight. Use on install, and again to change the selection or the ceiling.
 user-invocable: true
 ---
 

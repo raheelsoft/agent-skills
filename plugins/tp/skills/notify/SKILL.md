@@ -1,6 +1,6 @@
 ---
 name: notify
-description: Send one pipeline line (a stop, a finished run, an error) to the project's chat channel — silent without a chat tool; `setup` picks the tool and channel once. Runs in the invoking context.
+description: Sends one pipeline line (a stop, a finished run, an error) to the project's chat channel, silent without a chat tool; `setup` picks the tool and channel once. Use from a stage that stops, finishes or fails; it runs in the invoking context.
 user-invocable: true
 ---
 

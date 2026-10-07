@@ -1,6 +1,6 @@
 ---
 name: start-ticket
-description: Pick up a tracker ticket: blocked check, assign, move to in progress, rate and estimate, create the one worktree and branch per repo, write the ticket's work directory.
+description: Picks up a tracker ticket: blocked check, assign, move to in progress, rate and estimate, create the one worktree and branch per repo, write the ticket's work directory. Use to begin work on a ticket.
 user-invocable: true
 ---
 

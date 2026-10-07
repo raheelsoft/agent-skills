@@ -1,6 +1,6 @@
 ---
 name: release
-description: After the merge: watch the deployment or publish it triggered, run the documented operator follow-ups, smoke-check where it runs, promote to a release branch only when asked; records release.json.
+description: Watches the deployment or publish a merge triggered, runs the documented operator follow-ups, smoke-checks where it runs and promotes to a release branch only when asked; records release.json. Use after the merge.
 user-invocable: true
 ---
 

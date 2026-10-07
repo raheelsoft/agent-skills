@@ -1,6 +1,6 @@
 ---
 name: status
-description: Show where every ticket in the work directory stands — stage, rating, waits, lock, PR and verdict, time, tokens and cost, worktrees, retro, problems — computed by the state script.
+description: Shows where every ticket in the work directory stands — stage, rating, waits, lock, PR and verdict, quality, time, tokens and cost, worktrees, retro, problems — computed by the state script. Use to see the state of the work.
 user-invocable: true
 ---
 

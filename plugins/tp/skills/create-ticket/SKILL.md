@@ -1,6 +1,6 @@
 ---
 name: create-ticket
-description: Create well-formed tracker tickets from a request, a bug report, a spec excerpt or a review's pre-existing defects — duplicate check, discovery brief, criteria, labels, relations. The only skill that creates tickets.
+description: Creates well-formed tracker tickets from a request, a bug report, a spec excerpt or a review's pre-existing defects, with duplicate check, discovery brief, criteria, labels and relations. Use when a ticket must be written; it is the only skill that creates tickets.
 user-invocable: true
 ---
 

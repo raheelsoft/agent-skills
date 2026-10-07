@@ -1,6 +1,6 @@
 ---
 name: retro
-description: After acceptance, compare the plan with what happened — deviations, review findings the check missed, questions asked, time — and propose edits to the conventions file, ticket template or instructions. Proposals only.
+description: Compares the plan with what happened after acceptance — deviations, review findings the check missed, questions asked, time — and proposes edits to the conventions file, ticket template or instructions; proposals only. Use after a ticket is accepted.
 user-invocable: true
 ---
 

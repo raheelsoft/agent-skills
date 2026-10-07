@@ -1,6 +1,6 @@
 ---
 name: inbox
-description: Everything waiting on a person in one pass: every open stop with its kind, age and resume command; re-invokes what resumes by itself, re-checks blockers, hands the rest over as one interview.
+description: Gathers everything waiting on a person in one pass: each open stop with its kind, age and resume command; re-invokes what resumes by itself, re-checks blockers and hands the rest over as one interview. Use when starting work or to see what is stuck.
 user-invocable: true
 ---
 

@@ -236,7 +236,9 @@ describe('skills — the catalogue, the README and the folders agree', () => {
       assert.match(t, new RegExp(`^name: ${dir.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}$`, 'm'), `${f} names its folder`);
       const d = /^description: (.+)$/m.exec(t);
       assert.ok(d, `${f} has a description`);
-      assert.ok(d[1].length < 420, `${f}'s description is one sentence (it sits in every agent's prompt): ${d[1].length} chars`);
+      assert.ok(d[1].length < 420, `${f}'s description is short (it sits in every agent's prompt): ${d[1].length} chars`);
+      assert.match(d[1], /^[A-Z][a-z]+s\b/, `${f}'s description is in the third person (Proves, Takes, Runs …), what the skill does`);
+      assert.match(d[1], /\bUse (when|as|after|before|at|to|for|on|once|from)\b/, `${f}'s description says when to use it`);
     }
   });
 

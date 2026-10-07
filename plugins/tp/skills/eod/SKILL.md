@@ -1,6 +1,6 @@
 ---
 name: eod
-description: End-of-day report: what finished, what waits on what, estimates against minutes and actual hours, tokens and cost, carry-over and estimate drift; records the person's hours per finished ticket.
+description: Reports the end of the day: what finished, what waits on what, estimates against minutes and actual hours, tokens and cost, carry-over and estimate drift, and records the person's hours per finished ticket. Use at the end of a working day.
 user-invocable: true
 ---
 

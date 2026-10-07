@@ -1,6 +1,6 @@
 ---
 name: plan-day
-description: Plan a day's work and put it to the person first: pick tickets from the sprint or a seeded pool draw, check blockers and dependencies, estimate and schedule, present the plan for review (drop, add, keep only, reorder, lanes), then on the go-ahead start every unblocked, independent ticket in parallel through /tp:run-ticket — dependents as their prerequisites land — within the usage budget.
+description: Plans a day's work and puts it to the person first: picks tickets from the sprint or a seeded pool draw, checks blockers and dependencies, estimates and schedules, presents the plan for review, then on the go-ahead runs every unblocked independent ticket in parallel through /tp:run-ticket within the usage budget. Use at the start of a working day.
 user-invocable: true
 ---
 

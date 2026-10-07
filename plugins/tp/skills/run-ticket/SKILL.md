@@ -1,6 +1,6 @@
 ---
 name: run-ticket
-description: Run tickets end to end in one orchestrator agent per ticket — pick up, triage, plan, implement, PR, review and merge, release, accept (retro optional) — each stage in its own agent, with a run lock, one notification per stop and resumable state on disk.
+description: Runs tickets end to end in one orchestrator agent per ticket — pick up, triage, plan, implement, PR, review and merge, release, accept (retro optional) — each stage in its own agent, with a run lock, one notification per stop and resumable state on disk. Use to take a ticket from the tracker to accepted work.
 user-invocable: true
 ---
 

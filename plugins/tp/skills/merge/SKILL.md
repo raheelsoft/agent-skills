@@ -1,6 +1,6 @@
 ---
 name: merge
-description: Take an open PR through the incremental review loop (an unbiased /tp:review, fix rounds via /tp:create-pr) to a merge into the base branch when the review passes and the person's instruction allows.
+description: Takes an open PR through the incremental review loop (an unbiased /tp:review, fix rounds via /tp:create-pr) to a merge into the base branch when the review passes and the person's instruction allows. Use after create-pr.
 user-invocable: true
 ---
 

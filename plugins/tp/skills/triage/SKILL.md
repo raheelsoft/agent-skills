@@ -1,6 +1,6 @@
 ---
 name: triage
-description: Decide from evidence whether a ticket is implemented directly, planned first, needs input, is closed or is blocked — a fresh read-only agent sizes the change and records the decision with its evidence.
+description: Decides from evidence whether a ticket is implemented directly, planned first, needs input, is closed or is blocked, and whether the plan needs research: a fresh read-only agent sizes the change and records the decision with its evidence. Use after pickup.
 user-invocable: true
 ---
 

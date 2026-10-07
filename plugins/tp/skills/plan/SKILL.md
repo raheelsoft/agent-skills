@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Write a self-contained implementation plan for a ticket, have a fresh checker verify it in a bounded loop, and present the checked plan (open risks named) for the person's approval before anything is implemented.
+description: Writes a self-contained implementation plan for a ticket, has a fresh checker verify it in a bounded loop, and presents the checked plan (open risks named) for the person's approval before anything is implemented. Use when triage decided to plan.
 user-invocable: true
 ---
 

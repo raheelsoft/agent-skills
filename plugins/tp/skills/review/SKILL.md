@@ -1,6 +1,6 @@
 ---
 name: review
-description: Review a remote PR (or the local diff before pushing) in an isolated agent given only the PR and a neutral scope: gates, checklist review of the diff, incremental passes, pre-existing defects ticketed; posts the review with a trailer.
+description: Reviews a remote PR (or the local diff before pushing) in an isolated agent given only the PR and a neutral scope: gates, checklist review of the diff, incremental passes, pre-existing defects ticketed; posts the review with a trailer. Use for any PR, from the author's side or by hand.
 user-invocable: true
 ---
 

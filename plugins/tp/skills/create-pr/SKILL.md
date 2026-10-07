@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Take a feature branch to a pushed, described, gated pull request against the base branch — commit, sync, gates and diff validation, push, PR and ticket comments. The review and the merge are /tp:merge's.
+description: Takes a feature branch to a pushed, described, gated pull request against the base branch: commit, sync, gates and diff validation, push, PR and ticket comments. Use after implement; the review and the merge are /tp:merge's.
 user-invocable: true
 ---
 

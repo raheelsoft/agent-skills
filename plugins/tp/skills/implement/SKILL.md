@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Implement a ticket from its approved plan (or the triage approach for direct work) in a fresh agent: step by step with checkpoints, a commit per step, gates at the end, deviations reported.
+description: Implements a ticket from its approved plan (or the triage approach for direct work) in a fresh agent: step by step with checkpoints, a commit per step, gates at the end, deviations reported. Use once the plan is approved or triage said direct.
 user-invocable: true
 ---
 

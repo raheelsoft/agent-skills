@@ -1,6 +1,6 @@
 ---
 name: accept
-description: Prove a ticket is delivered: walk every acceptance criterion against the released environment or the merged revision, record pass/fail/manual with evidence; the run's last stage, which removes the worktrees.
+description: Proves a ticket is delivered by walking every acceptance criterion against the released environment or the merged revision and recording pass, fail or manual with evidence. Use as the run's last stage, which removes the worktrees.
 user-invocable: true
 ---
 
