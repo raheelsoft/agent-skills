@@ -719,7 +719,8 @@ each rule below to the branch it decides, if a picture is the faster way in.
   for a spawner's routing: the decision fields alone), `all`,
   `durations`, `usage` and `totals` (tokens and cost), `inbox` (every open stop),
   `answer` (queue or `--consume` an answer for a stop), `blockers` (record a re-check
-  in `ticket.json.blockedBy`), `actual` (the person's hours), `lock`/`unlock`, `agent
+  in `ticket.json.blockedBy`), `actual` (the person's hours), `put` (write a work-directory JSON after checking it against its
+  schema), `lock`/`unlock`, `agent
   join|leave`, `office`: skills log
   through it and resume from it, never by re-reading `progress.md` and reasoning) and
   `<lib>/model.mjs`
@@ -798,7 +799,7 @@ triage.json      { decision: "direct"|"plan"|"needs-input"|"close"|"blocked", co
 plan.json        { status: "ready"|"open-questions", flags: [], steps: n, openQuestions: n, complexity: "low"|"medium"|"high" }
 plan-check.json  { verdict: "ok"|"revise", round: n, override: null|"<timestamp> — <text>",
                    findings: [{ severity: "blocking"|"advisory", step, text }] }
-implement.json   { repo, done, total, commits: [], gates: { <gate>: "PASS"|"FAIL" }, deviations: n, stopped: null|{ step, question },
+implement.json   { repo, done, total, commits: [], gates: { <gate>: "PASS"|"FAIL" }, deviations: n|[ "<what and why>" ], stopped: null|{ step, question },
                    complexity: "low"|"medium"|"high"|"higher" }
 pr.json          { repo, url, number, round, reviewRounds: n, reviews: [{ round, sha, verdict, open: [ids], new: [ids] }],
                    verdict: null|"PASS"|"PASS WITH WARNINGS"|"BLOCK", merged: null|sha }
@@ -809,6 +810,13 @@ accept.json      { where: "live"|"checkout", targets: [{ repo, env, checkout }],
 retro.json       { deviations: n, reviewFindingsMissedByCheck: n, questions: n, manualCriteria: n,
                    proposals: [{ target: "conventions"|"ticket-template"|"standing"|"skill", text, evidence }] }
 ```
+
+Every one of these files has a JSON Schema in `schemas/` (`schemas/README.md`), with one valid
+example each in `schemas/examples/`. A stage writes its file through `node <lib>/state.mjs put
+<workdir> <artifact> …` — the JSON is checked first, a document that does not conform is refused
+with one line per error and nothing is written, and the file carries `schemaVersion`. `node <lib>/validate.mjs
+work <path>` checks what is already there (`/tp:doctor` runs it and reports drift as a warning:
+a ticket an earlier run left in an older shape still reads).
 
 `progress.md` grammar (the script enforces it):
 ```

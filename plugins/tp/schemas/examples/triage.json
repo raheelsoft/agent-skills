@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "decision": "plan",
+  "confidence": "high",
+  "override": null,
+  "flags": ["public-contract"],
+  "questions": [
+    "Should a zero-rated order show 0% or hide the VAT line?",
+    { "text": "Round VAT per line or on the total?", "choices": ["per line", "on the total"], "default": "on the total" }
+  ],
+  "blockedBy": [],
+  "complexity": "medium",
+  "estimate": { "source": "pipeline", "focusedHours": 3.5, "days": 0.5, "points": 3, "basis": "two files, one rule, one screen" },
+  "why": null
+}

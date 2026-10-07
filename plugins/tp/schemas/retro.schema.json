@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/retro",
+  "title": "retro.json",
+  "description": "What the ticket taught: counts of what went differently from the plan, and proposals grouped by what they would change.",
+  "type": "object",
+  "required": ["deviations", "reviewFindingsMissedByCheck", "questions", "manualCriteria", "proposals"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "deviations": { "type": "integer", "minimum": 0 },
+    "reviewFindingsMissedByCheck": { "type": "integer", "minimum": 0 },
+    "questions": { "type": "integer", "minimum": 0 },
+    "manualCriteria": { "type": "integer", "minimum": 0 },
+    "proposals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target", "text", "evidence"],
+        "properties": {
+          "target": { "enum": ["conventions", "ticket-template", "standing", "skill"] },
+          "text": { "type": "string", "minLength": 1 },
+          "evidence": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

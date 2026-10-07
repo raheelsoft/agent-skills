@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/stage-result",
+  "title": "A stage agent's result",
+  "description": "What every stage agent returns, in the unattended workflow (as agent({ schema })) and interactively (checked by a hook). The workflow carries a copy of properties and required — a test holds the two equal; the conditions under allOf are checked by lib/validate.mjs only.",
+  "type": "object",
+  "required": ["status", "summary", "data"],
+  "properties": {
+    "status": { "type": "string", "enum": ["done", "stopped", "error", "continue"], "description": "continue: the agent checkpointed where model.mjs compact told it to and must be re-run with continue=true (reference/README.md § Context management, rule 7)" },
+    "summary": { "type": "string", "description": "The skill's one-line report." },
+    "question": { "type": "string", "description": "stopped: the exact question for the user" },
+    "diagnosis": { "type": "string", "description": "error: what went wrong, from the skill or the state script (the error form's error and tried lines)" },
+    "resume": { "type": "string", "description": "error: the exact invocation that continues from the checkpoint (the error form's resume line)" },
+    "needs": { "type": "string", "description": "error: what a person must fix or decide first, or \"none\" (the error form's needs line)" },
+    "escalate": { "type": "boolean", "description": "true when the stage proved harder than its rating and should be re-run one tier up (reference/README.md § Models and budget)" },
+    "data": { "type": "object", "description": "the state JSON as the state script printed it with --brief (id, complexity, next, stopped, closed, unblocked, lock, worktrees, problems)" }
+  },
+  "allOf": [
+    { "if": { "required": ["status"], "properties": { "status": { "const": "stopped" } } }, "then": { "required": ["question"] } },
+    { "if": { "required": ["status"], "properties": { "status": { "const": "error" } } }, "then": { "required": ["diagnosis", "resume", "needs"] } }
+  ]
+}

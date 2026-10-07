@@ -22,6 +22,8 @@
 //                                                current stop, 1 when there is none, 3 when it is stale (set aside as <id>.stale.json)
 //   node state.mjs blockers <workdir> '<json>'  -> record the blockers' states in ticket.json (blockedBy rows), derive `unblocked`, note it
 //   node state.mjs actual <workdir> '<json>'    -> record the person's actual hours in ticket.json ({ focusedHours, source, by })
+//   node state.mjs put <workdir> <artifact> ['<json>'|--from <file>] [--merge]  -> check the JSON against the artifact's schema (schemas/) and write it; JSON on stdin
+//                                                when neither is given. Refuses (exit 2) and writes nothing when it does not conform
 //   node state.mjs agent join  <workroot> '<json>'          -> register an agent for the office (returns its record, with its name)
 //   node state.mjs agent leave <workroot> <id> [done|stopped|gone]  -> mark it gone
 //   node state.mjs office <workroot>          -> JSON: team, projects, tickets, agents, inbox, day, budget, doctor, totals — what the office draws
@@ -40,11 +42,12 @@ import { computeState, brief, durations, all, totals } from './state/compute.mjs
 import { usage } from './state/usage.mjs';
 import { inbox, answerQueue, answerTake } from './state/inbox.mjs';
 import { recordBlockers, recordActual } from './state/records.mjs';
+import { putArtifact, payloadText } from './state/put.mjs';
 import { agentJoin, agentLeave } from './state/agents.mjs';
 import { office } from './state/office.mjs';
 
-function emit(obj, code = 0) {
-  process.stdout.write(JSON.stringify(obj, null, 2) + '\n', () => process.exit(code));
+function emit(obj, code = 0, compact = false) {
+  process.stdout.write(JSON.stringify(obj, null, compact ? 0 : 2) + '\n', () => process.exit(code));
 }
 
 // what a command refused with: stdout first when it carries any, then the message, then the exit code
@@ -81,6 +84,7 @@ function dispatch() {
     }
     case 'blockers': emit(recordBlockers(target, rest[0])); break;
     case 'actual': emit(recordActual(target, rest[0])); break;
+    case 'put': { const o = flags(rest.slice(1)); emit(putArtifact(target, rest[0], payloadText({ arg: String(rest[1]).startsWith('--') ? undefined : rest[1], from: o.from }), { merge: o.merge === true }), 0, true); break; }
     case 'lock': process.stdout.write(lockRun(target, rest[0])); break;
     case 'unlock': process.stdout.write(unlockRun(target, rest[0], rest.includes('--force'))); break;
     case 'agent': {
@@ -91,7 +95,7 @@ function dispatch() {
       break;
     }
     case 'office': emit(office(target)); break;
-    default: throw new CliError('usage: state.mjs log|state|check|all|durations|usage|totals|inbox|answer|blockers|actual|lock|unlock|agent|office <path> …', 2);
+    default: throw new CliError('usage: state.mjs log|state|check|all|durations|usage|totals|inbox|answer|blockers|actual|put|lock|unlock|agent|office <path> …', 2);
   }
 }
 

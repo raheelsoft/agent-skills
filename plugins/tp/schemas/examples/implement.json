@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "repo": "shop-web",
+  "done": 3,
+  "total": 3,
+  "commits": ["3f9c2ab feat(invoice): add VAT to the total", "a81d0e4 test(invoice): zero-rated order"],
+  "gates": { "lint": "PASS", "types": "PASS", "tests": "PASS", "build": "PASS" },
+  "deviations": ["step 2 also touched src/invoices/format.ts: the formatter hard-coded two decimals"],
+  "stopped": null,
+  "complexity": "medium"
+}

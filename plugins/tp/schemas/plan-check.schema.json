@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/plan-check",
+  "title": "plan-check.json",
+  "description": "The plan check's verdict. Findings come from plan-lint.mjs (source lint, mechanical) and from the checker agent (source checker, judgment); blocking means implementing as written would fail.",
+  "type": "object",
+  "required": ["verdict", "round", "override", "findings"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "verdict": { "enum": ["ok", "revise"] },
+    "round": { "type": "integer", "minimum": 1 },
+    "override": { "type": ["string", "null"], "description": "Set when the person accepted open findings: timestamp and text." },
+    "findings": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "required": ["severity", "step", "text"],
+            "properties": {
+              "severity": { "enum": ["blocking", "advisory"] },
+              "step": { "anyOf": [ { "type": "integer", "minimum": 1 }, { "type": "string", "minLength": 1 } ], "description": "The step number, or — for the plan as a whole." },
+              "text": { "type": "string", "minLength": 1 },
+              "n": { "type": "integer", "minimum": 1, "description": "Kept across incremental passes." },
+              "status": { "enum": ["open", "resolved"] },
+              "source": { "enum": ["lint", "checker"] },
+              "rule": { "type": "string" }
+            }
+          },
+          { "type": "object", "x-legacy": true }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/common",
+  "title": "Pieces the work directory's contracts share",
+  "description": "Referenced as common.schema.json#/$defs/<name>. A branch marked x-legacy is a shape earlier runs wrote and the state script still reads: accepted when reading, refused when writing (see schemas/README.md).",
+  "$defs": {
+    "rating": { "enum": ["low", "medium", "high"], "description": "The ticket's complexity rating; it picks the model and effort of every agent." },
+    "text": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}", "description": "ISO-8601, minutes at least." },
+    "count": {
+      "description": "A number of things. A list of them (or a numeric string) is what older plans wrote; the state script reads all three.",
+      "anyOf": [
+        { "type": "integer", "minimum": 0 },
+        { "type": ["array", "string"], "x-legacy": true }
+      ]
+    },
+    "countOrList": {
+      "description": "A number of things, or the things themselves as one line each.",
+      "anyOf": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "absolutePath": {
+      "description": "Every path a record holds is absolute: the next stage reads it from somewhere else.",
+      "anyOf": [
+        { "type": "string", "pattern": "^/" },
+        { "type": "string", "x-legacy": true }
+      ]
+    },
+    "verdict": { "enum": ["PASS", "PASS WITH WARNINGS", "BLOCK"], "description": "A review's verdict." },
+    "estimate": {
+      "type": "object",
+      "required": ["source", "focusedHours", "days", "points", "basis"],
+      "properties": {
+        "source": { "anyOf": [ { "enum": ["tracker", "pipeline"] }, { "type": "string", "x-legacy": true } ] },
+        "focusedHours": { "type": "number", "minimum": 0 },
+        "calendarHours": { "type": "number", "minimum": 0 },
+        "days": { "type": "number", "minimum": 0 },
+        "points": { "type": "number", "minimum": 0 },
+        "basis": {
+          "description": "How the estimate was reached, in a sentence.",
+          "anyOf": [ { "type": "string" }, { "type": "object", "x-legacy": true } ]
+        }
+      }
+    },
+    "question": {
+      "description": "One question for the person: the text, or the text with its choices and the default.",
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "required": ["text"],
+          "properties": {
+            "text": { "type": "string", "minLength": 1 },
+            "choices": { "type": "array", "items": { "type": "string" } },
+            "default": { "type": "string" }
+          }
+        },
+        { "type": "object", "x-legacy": true }
+      ]
+    },
+    "blocker": {
+      "type": "object",
+      "required": ["id", "state", "resolved", "soft", "checkedAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "state": { "type": ["string", "null"] },
+        "resolved": { "type": "boolean" },
+        "soft": { "type": "boolean" },
+        "checkedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "environment": {
+      "description": "A deploy environment: its name and where it is reached.",
+      "type": "object",
+      "required": ["name", "url"],
+      "properties": { "name": { "type": "string" }, "url": { "type": "string" } }
+    }
+  }
+}

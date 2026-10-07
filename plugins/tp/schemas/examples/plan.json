@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "status": "ready",
+  "flags": ["public-contract"],
+  "steps": 3,
+  "openQuestions": 0,
+  "complexity": "medium"
+}

@@ -1,0 +1,4 @@
+// index.mjs — the contract library's public API: what a hook, a test or state/put.mjs imports instead of spawning validate.mjs.
+export { validate, unsupportedKeywords, SUPPORTED, ANNOTATIONS } from './schema.mjs';
+export { ARTIFACTS, SCHEMA_DIR, SCHEMA_VERSION, loadSchema, artifactOf, checkArtifact, checkWorkdir, checkWorkroot } from './registry.mjs';
+export { invariants } from './invariants.mjs';

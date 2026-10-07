@@ -28,6 +28,7 @@ import { status as skillsStatus, migrate as projectCopy, enforcement as skillEnf
 import { cover as hookCover } from './hooks.mjs';
 import { ceilingStatus } from './model.mjs';
 import { status as codegenStatus } from './codegen.mjs';
+import { checkWorkroot } from './contract/index.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = HERE;                      // the plugin's scripts
@@ -264,6 +265,13 @@ export function run(claudeDir, opts = {}) {
     if (m.nothingLeft) add('project copy', 'ok', 'no copy of the pipeline in .claude — the plugin is the only one');
     else add('project copy', 'warn', [...m.copy, ...m.pipeline.legacyKeys.map((k) => `pipeline.json: ${k}`), ...m.permissions.map((p) => `${p.file}: ${p.rule}`)].slice(0, 6).join(', '), `node ${LIB}/setup.mjs migrate ${claudeDir} lists them (--fix rewrites pipeline.json's keys); remove the folders once the plugin is on`);
   } catch (e) { add('project copy', 'warn', `setup.mjs could not look for a project copy: ${firstLine(e.message)}`); }
+
+  // the JSON the stages hand each other against its schemas (schemas/README.md): drift is reported, never an error stop — an old ticket still reads
+  try {
+    const c = isDir(work) ? checkWorkroot(work, { mode: 'read' }) : { checked: 0, invalid: [] };
+    if (c.invalid.length) add('contracts', 'warn', `${c.invalid.length} of ${c.checked} artifacts do not match their schema: ${c.invalid.slice(0, 3).map((i) => `${i.file} (${i.errors[0]})`).join('; ')}${c.invalid.length > 3 ? '; …' : ''}`, `node ${LIB}/validate.mjs work ${work} lists them all; a stage rewrites its own through state.mjs put`);
+    else add('contracts', 'ok', c.checked ? `${c.checked} artifacts match their schemas` : 'no artifacts yet');
+  } catch (e) { add('contracts', 'warn', `validate could not read the work directory: ${firstLine(e.message)}`); }
 
   // the runtime's allowlist
   const allow = ['settings.json', 'settings.local.json'].flatMap((f) => { const s = readJson(join(claudeDir, f)); return Array.isArray(s?.permissions?.allow) ? s.permissions.allow : []; });

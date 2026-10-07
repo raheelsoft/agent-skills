@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/plan",
+  "title": "plan.json",
+  "description": "The machine-readable header of plan.md: counts, not the steps themselves (those live in the plan).",
+  "type": "object",
+  "required": ["status", "flags", "steps", "openQuestions", "complexity"],
+  "x-legacy-optional": ["status", "flags", "openQuestions"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["ready", "open-questions"] },
+    "flags": { "type": "array", "items": { "type": "string" }, "description": "Risk flags: data-model, access-control, public-contract, cross-repo, irreversible." },
+    "steps": { "$ref": "common.schema.json#/$defs/count" },
+    "openQuestions": { "$ref": "common.schema.json#/$defs/count" },
+    "complexity": { "$ref": "common.schema.json#/$defs/rating" }
+  }
+}

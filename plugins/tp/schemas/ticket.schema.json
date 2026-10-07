@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/ticket",
+  "title": "ticket.json",
+  "description": "The ticket as picked up: its criteria, its rating, its repos and their worktrees. Written by start-ticket; triage refines the estimate, state.mjs records blockedBy and actual.",
+  "type": "object",
+  "required": ["id", "title", "round", "acceptanceCriteria", "complexity", "repos"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "link": { "type": ["string", "null"] },
+    "round": { "type": "integer", "minimum": 1 },
+    "stackedOn": {
+      "description": "The ticket whose branch this one builds on, or null.",
+      "anyOf": [
+        { "type": "null" },
+        { "type": "object", "required": ["ticket", "branch"], "properties": { "ticket": { "type": "string" }, "branch": { "type": "string" }, "pr": { "type": ["string", "integer", "null"] } } }
+      ]
+    },
+    "dependsOn": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "object", "required": ["ticket", "branch"], "properties": { "ticket": { "type": "string" }, "branch": { "type": "string" } } }
+      ]
+    },
+    "acceptanceCriteria": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "derived": { "type": "boolean", "description": "True when the criteria were derived by the pipeline, not written in the ticket." },
+    "complexity": { "$ref": "common.schema.json#/$defs/rating" },
+    "estimate": { "$ref": "common.schema.json#/$defs/estimate" },
+    "actual": {
+      "description": "The person's actual hours; written only by state.mjs actual.",
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["focusedHours", "source", "at", "by"],
+          "properties": {
+            "focusedHours": { "type": "number", "minimum": 0 },
+            "source": { "enum": ["person", "tracker"] },
+            "at": { "$ref": "common.schema.json#/$defs/timestamp" },
+            "by": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "blockedBy": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/blocker" } },
+    "repos": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "worktree", "branch", "base"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "path": { "$ref": "common.schema.json#/$defs/absolutePath" },
+          "worktree": { "anyOf": [ { "type": "null" }, { "$ref": "common.schema.json#/$defs/absolutePath" } ] },
+          "branch": { "type": "string", "minLength": 1 },
+          "base": { "type": "string", "minLength": 1 },
+          "conventions": { "type": ["string", "null"] },
+          "discarded": { "type": ["string", "object"], "description": "Set when the repo was dropped from the ticket: why, or the record of what was removed." }
+        }
+      }
+    }
+  }
+}

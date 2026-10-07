@@ -163,6 +163,23 @@ describe('doctor.mjs', () => {
     rm(r7);
   });
 
+  it('checks the work directory\'s JSON against its schemas: ok when it matches, a warning with the file and the error when it does not', () => {
+    const r8 = tmp('doctor-'); const c8 = install(r8);
+    assert.equal(byName(doctor('run', c8).json, 'contracts').detail, 'no artifacts yet');
+    const dir = join(c8, 'work', 'T-9'); mkdirSync(dir, { recursive: true });
+    writeJson(dir, 'plan.json', { status: 'ready', flags: [], steps: 2, openQuestions: 0, complexity: 'low' });
+    let k = byName(doctor('run', c8).json, 'contracts');
+    assert.deepEqual([k.status, k.detail], ['ok', '1 artifacts match their schemas']);
+    writeJson(dir, 'plan.json', { status: 'ready', flags: [], steps: 2, openQuestions: 0, complexity: 'epic' });
+    k = byName(doctor('run', c8).json, 'contracts');
+    assert.equal(k.status, 'warn');
+    assert.match(k.detail, /1 of 1 artifacts do not match their schema: T-9\/plan\.json \(\$\.complexity: expected one of/);
+    assert.match(k.fix, /validate\.mjs work .*work/);
+    writeJson(dir, 'plan.json', { steps: [1, 2], openQuestions: [], complexity: 'low' }); // an older plan: read mode accepts it
+    assert.equal(byName(doctor('run', c8).json, 'contracts').status, 'ok');
+    rm(r8);
+  });
+
   it('warns while a copy of the pipeline is still in the project\'s .claude, and says so when none is', () => {
     const r6 = tmp('doctor-'); const c6 = install(r6);
     assert.equal(byName(doctor('run', c6).json, 'project copy').status, 'ok');

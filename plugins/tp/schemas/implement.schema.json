@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/implement",
+  "title": "implement.json / implement.<repo>.json",
+  "description": "What the implementer did in one repo: steps done of the plan's total, the commits, the gate results it saw, the deviations from the plan, and where it stopped.",
+  "type": "object",
+  "required": ["repo", "done", "total", "commits", "gates", "deviations", "stopped", "complexity"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "repo": { "type": "string", "minLength": 1 },
+    "done": { "anyOf": [ { "type": "integer", "minimum": 0 }, { "type": "boolean", "x-legacy": true } ] },
+    "total": { "type": "integer", "minimum": 0 },
+    "commits": { "type": "array", "items": { "type": "string" }, "description": "One commit per entry: the sha, with its subject if you like." },
+    "gates": {
+      "description": "Gate name → result (PASS, FAIL, SKIP …). The gate cache (gates.mjs) is the authority; this records what the implementer saw.",
+      "anyOf": [
+        { "type": "object", "additionalProperties": { "type": "string" } },
+        { "type": "array", "x-legacy": true }
+      ]
+    },
+    "deviations": { "$ref": "common.schema.json#/$defs/countOrList" },
+    "stopped": {
+      "description": "null while it ran to the end; { step, question } when it stopped for the person.",
+      "anyOf": [
+        { "type": "null" },
+        { "type": "object", "required": ["step", "question"], "properties": { "step": { "type": "integer", "minimum": 1 }, "question": { "type": "string", "minLength": 1 } } },
+        { "type": "boolean", "x-legacy": true }
+      ]
+    },
+    "complexity": {
+      "description": "The rating the work experienced; \"higher\" when it proved harder than the highest rating.",
+      "anyOf": [
+        { "enum": ["low", "medium", "high", "higher"] },
+        { "type": "string", "x-legacy": true }
+      ]
+    }
+  }
+}

@@ -1,5 +1,5 @@
 // Shared helpers for the pipeline's script tests. Node's built-in runner, no dependencies:
-//   node --test <plugin>/tests/
+//   node --test <plugin>/tests/*.test.mjs
 import { spawnSync, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
