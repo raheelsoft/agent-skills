@@ -62,6 +62,25 @@ anything is invalid. `/tp:doctor` runs the `work` form and reports the count.
 A legacy branch is never added for a new shape: it records drift that already happened. A new
 field is added as an optional property; make it required only when every reader depends on it.
 
+## Reviews
+
+A review pass is data too (`review-findings.schema.json`): each finding has a priority — P0
+correctness, security, data loss · P1 contract break, regression, missing test · P2 design (SOLID,
+duplication, layering) · P3 clean code · P4 style — and `node <lib>/findings.mjs` derives the rest,
+so the same findings always give the same comment and the same verdict:
+
+```
+node <lib>/findings.mjs check   <review.json>   # valid against the schema?
+node <lib>/findings.mjs verdict <review.json>   # PASS | PASS WITH WARNINGS | BLOCK
+node <lib>/findings.mjs render  <review.json>   # the PR comment, in the format /tp:review posts
+node <lib>/findings.mjs row     <review.json>   # { round, sha, verdict, open, new } for pr.json's reviews
+```
+
+P0 and P1 are "fix before merging", P2 "should fix", P3 and P4 "could improve"; a defect the diff
+did not introduce is "pre-existing" whatever its priority. The verdict is BLOCK when a gate failed
+or a fix-before-merging item is open, PASS WITH WARNINGS when any other item of the diff is open,
+PASS otherwise.
+
 ## Invariants
 
 Rules across fields that a schema cannot say live in `lib/contract/invariants.mjs`

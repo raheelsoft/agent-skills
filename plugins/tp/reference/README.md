@@ -738,7 +738,9 @@ each rule below to the branch it decides, if a picture is the faster way in.
   `mark` — generated code and whether it is behind its schema, § Toolchain) and
   `<lib>/validate.mjs` (`file`, `work`, `artifacts` — the work directory's JSON against its schemas,
   `schemas/README.md`), `<lib>/plan-lint.mjs` (`<workdir> [--no-fs] [--record]` — the mechanical half
-  of the plan check, § Work directory) and `<lib>/setup.mjs`
+  of the plan check, § Work directory), `<lib>/findings.mjs` (`check`, `verdict`, `render`, `row` — a review
+  pass as JSON: the tier of each finding, the verdict, the PR comment and the `pr.json` row are derived,
+  `schemas/README.md` § Reviews) and `<lib>/setup.mjs`
   (`list`, `check`, `apply`, `status`, `stages` — the catalogue of skills and their
   dependencies, the one place they are declared; § Definitions, Active skills). Every `model.mjs`, `day.mjs` and
   `gates.mjs` call carries `claudeDir: "<.claude>"` so `tiers.json` applies.

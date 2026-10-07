@@ -8,6 +8,6 @@
   "findings": [
     { "id": 1, "priority": "P1", "file": "src/invoices/total.ts", "line": 27, "text": "VAT is rounded per line, the contract says on the total; a 3-line order is off by 0.01.", "fix": "Sum the net lines, then round once." },
     { "id": 2, "priority": "P3", "file": "src/invoices/total.ts", "line": 12, "text": "totalWithVat and withVat compute the same thing.", "fix": "Keep one and call it from both places." },
-    { "id": 3, "priority": "P2", "file": "src/invoices/format.ts", "line": 5, "text": "formatMoney hard-codes two decimals (pre-existing).", "scope": "pre-existing", "ticket": "ACME-57" }
+    { "id": 3, "priority": "P2", "file": "src/invoices/format.ts", "line": 5, "text": "formatMoney hard-codes two decimals.", "scope": "pre-existing", "ticket": "ACME-57" }
   ]
 }

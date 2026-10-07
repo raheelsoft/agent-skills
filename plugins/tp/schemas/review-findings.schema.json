@@ -28,7 +28,8 @@
           "text": { "type": "string", "minLength": 1 },
           "fix": { "type": "string", "description": "What should change and why." },
           "scope": { "enum": ["diff", "pre-existing"], "description": "pre-existing: a defect in code the diff touches, not introduced by it." },
-          "status": { "enum": ["open", "resolved", "noted"], "description": "noted: seen in a resolution pass, not gating." },
+          "status": { "enum": ["open", "resolved", "noted"], "description": "open when absent. resolved: a previous item the change fixed. noted: seen in a resolution pass, not gating." },
+          "new": { "type": "boolean", "description": "Raised by this pass. Absent means new in a full pass and carried over in a delta or resolution pass." },
           "ticket": { "type": ["string", "null"], "description": "pre-existing: the ticket tracking it, or null when one is needed." }
         }
       }
