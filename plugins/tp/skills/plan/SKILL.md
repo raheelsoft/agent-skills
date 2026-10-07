@@ -75,8 +75,9 @@ has written `plan-check.json` (the findings marked `source: lint`) — so go str
 loop below, with no checker spawned. Otherwise spawn the checker — the one agent this
 skill spawns, because the check must be independent of the planner (§ Context
 management, rule 2) — with the script's advisory lines (they go in step 3's presentation
-too, and the checker does not repeat them): a fresh writing agent, restricted to reading
-the worktree and writing only `plan-check.json` (through `state.mjs put`),
+too, and the checker does not repeat them): a fresh agent of type `tp:plan-checker`
+(read-only on the repos, writing only `plan-check.json` through `state.mjs put` — the type's
+hooks hold it to that),
 rated `plan.json.complexity` with
 the catching step, office id `<id>:plan-check:qa` with this agent as `parent` (the
 join/leave commands in its prompt), prompt: the absolute work directory; `plan.md`, `ticket.md`; each

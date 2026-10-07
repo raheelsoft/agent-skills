@@ -100,8 +100,8 @@ that apply:
 - **Diff validation** (`instructions/diff-validation.md` § Before push). A **creation
   round** validates the whole branch, `git diff <remote>/<base>...HEAD`, in a
   sub-agent — the one reading this agent keeps out of its own context (rule 9): rated
-  as this agent, catching step; a writing agent restricted to git reads, read and
-  search, and writing its one file; office id `<id>:<stage>:qa:1` (`<stage>` as
+  as this agent, catching step; an agent of type `tp:diff-validator` (git reads, read and
+  search, its one file — the type's hooks hold it to that); office id `<id>:<stage>:qa:1` (`<stage>` as
   logged — `create-pr:<name>` on a cross-repo ticket), this agent as `parent`, the
   join/leave commands; given the repo path, the intent from step 2 and the diff
   command; it writes the per-file table to `<workdir>/diff-validation.md` (with the

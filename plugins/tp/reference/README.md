@@ -576,12 +576,24 @@ each rule below to the branch it decides, if a picture is the faster way in.
   be priced (§ Models and budget, Cost); the session logs the orchestrator's own on
   `run-ticket` the same way. An unattended run's stage leads cannot (the script reads
   nothing back), so their tickets' totals are marked partial (§ Unattended runs).
+- **Role agents** (`agents/`) — three sub-agents are plugin agent types, spawned as `tp:<name>`:
+  `tp:plan-checker` (`/tp:plan`'s checker), `tp:diff-validator` (`/tp:create-pr`'s validator)
+  and `tp:reviewer` (the dedicated agent of `/tp:review`). Each is independent of whoever made
+  what it checks, so each reads the repositories and changes nothing in them, and writes the
+  one file its job produces. The definition removes the tools it never needs; the plugin's
+  hooks (`hooks/roles.mjs`) refuse what a tool it keeps could still do — a commit, an edit to a
+  source file, `gh pr merge`; and the `subagent-stop` hook sends it back, at most twice, until
+  its contract holds: the output contract's closing lines (or the error form), and a valid
+  `plan-check.json`, a non-empty `diff-validation.md`, or the review's verdict line and
+  trailer. A third failure lets it stop and logs `error: contract violation` on the ticket. The
+  definitions name no model: the spawner's pick (`model.mjs pick`, under the ceiling) wins.
 - **Output contract** — every agent a skill spawns returns at most ~15 lines and ends
   with two lines the spawner acts on: `complexity: as rated | higher — <reason>` and
   `continue: no | <checkpoint path>`. Anything larger goes to the work directory,
   referenced by path. A failure it could not resolve comes back as the error form,
   first line `error:` (§ Failures and escalation); a question for the person as a
-  stop, first line the question — never as a guess.
+  stop, first line the question — never as a guess. For a role agent the closing lines are checked by
+  a hook (§ Role agents), not trusted.
 - **Office presence** — every agent has a desk in the office (§ Observability). The
   spawner assigns the child's id and passes its own as `parent`; the child registers
   first and unregisters last (the template above; sub-agents get the two commands in

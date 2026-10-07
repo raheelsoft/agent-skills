@@ -444,7 +444,8 @@ describe('the registration of the guard hooks', () => {
   const handlers = (event) => (registry[event] || []).flatMap((g) => g.hooks.map((h) => [g.matcher, h.args[1]]));
 
   it('each guard runs on the event and tool it reads', () => {
-    assert.deepEqual(handlers('PreToolUse'), [['Bash', 'bash'], ['Write|Edit|MultiEdit', 'write'], ['Agent', 'agent-ceiling']]);
+    assert.deepEqual(handlers('PreToolUse'), [['Bash', 'bash'], ['Write|Edit|MultiEdit|NotebookEdit', 'write'], ['Agent', 'agent-ceiling']]);
+    assert.deepEqual(handlers('SubagentStop'), [['^tp:', 'subagent-stop']]);
     assert.deepEqual(handlers('PreModelSwitch'), [[undefined, 'model-switch']]);
     assert.deepEqual(handlers('SessionStart'), [[undefined, 'session-start']]);
     assert.deepEqual(handlers('UserPromptExpansion'), [['^tp:', 'off-skill']]);

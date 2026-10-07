@@ -5,8 +5,9 @@
 // run lock is live. A write to a file the state script owns is refused wherever it is made — the file's path says whose it is.
 import { homedir } from 'node:os';
 import { resolve, join, sep } from 'node:path';
-import { parseShell, programOf, gitOf } from '../shell.mjs';
+import { parseShell, programOf, gitOf, writeTargets } from '../shell.mjs';
 import { tpProject, inRun, legacyCopy, protectedReason, real, allow, deny } from '../shared.mjs';
+import { ROLES, roleBashReason } from '../roles.mjs';
 
 const VERIFY_SUBS = new Set(['commit', 'push', 'merge', 'rebase', 'cherry-pick', 'am', 'revert', 'pull']);
 const READ_FLAGS = new Set(['--get', '--get-all', '--get-regexp', '--list', '-l', '--show-origin', '--show-scope']);
@@ -29,19 +30,6 @@ function gitReason(command) {
     if (g.args.some((a) => a === '--global' || a === '--system')) return 'refused: a run does not change git\'s own configuration. Ask the person.';
   }
   return null;
-}
-
-/** The files a command writes: redirections, tee, cp/mv's destination, sed -i, dd of=. */
-function writeTargets(command) {
-  const out = command.redirects.filter((r) => ['>', '>>', '>|', '&>', '&>>'].includes(r.op)).map((r) => r.target);
-  const p = programOf(command);
-  if (!p) return out;
-  const files = p.args.filter((a) => !a.startsWith('-'));
-  if (p.name === 'tee' || p.name === 'truncate') out.push(...files);
-  else if ((p.name === 'cp' || p.name === 'mv' || p.name === 'install') && files.length >= 2) out.push(files[files.length - 1]);
-  else if ((p.name === 'sed' || p.name === 'perl') && p.args.some((a) => /^-[A-Za-z]*i/.test(a) || a === '--in-place')) out.push(...files);
-  else if (p.name === 'dd') out.push(...p.args.filter((a) => a.startsWith('of=')).map((a) => a.slice(3)));
-  return out;
 }
 
 /** A write under the user's own shell, ssh, git or cloud configuration. */
@@ -72,6 +60,8 @@ export default function bash(payload, ctx) {
   if (payload.tool_name !== 'Bash' || typeof payload.tool_input?.command !== 'string') return null;
   if (!tpProject(ctx)) return null;
   const commands = parseShell(payload.tool_input.command);
+  const role = ROLES[payload.agent_type]; // one of the plugin's role agents: held to what its job needs
+  if (role) { const why = roleBashReason(role, commands, payload, ctx); if (why) return deny(why); }
   let memo; const running = () => (memo ??= inRun(payload, ctx)); // looks at the run locks: only when a command needs to know
   const guardFiles = !legacyCopy(ctx);
 

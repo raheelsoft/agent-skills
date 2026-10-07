@@ -156,3 +156,21 @@ export function gitOf(command) {
   while (k < p.args.length && p.args[k].startsWith('-')) k += takesValue.has(p.args[k]) ? 2 : 1;
   return k < p.args.length ? { sub: p.args[k], args: p.args.slice(k + 1), all: p.args } : null;
 }
+
+/**
+ * The files a command writes: redirections, tee, cp/mv/install's destination, sed -i and perl -i's files, dd of=, truncate — and, with
+ * `removals`, what rm, rmdir and unlink delete.
+ */
+export function writeTargets(command, { removals = false } = {}) {
+  const out = command.redirects.filter((r) => ['>', '>>', '>|', '&>', '&>>'].includes(r.op)).map((r) => r.target);
+  const p = programOf(command);
+  if (!p) return out;
+  const files = p.args.filter((a) => !a.startsWith('-'));
+  if (p.name === 'tee' || p.name === 'truncate') out.push(...files);
+  else if ((p.name === 'cp' || p.name === 'mv' || p.name === 'install') && files.length >= 2) out.push(files[files.length - 1]);
+  else if ((p.name === 'sed' || p.name === 'perl') && p.args.some((a) => /^-[A-Za-z]*i/.test(a) || a === '--in-place')) out.push(...files);
+  else if (p.name === 'dd') out.push(...p.args.filter((a) => a.startsWith('of=')).map((a) => a.slice(3)));
+  else if (removals && (p.name === 'rm' || p.name === 'rmdir' || p.name === 'unlink')) out.push(...files);
+  if (removals && p.name === 'mv') out.push(...files.slice(0, -1)); // the source of a move is gone afterwards
+  return out;
+}
