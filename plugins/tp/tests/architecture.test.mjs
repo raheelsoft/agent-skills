@@ -51,6 +51,12 @@ describe('the command lines in front of the libraries are shims', () => {
     for (const m of shim.matchAll(/^import .* from '([^']+)';/gm)) assert.match(m[1], /^\.\/state\//, `the shim imports ${m[1]}`);
   });
 
+  it('plan-lint.mjs imports from contract/, state/ and node, and stays short', () => {
+    const shim = readFileSync(join(PLUGIN_ROOT, 'lib', 'plan-lint.mjs'), 'utf8');
+    assert.ok(shim.split('\n').length <= 60, 'plan-lint.mjs only parses arguments, runs the library and prints');
+    for (const m of shim.matchAll(/^import .* from '([^']+)';/gm)) assert.match(m[1], /^(\.\/contract\/|\.\/state\/|node:)/, `the shim imports ${m[1]}`);
+  });
+
   it('validate.mjs imports from contract/ and node, and stays short', () => {
     const shim = readFileSync(join(PLUGIN_ROOT, 'lib', 'validate.mjs'), 'utf8');
     assert.ok(shim.split('\n').length <= 80, 'validate.mjs only parses arguments, prints and exits');

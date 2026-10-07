@@ -124,7 +124,7 @@ each):
 | 0 | `/tp:create-ticket <text>` | its agent, read-only on the repo for the brief | a ticket in the tracker — no work directory, nothing logged |
 | 1 | `/tp:start-ticket <id>` | its agent (the blockers' states read directly from the tracker) | worktree + branch per repo — kept for the whole run (§ Worktrees); `ticket.md/.json`, `progress.md` |
 | 2 | `/tp:triage <id> [mode=direct\|plan]` | its agent, read-only on the repo, writing its two files | `triage.md/.json` — direct / plan / needs-input / close / blocked |
-| 3 | `/tp:plan <id> [check-only=true]` (when triage says so) | its agent plans and revises; a fresh checker per pass — each read-only on the repo, writing its own file; the checked plan is presented to the person for approval | `plan.md/.json`, `plan-check.json`; the go-ahead in `answers.md` |
+| 3 | `/tp:plan <id> [check-only=true]` (when triage says so) | its agent plans and revises; `plan-lint.mjs` checks the template, counts, files and citations without a model; a fresh checker per pass judges the rest — each read-only on the repo, writing its own file; the checked plan is presented to the person for approval | `plan.md/.json`, `plan-check.json`; the go-ahead in `answers.md` |
 | 4 | `/tp:implement <id>` | its agent implements — one per repo, never the planner's | commits; `plan.md` summary; `implement[.repo].json`; the PR description drafted (`pr-body[.repo].md`) |
 | 5 | `/tp:create-pr <id> [update=true]` (one run, every repo) | its agent (+ a diff validator on a creation round; a describer only for a branch `/tp:implement` left no draft for; `/tp:verify` only when no result is recorded for the commit) | a described, gated PR; comments, ticket status; `pr[.repo].json`, `report.md` |
 | 6 | `/tp:merge <id>` (one run, every repo) | its agent (+ `/tp:review` per pass, a fixer and a `/tp:create-pr` round per fix round) | the review loop, the merge; `pr[.repo].json` reviews and sha — the worktree stays |
@@ -736,7 +736,9 @@ each rule below to the branch it decides, if a picture is the faster way in.
   (`detect`, `cover`, `plan`, `install` — the repo's hooks as gate owners,
   § Verification rules), `<lib>/codegen.mjs` (`detect`, `status`,
   `mark` — generated code and whether it is behind its schema, § Toolchain) and
-  `<lib>/setup.mjs`
+  `<lib>/validate.mjs` (`file`, `work`, `artifacts` — the work directory's JSON against its schemas,
+  `schemas/README.md`), `<lib>/plan-lint.mjs` (`<workdir> [--no-fs] [--record]` — the mechanical half
+  of the plan check, § Work directory) and `<lib>/setup.mjs`
   (`list`, `check`, `apply`, `status`, `stages` — the catalogue of skills and their
   dependencies, the one place they are declared; § Definitions, Active skills). Every `model.mjs`, `day.mjs` and
   `gates.mjs` call carries `claudeDir: "<.claude>"` so `tiers.json` applies.
@@ -765,7 +767,7 @@ inbox lists it; `/tp:status` and the state script's `all` ignore every `_`-prefi
 | `ticket.md` / `ticket.json` | start-ticket; triage refines `estimate` and records `blockedBy`; `state.mjs blockers` re-checks it; `/tp:eod` records `actual` | the ticket, its rating, its estimate, its blockers and their last-checked states, the person's actual hours, its repos |
 | `triage.md` / `triage.json` | triage | decision with evidence; approach (direct) or scope notes (plan) |
 | `plan.md` / `plan.json` | plan, or implement for direct work | the executable plan; implement appends its Implementation summary section |
-| `plan-check.json` | plan (its checker) | `ok` / `revise` with findings |
+| `plan-check.json` | plan (`plan-lint.mjs --record` for a mechanical failure, else its checker) | `ok` / `revise` with findings, each marked `source: lint` or `checker` |
 | `answers.md` | whichever stage asked | the person's answers, dated; the plan's approval is the line `go-ahead: <timestamp> — round <n> — <flags>` — no plan is implemented without it |
 | `implement[.repo].json` | implement | steps done/total, commits, gates, deviations, stop, rating experienced |
 | `pr[.repo].json` | create-pr; merge adds the passes, verdict and sha | PR url/number, update round, review passes, verdict, merge sha |

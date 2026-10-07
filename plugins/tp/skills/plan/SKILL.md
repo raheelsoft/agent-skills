@@ -66,10 +66,17 @@ risks: <flags>" plan.md` — before the check, so the check's entry comes after.
 
 ### 2. Check the plan
 
-`state.mjs log <workdir> plan-check started`. Spawn the checker — the one agent this
+`state.mjs log <workdir> plan-check started`. First the script's half, which costs no
+model: `node <lib>/plan-lint.mjs <workdir> --record` checks the template's structure,
+that `plan.json`'s counts, status and flags agree with `plan.md`, that every file a step
+edits is in the worktree (and every file it creates is not), and that every `path:line`
+it cites exists and is in range. A blocking finding **is** a `revise` verdict — `--record`
+has written `plan-check.json` (the findings marked `source: lint`) — so go straight to the
+loop below, with no checker spawned. Otherwise spawn the checker — the one agent this
 skill spawns, because the check must be independent of the planner (§ Context
-management, rule 2): a fresh writing agent, restricted to reading the worktree and
-writing only `plan-check.json`,
+management, rule 2) — with the script's advisory lines (they go in step 3's presentation
+too, and the checker does not repeat them): a fresh writing agent, restricted to reading
+the worktree and writing only `plan-check.json`,
 rated `plan.json.complexity` with
 the catching step, office id `<id>:plan-check:qa` with this agent as `parent` (the
 join/leave commands in its prompt), prompt: the absolute work directory; `plan.md`, `ticket.md`; each
