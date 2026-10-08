@@ -115,9 +115,9 @@ function baseOf(claudeDir, repoPath, timeoutMs = DEFAULTS.timeoutMs) {
   return cur.code === 0 && cur.stdout.trim() && cur.stdout.trim() !== 'HEAD' ? cur.stdout.trim() : null;
 }
 
-// the allow rules the Install step asks for, naming this plugin's scripts; a broader rule (a shorter prefix ending in *) covers one
-function expectedRules() {
-  return [`Bash(node ${LIB}/*)`, `Bash(node ${PLUGIN_ROOT}/office/*)`, 'Bash(node --test *)',
+// the allow rules the Install step asks for, naming this plugin's scripts and this project's worktrees folder; a broader rule (a shorter prefix ending in *) covers one
+function expectedRules(claudeDir) {
+  return [`Edit(//${resolve(claudeDir).replace(/^\/+/, '')}/worktrees/**)`, `Bash(node ${LIB}/*)`, `Bash(node ${PLUGIN_ROOT}/office/*)`, 'Bash(node --test *)',
     'Bash(git status*)', 'Bash(git diff*)', 'Bash(git log*)', 'Bash(git show*)', 'Bash(git fetch*)', 'Bash(git rev-parse*)', 'Bash(git merge-base*)',
     'Bash(git branch*)', 'Bash(git worktree *)', 'Bash(git checkout *)', 'Bash(git switch *)', 'Bash(git add *)', 'Bash(git commit *)', 'Bash(git merge *)', 'Bash(git push *)'];
 }
@@ -207,6 +207,16 @@ export function run(claudeDir, opts = {}) {
     else add('budget', 'ok', 'no usage reading yet — the first spawn records one');
   }
 
+  // the work directory and the worktrees folder are per machine: a project that is itself a git repository ignores them, or a checkout there is untracked noise `git add -A` could take
+  {
+    const root = dirname(claudeDir);
+    if (cmd(['git', '-C', root, 'rev-parse', '--is-inside-work-tree'], t).code === 0) {
+      const open = ['work/x', 'worktrees/_out/x'].filter((f) => cmd(['git', '-C', root, 'check-ignore', '-q', '--', join(claudeDir, f)], t).code === 1).map((f) => `.claude/${f.split('/')[0]}/`);
+      if (open.length) add('gitignore', 'warn', `${open.join(' and ')} not ignored by git in ${root}`, `add ${open.join(' and ')} to .gitignore (reference/using.md § Install, step 1)`);
+      else add('gitignore', 'ok', '.claude/work/ and .claude/worktrees/ are ignored');
+    }
+  }
+
   // the repos and their remotes
   const repos = repoPaths(claudeDir, opts.repos);
   if (!repos.length) add('repos', 'warn', 'no git checkout found at or under the folder that holds .claude, and no ticket names one', 'run the doctor from the project folder, or pass --repos');
@@ -289,7 +299,7 @@ export function run(claudeDir, opts = {}) {
   const allow = ['settings.json', 'settings.local.json'].flatMap((f) => { const s = readJson(join(claudeDir, f)); return Array.isArray(s?.permissions?.allow) ? s.permissions.allow : []; });
   if (!allow.length) add('allowlist', 'warn', 'no permissions.allow in settings.json or settings.local.json: every pipeline command will prompt', 'reference/using.md § Install, step 2');
   else {
-    const missing = expectedRules().filter((r) => !covered(r, allow));
+    const missing = expectedRules(claudeDir).filter((r) => !covered(r, allow));
     if (missing.length) add('allowlist', 'warn', `${missing.length} of the Install rules missing: ${missing.slice(0, 4).join(', ')}${missing.length > 4 ? ', …' : ''}`, 'add them to permissions.allow (reference/using.md § Install, step 2)');
     else add('allowlist', 'ok', `${allow.length} rules, the Install set covered`);
   }

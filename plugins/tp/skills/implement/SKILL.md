@@ -4,7 +4,7 @@ description: Implements a ticket from its approved plan (or the triage approach 
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/implement-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/implement-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write. Its `.md` documents are written the same way: `node <lib>/state.mjs doc <workdir> <name>`, the text on stdin or `--from <file>` (`--append` adds to the end); a long one is drafted under `<.claude>/worktrees/_out/<id>/`, the one place below `.claude/` an agent may write.
 
 Execute the work for one ticket in a **fresh agent** — never the agent that wrote the
 plan. That agent is this skill's own dedicated agent (`reference/definitions.md`

@@ -6,7 +6,7 @@
 import { homedir } from 'node:os';
 import { resolve, join, sep } from 'node:path';
 import { parseShell, programOf, gitOf, writeTargets } from '../shell.mjs';
-import { tpProject, inRun, legacyCopy, protectedReason, real, allow, deny } from '../shared.mjs';
+import { tpProject, inRun, legacyCopy, protectedReason, real, workRoot, allow, deny } from '../shared.mjs';
 import { ROLES, roleBashReason } from '../roles.mjs';
 
 const VERIFY_SUBS = new Set(['commit', 'push', 'merge', 'rebase', 'cherry-pick', 'am', 'revert', 'pull']);
@@ -30,6 +30,22 @@ function gitReason(command) {
     if (g.args.some((a) => a === '--global' || a === '--system')) return 'refused: a run does not change git\'s own configuration. Ask the person.';
   }
   return null;
+}
+
+/** Why a `git worktree add` is refused, or null: a ticket's worktree is made under <.claude>/worktrees/, the one place below .claude/ an agent may edit files. */
+function worktreeReason(g, payload, ctx) {
+  const args = g.args.slice(1); // past `add`
+  let path = null;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '-b' || args[i] === '-B') { i++; continue; } // their value is a branch name
+    if (!args[i].startsWith('-')) { path = args[i]; break; }
+  }
+  if (!path || /\$/.test(path)) return null;
+  const abs = real(path.startsWith('/') ? path : resolve(payload.cwd || ctx.projectDir, path));
+  const root = real(workRoot(ctx));
+  const rel = abs.startsWith(root + sep) ? abs.slice(root.length + 1).split(sep) : null;
+  if (!rel || rel[0].startsWith('_')) return null; // elsewhere, or a checkout the pipeline keeps in _scratch/ (the gates' baseline, a by-hand review's)
+  return `refused: a ticket's worktree goes at ${join(ctx.claudeDir, 'worktrees')}/<id>/<repo-name>, not inside its work directory — the runtime lets an agent edit files only there below .claude/ (reference/work-directory.md § Worktrees).`;
 }
 
 /** A write under the user's own shell, ssh, git or cloud configuration. */
@@ -66,9 +82,11 @@ export default function bash(payload, ctx) {
   const guardFiles = !legacyCopy(ctx);
 
   for (const c of commands) {
-    if (gitOf(c)) {
+    const g = gitOf(c);
+    if (g) {
       const why = gitReason(c);
       if (why && running()) return deny(why);
+      if (guardFiles && g.sub === 'worktree' && g.args[0] === 'add') { const w = worktreeReason(g, payload, ctx); if (w) return deny(w); }
     }
     for (const target of writeTargets(c)) {
       if (sensitive(target) && running()) return deny(`refused: a run does not write ${target} — shell, ssh, git and cloud configuration are the person's. Ask the person.`);

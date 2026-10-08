@@ -80,6 +80,9 @@ describe('bash guard — what a run must never do', () => {
     assert.equal(await bash(p, 'git commit --no-verify -m x'), null, 'no sub-agent, no run lock, the project root');
     const dir = pickedUp(p.claude, { id: 'T-1' }); // work/T-1 under p.claude
     assert.equal(verdict(await bash(p, 'git commit --no-verify -m x', { cwd: join(dir, 'wt', 'shop') })), 'deny', 'inside a ticket\'s work directory');
+    assert.equal(verdict(await bash(p, 'git commit --no-verify -m x', { cwd: join(p.claude, 'worktrees', 'T-1', 'shop') })), 'deny', 'inside a ticket\'s worktree');
+    assert.equal(await bash(p, 'git commit --no-verify -m x', { cwd: join(p.claude, 'worktrees', 'my-feature') }), null, 'the runtime\'s own worktree of a person, in the same folder, is not a run');
+    assert.equal(await bash(p, 'git commit --no-verify -m x', { cwd: join(p.claude, 'worktrees', '_out', 'T-1') }), null, 'nor is the output folder');
     writeJson(dir, 'lock.json', { owner: 'workflow', since: new Date().toISOString().slice(0, 16) + 'Z', updated: new Date().toISOString().slice(0, 16) + 'Z' });
     assert.equal(verdict(await bash(p, 'git commit --no-verify -m x')), 'deny', 'while a run lock is live');
   });
@@ -151,14 +154,55 @@ describe('bash guard — the files the state script owns', () => {
     assert.equal(await bash(p, 'echo {} > plan.json', { cwd: p.root }), null, 'a plan.json in the project root is some other file');
   });
 
-  it('lets through the files a person or agent writes freely, and files that only share a name', async (t) => {
+  it('refuses a raw write to a document or any other file in the work directory, saying which script takes it', async (t) => {
+    const p = project(t);
+    const wd = join(p.work, 'T-1'); mkdirSync(wd, { recursive: true });
+    const out = join(p.claude, 'worktrees', '_out');
+    const DOCS = [
+      `cat > ${wd}/plan.md`, `echo x >> ${wd}/answers.md`, `cp /tmp/draft.md ${wd}/plan.prev.md`, `cat > ${wd}/pr-body.shop.md`, `cat > ${wd}/checkpoint.implement.md`,
+      `cat > ${p.work}/_scratch/review-x.md`, `echo '{}' > ${p.work}/_scratch/review-x.json`, `cat > ${p.work}/_day/2026-10-08.eod.md`,
+    ];
+    for (const command of DOCS) {
+      const why = reason(await bash(p, command));
+      assert.match(why, /state\.mjs doc /, command);
+      assert.match(why, /--from <file>/, command);
+      assert.ok(why.includes(out), `${command}: names the folder an agent may write drafts in`);
+    }
+    assert.match(reason(await bash(p, `cat > ${wd}/plan.md`)), new RegExp(`state\\.mjs doc ${wd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} plan\\.md`), 'it names the directory and the file');
+    const log = reason(await bash(p, `npm ci > ${wd}/install.shop.log 2>&1`));
+    assert.match(log, /command's output/);
+    assert.ok(log.includes(`${out}/T-1/install.shop.log`), 'output goes to the ticket\'s folder in the exempt one, under the same name');
+    assert.ok(reason(await bash(p, `cat > ${wd}/plan.md`)).includes(`${out}/T-1/`), 'and so does a draft');
+    assert.ok(reason(await bash(p, `cat > ${p.work}/_scratch/review-x.md`)).includes(`${out}/ and place it`), 'a file outside any ticket drafts in the folder itself');
+    for (const command of [`cat > ${wd}/plan.draft.json`, `cat > ${p.work}/_budget.json`, `echo x > ${p.work}/_office/a.json`, `echo x > ${p.work}/_scratch/gates/shop/run-1/out.log`]) {
+      assert.match(reason(await bash(p, command)), /written by the pipeline's scripts alone/, command);
+    }
+  });
+
+  it('lets through what is not the work directory\'s record: a checkout, the output folder, other folders, reads, and the scripts', async (t) => {
     const p = project(t);
     const wd = join(p.work, 'T-1'); mkdirSync(join(wd, 'wt', 'shop'), { recursive: true });
     for (const command of [
-      `cat > ${wd}/plan.md`, `echo x >> ${wd}/answers.md`, `cp ${wd}/plan.md ${wd}/plan.prev.md`, `cat > ${wd}/pr-body.shop.md`, `cat > ${wd}/checkpoint.implement.md`,
-      `cat > ${wd}/plan.draft.json`, `cat > ${wd}/wt/shop/release.json`, `cat > ${p.work}/_scratch/plan.json`, `cat > ${p.work}/_budget.json`, `cat > /tmp/plan.json`,
-      `cat ${wd}/plan.json`, `jq .steps ${wd}/plan.json`, `cp ${wd}/plan.json /tmp/backup.json`, `node ${LIB}/state.mjs put ${wd} plan '{}'`,
+      `cat > ${wd}/wt/shop/release.json`, `echo x > ${wd}/wt/shop/plan.md`, `cat > ${p.work}/_scratch/wt/base-shop/notes.md`,
+      `npm ci > ${p.claude}/worktrees/_out/T-1.install.log 2>&1`, `cat > ${p.claude}/worktrees/T-1/shop/src/plan.md`, `cat > /tmp/plan.json`, `cat > ${p.root}/plan.json`,
+      `cat ${wd}/plan.json`, `jq .steps ${wd}/plan.json`, `cp ${wd}/plan.json /tmp/backup.json`, `cp ${wd}/plan.md ${p.claude}/worktrees/_out/plan.md`,
+      `node ${LIB}/state.mjs put ${wd} plan '{}'`, `node ${LIB}/state.mjs doc ${wd} plan.md --from ${p.claude}/worktrees/_out/plan.md`,
     ]) assert.equal(verdict(await bash(p, command)) === 'deny', false, command);
+  });
+
+  it('refuses a ticket\'s worktree inside its work directory, and lets the pipeline\'s own checkouts and the exempt folder go', async (t) => {
+    const p = project(t);
+    const wd = join(p.work, 'T-1'); mkdirSync(wd, { recursive: true });
+    const exempt = join(p.claude, 'worktrees');
+    for (const command of [`git -C /r worktree add -b feat/x ${wd}/wt/shop origin/main`, `git worktree add ${wd}/wt/shop feat/x`, `git worktree add --detach ${wd}/wt/shop HEAD`, `git worktree add -b feat/y ${p.work}/T-2/wt/api origin/main`]) {
+      const out = await bash(p, command);
+      assert.equal(verdict(out), 'deny', command);
+      assert.match(reason(out), new RegExp(`goes at ${exempt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/<id>/<repo-name>`));
+    }
+    for (const command of [`git -C /r worktree add -b feat/x ${exempt}/T-1/shop origin/main`, `git worktree add --detach ${p.work}/_scratch/wt/review-shop HEAD`, `git worktree add ${p.work}/_scratch/wt/base-shop origin/main`, 'git worktree list', `git worktree remove ${wd}/wt/shop`]) {
+      assert.equal(verdict(await bash(p, command)) === 'deny', false, command);
+    }
+    assert.equal(await bash(project(t, { legacy: true }), `git worktree add ${wd}/wt/shop feat/x`), null, 'legacy copy: stand down');
   });
 
   it('stands down while a legacy copy of the skills is in the project — they write these files by hand', async (t) => {
@@ -229,15 +273,33 @@ describe('write guard — the file tools', () => {
     assert.match(reason(await write(p, join(wd, 'plan.json'))), new RegExp(`written with \`node .*state\\.mjs put ${wd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} plan `));
   });
 
-  it('lets through every other file, the work root\'s own, a worktree\'s, and a project that never ran /tp:setup', async (t) => {
+  it('refuses the documents too, naming state.mjs doc and the folder to draft them in', async (t) => {
+    const p = project(t);
+    const wd = join(p.work, 'T-1'); mkdirSync(wd, { recursive: true });
+    for (const tool of ['Write', 'Edit', 'MultiEdit']) {
+      for (const file of [join(wd, 'plan.md'), join(wd, 'report.md'), join(wd, 'checkpoint.plan.md'), join(p.work, '_scratch', 'review-x.md'), join(p.work, '_scratch', 'review-x.json'), join(p.work, '_day', 'd.eod.md')]) {
+        const out = await write(p, file, tool);
+        assert.equal(verdict(out), 'deny', `${tool} ${file}`);
+        assert.match(reason(out), new RegExp(`state\\.mjs doc ${file.slice(0, file.lastIndexOf('/')).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} ${file.split('/').pop().replace(/\./g, '\\.')}`));
+        assert.ok(reason(out).includes(join(p.claude, 'worktrees', '_out')), 'and where to draft it');
+      }
+    }
+    assert.match(reason(await write(p, join(wd, 'install.log'))), /command's output/);
+    assert.match(reason(await write(p, join(p.work, '_budget.json'))), /scripts alone/);
+  });
+
+  it('lets through a checkout in the work directory, the worktrees folder, and every other path; a project that never ran /tp:setup is left alone', async (t) => {
     const p = project(t);
     const wd = join(p.work, 'T-1'); mkdirSync(join(wd, 'wt', 'shop'), { recursive: true });
-    for (const file of [join(wd, 'plan.md'), join(wd, 'answers.md'), join(wd, 'plan.prev.md'), join(wd, 'report.md'), join(wd, 'wt', 'shop', 'plan.json'), join(p.work, '_budget.json'), join(p.work, '_scratch', 'plan.json'), join(p.root, 'plan.json'), '/tmp/plan.json']) {
+    for (const file of [join(wd, 'wt', 'shop', 'plan.json'), join(wd, 'wt', 'shop', 'src', 'a.ts'), join(p.work, '_scratch', 'wt', 'base-shop', 'a.ts'), join(p.claude, 'worktrees', 'T-1', 'shop', 'plan.md'),
+      join(p.claude, 'worktrees', '_out', 'T-1.plan.md'), join(p.root, 'plan.json'), '/tmp/plan.md']) {
       assert.equal(await write(p, file), null, file);
     }
     const bare = project(t, { tiers: null });
     assert.equal(await write(bare, join(bare.work, 'T-1', 'plan.json')), null);
+    assert.equal(await write(bare, join(bare.work, 'T-1', 'plan.md')), null);
     assert.equal(await write(project(t, { legacy: true }), join(wd, 'plan.json')), null, 'legacy copy: stand down');
+    assert.equal(await write(project(t, { legacy: true }), join(wd, 'plan.md')), null, 'legacy copy: stand down');
   });
 
   it('ignores tools it does not guard and calls with no path', async (t) => {

@@ -4,16 +4,17 @@
 // agent keeps could still do (a shell that rewrites a source file, a git that commits).
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { gitOf, programOf, writeTargets } from './shell.mjs';
 import { real, within, workRoot } from './shared.mjs';
+import { outDir, worktreesRoot } from '../lib/state/paths.mjs';
 
 /** What a role may write, as patterns on a path relative to the work root (`T-1/plan-check.json`, `_scratch/review-x.md`). */
 export const ROLES = {
-  'tp:plan-checker': { label: 'plan checker', writes: [/^[^/]+\/(plan-check\.json|checkpoint\.plan-check\.md)$/], says: 'plan-check.json (through state.mjs put) and its checkpoint', worktree: false },
-  'tp:diff-validator': { label: 'diff validator', writes: [/^[^/]+\/(diff-validation\.md|checkpoint\.create-pr[\w.-]*\.md)$/], says: 'diff-validation.md and its checkpoint', worktree: false },
-  'tp:researcher': { label: 'researcher', writes: [/^[^/]+\/(research\.json|checkpoint\.research\.md)$/], says: 'research.json (through state.mjs put) and its checkpoint', worktree: false },
-  'tp:reviewer': { label: 'reviewer', writes: [/^_scratch\//], says: 'under work/_scratch/ (its review, its checkpoint, a checkout of its own)', worktree: true },
+  'tp:plan-checker': { label: 'plan checker', writes: [/^[^/]+\/(plan-check\.json|checkpoint\.plan-check\.md)$/], says: 'plan-check.json (through state.mjs put) and its checkpoint (through state.mjs doc)', worktree: false },
+  'tp:diff-validator': { label: 'diff validator', writes: [/^[^/]+\/(diff-validation\.md|checkpoint\.create-pr[\w.-]*\.md)$/], says: 'diff-validation.md and its checkpoint (through state.mjs doc)', worktree: false },
+  'tp:researcher': { label: 'researcher', writes: [/^[^/]+\/(research\.json|checkpoint\.research\.md)$/], says: 'research.json (through state.mjs put) and its checkpoint (through state.mjs doc)', worktree: false },
+  'tp:reviewer': { label: 'reviewer', writes: [/^_scratch\//], says: 'under work/_scratch/ (its review and its checkpoint, through state.mjs doc; a checkout of its own)', worktree: true },
 };
 
 const GIT_READ = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'rev-list', 'ls-files', 'ls-tree', 'blame', 'grep', 'merge-base', 'cat-file', 'describe', 'shortlog', 'name-rev', 'for-each-ref', 'show-ref', 'diff-tree', 'diff-index', 'range-diff', 'check-ignore', 'cherry', 'whatchanged', 'count-objects', 'fetch', 'version', 'help']);
@@ -46,15 +47,33 @@ function inCheckout(file) {
   }
 }
 
-/** Is the role allowed to write this path: a file of its own job inside the work directory, or a temporary file outside every checkout. */
+/** Is the role allowed to write this path: a file of its own job inside the work directory, a draft or command output in the folder an agent may write in, or a temporary file outside every checkout. */
 function mayWrite(role, target, payload, ctx) {
   const literal = String(target);
   if (literal.startsWith('/dev/')) return true;
   if (/\$/.test(literal)) return false; // a path the hook cannot read is not one it can vouch for
   const file = real(literal.startsWith('/') ? literal : resolve(payload.cwd || ctx.projectDir, literal));
+  if (within(file, outDir(ctx.claudeDir))) return true; // drafts and command output: placed in the work directory by the state script, which is checked below
+  if (within(file, worktreesRoot(ctx.claudeDir))) return false; // a ticket's checkout: a verifier changes nothing in it
   const root = real(workRoot(ctx));
   if (file.startsWith(root + sep)) return role.writes.some((re) => re.test(relative(root, file).split(sep).join('/'))); // the work directory: only the role's own files
   return inTmp(file) && !inCheckout(file);
+}
+
+/**
+ * The work-directory file a call of the state script's `put` or `doc` writes, as `<dir>/<file>` below the work root — the same shape a role's `writes` patterns
+ * read — or `{ unreadable }` when the call names it with a variable; null for any other command.
+ */
+function stateWrite(command, payload, ctx) {
+  const p = programOf(command);
+  if (!p || p.name !== 'node') return null;
+  const [script, sub, dir, name] = p.args;
+  if (!script || script.startsWith('-') || basename(script) !== 'state.mjs' || !['put', 'doc'].includes(sub)) return null;
+  if (!dir || !name || /\$/.test(`${dir}${name}`)) return { unreadable: true, shown: `${sub} ${dir ?? ''} ${name ?? ''}`.trim() };
+  const file = sub === 'put' ? `${String(name).replace(/\.json$/, '')}.json` : String(name);
+  const abs = real(dir.startsWith('/') ? dir : resolve(payload.cwd || ctx.projectDir, dir));
+  const root = real(workRoot(ctx));
+  return { rel: abs.startsWith(root + sep) ? `${relative(root, abs).split(sep).join('/')}/${file}` : `${abs}/${file}`, shown: `${basename(abs)}/${file}` };
 }
 
 /** Why a Bash command is refused to this role, or null. `commands` is parseShell's output. */
@@ -67,6 +86,8 @@ export function roleBashReason(role, commands, payload, ctx) {
     for (const target of writeTargets(c, { removals: true })) {
       if (!mayWrite(role, target, payload, ctx)) return `refused: the ${role.label} writes only ${role.says} — not ${target}.`;
     }
+    const w = stateWrite(c, payload, ctx); // the state script writes the work directory for the role: it is held to its own files there too
+    if (w && (w.unreadable || !role.writes.some((re) => re.test(w.rel)))) return `refused: the ${role.label} writes only ${role.says} — not ${w.shown}.`;
   }
   return null;
 }

@@ -4,7 +4,7 @@ description: Picks up a tracker ticket: blocked check, assign, move to in progre
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/ticket-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/ticket-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write. Its `.md` documents are written the same way: `node <lib>/state.mjs doc <workdir> <name>`, the text on stdin or `--from <file>` (`--append` adds to the end); a long one is drafted under `<.claude>/worktrees/_out/<id>/`, the one place below `.claude/` an agent may write.
 
 Take a ticket from "in the backlog" to "worktree and branch created, ready to
 implement" — or stop cleanly and say why if it isn't pickable right now. The branch
@@ -101,13 +101,14 @@ The person's own checkout is never involved.
 
 ### 8. Worktree and branch
 `instructions/branch-and-pull.md`, once per target repo: fetch, create the worktree at
-`<.claude>/work/<id>/wt/<repo-name>` on the new branch (or on the open stacked
+`<.claude>/worktrees/<id>/<repo-name>` on the new branch (or on the open stacked
 branch), install dependencies, regenerate generated code — the one checkout the
 ticket keeps for its whole run (`reference/work-directory.md` § Worktrees); a new round
 re-branches it. Local only: no push, no PR.
 
 ### 9. Write the work directory
-`reference/work-directory.md` § Work directory: `ticket.md` (title, link, description and
+`reference/work-directory.md` § Work directory — `ticket.md` first: the first document
+creates the directory — : `ticket.md` (title, link, description and
 acceptance criteria verbatim, brief pointers, the repo table) and `ticket.json` —
 `acceptanceCriteria` verbatim as an array or, when the ticket has none, derived from
 its current-vs-expected description with `derived: true` (say so; `/tp:accept` proves
@@ -122,7 +123,7 @@ repos, flags, unclear, novelty, claudeDir }'` from the ticket alone (`source:
 estimate field and named in the pickup comment; `round` (1,
 or the `round=` given); `stackedOn` or `dependsOn`; one repo row each — its `path` (the
 repo's checkout) and `worktree` written as **absolute** paths, the expansion of
-`<.claude>`, never the `<repo-name>` / `.claude/work/<id>/wt/<repo-name>` forms that
+`<.claude>`, never the `<repo-name>` / `.claude/worktrees/<id>/<repo-name>` forms that
 read from the working directory this agent happens to sit in (`reference/definitions.md` § Definitions,
 `<.claude>`; § Work directory): every later stage reads the row from a different
 directory, and a relative one names a worktree that isn't there. Then

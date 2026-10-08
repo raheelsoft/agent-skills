@@ -4,7 +4,7 @@ description: Plans a day's work and puts it to the person first: picks tickets f
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). Its checkpoint and any other document it writes in the work directory go through `node <lib>/state.mjs doc <.claude>/work/<_day|_scratch> <name>` (the text on stdin or `--from <file>`; a draft or a command's output goes under `<.claude>/worktrees/_out/`, in a name that carries its slug or date — the one place below `.claude/` an agent may write): a hook refuses a raw write.
 
 Turn "what runs today?" into running pipelines: select the day's tickets from the
 tracker, prove each one is unblocked, work out which depend on which, write the plan
@@ -161,7 +161,7 @@ for the script to estimate from. A ticket in flight takes its hours from its
 `ticket.json.estimate` (`hoursSource` = its `source`), for its attention share.
 
 ### 6. The plan
-Write the gathered input to `<.claude>/work/_scratch/plan-day-<date>.input.json`
+Put the gathered input in `<.claude>/work/_scratch/plan-day-<date>.input.json` (`state.mjs doc`)
 first (the re-plan after an adjustment reads it instead of fetching again), then
 `node <lib>/day.mjs plan <.claude>/work '{ date, from, iteration,
 features, band, lanes?, count?, hours?, focus?, stackable, claudeDir, dry, review,

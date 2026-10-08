@@ -18,7 +18,7 @@ A small ticket gets a one-screen plan with the template's headings:
 
 status: ready
 risk flags: public-contract
-repos: `/work/shop/.claude/work/ACME-42/wt/shop-web` · `feat/acme-42-invoice-vat` · `main`
+repos: `/work/shop/.claude/worktrees/ACME-42/shop-web` · `feat/acme-42-invoice-vat` · `main`
 
 ## Goal
 The invoice page shows what the customer pays, VAT included.

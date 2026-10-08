@@ -91,16 +91,18 @@ Gates, hooks, generated code and the checks every stage and agent holds to.
   does not ask the agent to remember it. Today:
   - `off-skill` — a typed `/tp:<skill>` that `pipeline.json` turned off is refused before the
     model sees it, at no token cost.
-  - `bash` (PreToolUse) — in a run (a sub-agent's call, a call in a ticket's work directory, or
-    while a run lock is live) refuses `--no-verify`, a plain force-push (`--force-with-lease`
-    after a rebase is fine), a changed remote URL and a write to the shell's, ssh's, git's or
-    cloud configuration; anywhere, refuses a raw write to a file the state script owns (the
-    stage JSON, `progress.md`, `lock.json`) and says which `state.mjs` command writes it; and
+  - `bash` (PreToolUse) — in a run (a sub-agent's call, a call in a ticket's work directory or
+    worktree, or while a run lock is live) refuses `--no-verify`, a plain force-push
+    (`--force-with-lease` after a rebase is fine), a changed remote URL and a write to the
+    shell's, ssh's, git's or cloud configuration; anywhere, refuses a raw write to the work
+    directory (the stage JSON, `progress.md`, `lock.json`, every document, command output) and
+    says which `state.mjs` command takes it, or that output goes to `worktrees/_out/`, and a
+    ticket's worktree created inside its work directory; and
     lets a bare `node <plugin>/lib|office|hooks/<script> …` call through without a permission
     rule, so the allowlist need not name the plugin's versioned folder (a command with
     anything in front of or after it — `export PATH=…;`, a pipe — goes through the rules).
-  - `write` (PreToolUse on Write, Edit, MultiEdit) — the same refusal of a raw write to those
-    files, for the file tools.
+  - `write` (PreToolUse on Write, Edit, MultiEdit) — the same refusal of a raw write to the
+    work directory, for the file tools.
   - `agent-ceiling` (PreToolUse on Agent) — a sub-agent asked for a model above `tiers.json`'s
     ceiling runs on the ceiling instead, every other field of the spawn kept.
   - `model-switch` (PreModelSwitch) — a session switch to a model above the ceiling asks the

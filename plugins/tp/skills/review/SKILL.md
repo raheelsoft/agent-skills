@@ -4,7 +4,7 @@ description: Reviews a remote PR (or the local diff before pushing) in an isolat
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). Its checkpoint and any other document it writes in the work directory go through `node <lib>/state.mjs doc <.claude>/work/_scratch <name>` (the text on stdin or `--from <file>`; a draft or a command's output goes under `<.claude>/worktrees/_out/`, in a name that carries its slug or date — the one place below `.claude/` an agent may write): a hook refuses a raw write.
 
 You are the reviewer, not the author. This skill runs in its own dedicated agent
 (`reference/definitions.md` § Definitions, Dedicated agent) whose whole context is the arguments it was given —
@@ -63,7 +63,7 @@ target project's conventions file first — project-specific rules live there.
 ## Steps
 
 Each numbered step is a checkpoint boundary (rule 7): on `checkpoint` the agent
-writes `<.claude>/work/_scratch/review-<slug>.md` (`<slug>` = `<repo-name>--<PR
+writes `<.claude>/work/_scratch/review-<slug>.md` through `state.mjs doc` (`<slug>` = `<repo-name>--<PR
 number, or the branch with / as ->`, the same for the summary below) — the gate table, the
 findings so far, the next step — and returns `continue: <path>`; with `continue=true`
 it resumes there. `/tp:review` never writes to a ticket's `progress.md`.
@@ -81,7 +81,7 @@ dedicated agent under the office id `review:<slug>:qa:verify` with this agent as
   by-hand review, a checkout that moved on) an isolated `git worktree` of this
   review's own, detached at the remote ref (`git worktree add --detach <path>
   <remote>/<head-branch>` — the branch itself may be checked out in the author's
-  worktree), at `_scratch/wt/review-<repo>` (never under a ticket's `wt/`, never the
+  worktree), at `_scratch/wt/review-<repo>` (never in a ticket's worktree folder, never the
   shared working copy: parallel reviews must not share a checkout), reusing an
   existing dependency install where possible and removed when this review is done.
   Then the Gates table: **reuse, hooks, then run** (`reference/verification.md` § Verification
@@ -159,7 +159,7 @@ Rate confidence 1–5. Below 4, re-read with a different focus.
 ### 5. Write the review
 
 The review is data, and the comment is derived from it. Write
-`<.claude>/work/_scratch/review-<slug>.json` in the shape of `schemas/examples/review-findings.json`
+`<.claude>/worktrees/_out/review-<slug>.json` in the shape of `schemas/examples/review-findings.json`
 (`examples/review-findings.md` has good and bad passes; `schemas/README.md` § Reviews):
 
 - `round`, `sha` (the head reviewed), `mode` (`full`, `delta`, `resolution`), `confidence`
@@ -172,8 +172,8 @@ The review is data, and the comment is derived from it. Write
   for a previous item the change fixed, `"noted"` for something seen that does not gate
   (`resolution` only), and `new: true` on each item this pass raised.
 
-Then `node <lib>/findings.mjs check <file>` and `node <lib>/findings.mjs render <file> >
-<.claude>/work/_scratch/review-<slug>.md`. The verdict (`BLOCK` when a gate failed or a *fix before
+Then `node <lib>/findings.mjs check <file>` and `node <lib>/findings.mjs render <file> |
+node <lib>/state.mjs doc <.claude>/work/_scratch review-<slug>.md`. The verdict (`BLOCK` when a gate failed or a *fix before
 merging* item — P0 or P1 — is open, `PASS WITH WARNINGS` when anything else of the diff is open,
 `PASS` otherwise), the sections (only those with items; no *should fix* or *could improve* in a
 `delta` or `resolution` pass; a resolution check lists each previous item as resolved or not), the

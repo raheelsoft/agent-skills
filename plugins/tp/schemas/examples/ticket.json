@@ -19,7 +19,7 @@
     {
       "name": "shop-web",
       "path": "/work/projects/shop-web",
-      "worktree": "/work/projects/shop/.claude/work/ACME-42/wt/shop-web",
+      "worktree": "/work/projects/shop/.claude/worktrees/ACME-42/shop-web",
       "branch": "feat/acme-42-invoice-vat",
       "base": "main",
       "conventions": "/work/projects/shop-web/CLAUDE.md"

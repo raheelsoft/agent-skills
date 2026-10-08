@@ -12,13 +12,13 @@ const schema = JSON.parse(readFileSync(join(PLUGIN_ROOT, 'tests', 'fixtures', 'e
 const cases = readdirSync(EVALS).filter((d) => existsSync(join(EVALS, d, 'case.yaml'))).sort();
 const read = (name) => JSON.parse(readFileSync(join(EVALS, name, 'case.yaml'), 'utf8')); // JSON is YAML: the suite is written so a test needs no parser
 const skills = new Set(readdirSync(join(PLUGIN_ROOT, 'skills')));
-const SCENARIOS = ['empty', 'picked-up', 'stopped', 'in-run'];
+const SCENARIOS = ['empty', 'picked-up', 'triaged', 'stopped', 'in-run'];
 
 describe('the eval suite', () => {
-  it('there are cases, and the smoke set covers the contract loop, a skill that reads, and the guards', () => {
-    assert.ok(cases.length >= 6, `${cases.length} cases`);
+  it('there are cases, and the smoke set covers the contract loop, a skill that reads, the guards, and the stages that write documents and code', () => {
+    assert.ok(cases.length >= 8, `${cases.length} cases`);
     const smoke = cases.filter((c) => read(c).tags.includes('smoke'));
-    for (const must of ['raw-write-then-put', 'status-one-ticket', 'inbox-stopped-ticket', 'no-verify-refused', 'plan-checker-read-only', 'researcher-needs-allowlist']) assert.ok(smoke.includes(must), `${must} is a smoke case`);
+    for (const must of ['raw-write-then-put', 'status-one-ticket', 'inbox-stopped-ticket', 'no-verify-refused', 'plan-checker-read-only', 'researcher-needs-allowlist', 'triage-direct', 'implement-direct']) assert.ok(smoke.includes(must), `${must} is a smoke case`);
   });
 
   for (const name of cases) {
@@ -58,7 +58,7 @@ describe('the eval suite', () => {
 
       it('runs once and is bounded in turns and time', () => {
         assert.equal(c.runs, 1, 'a smoke case runs once; --runs raises it for a full pass');
-        assert.ok(c.execution.max_turns <= 30 && c.execution.timeout_seconds <= 900);
+        assert.ok(c.execution.max_turns <= 60 && c.execution.timeout_seconds <= 900);
       });
     });
   }

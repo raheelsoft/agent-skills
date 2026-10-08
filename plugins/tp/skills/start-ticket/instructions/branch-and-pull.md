@@ -25,7 +25,7 @@ git -C <repo> fetch <remote> <base>
 
 **Fresh — a new branch from the base** (SKILL.md step 7, case 3):
 ```bash
-git -C <repo> worktree add -b <branch-name> <.claude>/work/<id>/wt/<repo-name> <remote>/<base>
+git -C <repo> worktree add -b <branch-name> <.claude>/worktrees/<id>/<repo-name> <remote>/<base>
 ```
 Name per `ticket-intake.md` § Branch slug; check it doesn't already exist locally or on
 the remote (`git branch --list`, `git ls-remote --heads <remote> <name>`) — two people on
@@ -34,7 +34,7 @@ related tickets can collide on a near-identical slug.
 **Dependent, own PR** (case 2): a new branch from the open dependency's branch —
 ```bash
 git -C <repo> fetch <remote> <open-branch>
-git -C <repo> worktree add -b <branch-name> <.claude>/work/<id>/wt/<repo-name> <remote>/<open-branch>
+git -C <repo> worktree add -b <branch-name> <.claude>/worktrees/<id>/<repo-name> <remote>/<open-branch>
 ```
 — and `dependsOn: { ticket, branch }` in `ticket.json`.
 
@@ -43,7 +43,7 @@ still holds that branch (`git -C <repo> worktree list`), record that path as thi
 ticket's worktree — no new worktree. Otherwise:
 ```bash
 git -C <repo> fetch <remote> <open-branch>
-git -C <repo> worktree add <.claude>/work/<id>/wt/<repo-name> <open-branch>   # tracks <remote>/<open-branch>
+git -C <repo> worktree add <.claude>/worktrees/<id>/<repo-name> <open-branch>   # tracks <remote>/<open-branch>
 ```
 If git refuses because the branch is checked out in the person's own checkout, log
 `stopped "<branch> is checked out in <path> — move that copy off it, then
@@ -55,8 +55,8 @@ as an update round of that PR.
 from the base, which now holds the merged work (`reference/work-directory.md` § Worktrees — the
 install, the generated code and the caches are already there) —
 ```bash
-git -C <.claude>/work/<id>/wt/<repo-name> fetch <remote> <base>
-git -C <.claude>/work/<id>/wt/<repo-name> checkout -q -b <branch>-r<n> <remote>/<base>
+git -C <.claude>/worktrees/<id>/<repo-name> fetch <remote> <base>
+git -C <.claude>/worktrees/<id>/<repo-name> checkout -q -b <branch>-r<n> <remote>/<base>
 ```
 — from wherever the last stage left it (detached at the merge commit after
 `/tp:accept`); dependencies are re-installed only when a lockfile changed between the
@@ -75,7 +75,7 @@ what the person must fix, `answers=retry` afterwards.
 - Install dependencies in the worktree with the project's lockfile tool, or reuse the
   main checkout's install where the project's docs allow it (`reference/procedures.md`
   § Toolchain); log which as a `note`. The install's output goes to a file, never into
-  this context (`<tool> install > <.claude>/work/<id>/install.<repo-name>.log 2>&1`;
+  this context (`<tool> install > <.claude>/worktrees/_out/<id>/install-<repo-name>.log 2>&1`;
   read its exit code and `tail -5`, the first error lines on failure — § Context
   management, rule 11); the same for the code generation below.
 - Regenerate generated code — `node <lib>/codegen.mjs status '{ repo:
@@ -95,7 +95,11 @@ Used once per ticket, when its run ends (`reference/work-directory.md` § Worktr
 that ends before it (closed by triage, parked as blocked); never by a stage in
 between, and never by a new round, which re-branches the worktree instead (§ 2):
 ```bash
-git -C <repo> worktree remove <.claude>/work/<id>/wt/<repo-name>   # --force when it holds untracked files
+git -C <repo> worktree remove <.claude>/worktrees/<id>/<repo-name>   # --force when it holds untracked files
 git -C <repo> branch -D <branch>                                   # only a branch that was never pushed, or is merged
+rmdir <.claude>/worktrees/<id>                                     # empty once every repo's worktree is gone
 ```
+The ticket's `<.claude>/worktrees/_out/<id>/` folder goes with it. A ticket picked up
+before the worktrees moved out of the work directory has its worktree at `<.claude>/work/<id>/wt/<repo-name>`
+— `ticket.json` records the path, and that is the one to remove.
 A worktree another ticket's `ticket.json` still names (a stacked sibling) stays.

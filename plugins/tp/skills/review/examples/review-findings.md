@@ -1,6 +1,6 @@
 # The review as data — good and bad
 
-A review pass is a JSON file, `<.claude>/work/_scratch/review-<slug>.json`; `findings.mjs render` makes the comment
+A review pass is a JSON file, `<.claude>/worktrees/_out/review-<slug>.json`; `findings.mjs render` makes the comment
 from it and the verdict follows from the priorities (P0 correctness, security, data loss · P1 contract break,
 regression, missing test · P2 design · P3 clean code · P4 style — `instructions/checklist.md` § Priorities).
 

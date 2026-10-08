@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "name": "implement-direct",
+  "description": "/tp:implement edits the code in the ticket's worktree, commits it, runs the gates and records the result \u2014 with the worktree under .claude/worktrees/ and every document placed by the state script, no bypass.",
+  "tags": [
+    "smoke",
+    "stage"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "/tp:implement DEMO-4 inline=true",
+    "max_turns": 60,
+    "timeout_seconds": 600,
+    "model": "sonnet",
+    "allowed_tools": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Skill",
+      "Agent"
+    ]
+  },
+  "runs": 1,
+  "graders": [
+    {
+      "type": "regex",
+      "name": "the handler now filters, edited in the ticket's worktree",
+      "pattern": "filter|includes",
+      "target": {
+        "source": "file",
+        "path": ".claude/worktrees/DEMO-4/api/src/handlers/list.js"
+      }
+    },
+    {
+      "type": "file_exists",
+      "name": "implement.json is there",
+      "path": ".claude/work/DEMO-4/implement.json"
+    },
+    {
+      "type": "regex",
+      "name": "and it did not stop",
+      "pattern": "\"stopped\": null",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/implement.json"
+      }
+    },
+    {
+      "type": "regex",
+      "name": "with a gate that passed",
+      "pattern": "\"PASS\"",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/implement.json"
+      }
+    },
+    {
+      "type": "file_exists",
+      "name": "the plan's notes are there",
+      "path": ".claude/work/DEMO-4/plan.md"
+    },
+    {
+      "type": "file_exists",
+      "name": "and the PR description draft",
+      "path": ".claude/work/DEMO-4/pr-body.md"
+    },
+    {
+      "type": "regex",
+      "name": "and logged the stage done",
+      "pattern": "implement \u00b7 done",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/progress.md"
+      }
+    }
+  ]
+}

@@ -50,9 +50,9 @@ export function setup(dir, opts = {}) {
   writeFileSync(join(claude, 'tracker.json'), JSON.stringify({ kind: 'fixture', path: fixture }, null, 2) + '\n');
   writeFileSync(join(claude, 'office.json'), JSON.stringify({ team: 'Demo CRM', projects: ['api', 'web'], poll: 2500, linger: 120 }, null, 2) + '\n');
   writeFileSync(join(claude, 'notify.json'), JSON.stringify({ tool: null, target: null, project: 'demo', levels: ['stop', 'done', 'error'], setAt: new Date().toISOString() }, null, 2) + '\n');
-  const allow = [`Bash(node ${PLUGIN_ROOT}/lib/*)`, `Bash(node ${PLUGIN_ROOT}/office/*)`, 'Bash(node --test *)', 'Bash(node --check *)', 'Bash(git status*)', 'Bash(git diff*)', 'Bash(git log*)', 'Bash(git show*)', 'Bash(git fetch*)', 'Bash(git rev-parse*)', 'Bash(git merge-base*)', 'Bash(git branch*)', 'Bash(git worktree *)', 'Bash(git checkout *)', 'Bash(git switch *)', 'Bash(git add *)', 'Bash(git commit *)', 'Bash(git merge *)', 'Bash(git push *)'];
+  const allow = [`Edit(//${claude.replace(/^\/+/, '')}/worktrees/**)`, `Bash(node ${PLUGIN_ROOT}/lib/*)`, `Bash(node ${PLUGIN_ROOT}/office/*)`, 'Bash(node --test *)', 'Bash(node --check *)', 'Bash(git status*)', 'Bash(git diff*)', 'Bash(git log*)', 'Bash(git show*)', 'Bash(git fetch*)', 'Bash(git rev-parse*)', 'Bash(git merge-base*)', 'Bash(git branch*)', 'Bash(git worktree *)', 'Bash(git checkout *)', 'Bash(git switch *)', 'Bash(git add *)', 'Bash(git commit *)', 'Bash(git merge *)', 'Bash(git push *)'];
   writeFileSync(join(claude, 'settings.local.json'), JSON.stringify({ permissions: { allow } }, null, 2) + '\n');
-  writeFileSync(join(claude, '.gitignore'), 'work/\n');
+  writeFileSync(join(claude, '.gitignore'), 'work/\nworktrees/\n');
   return { root, claude, repos, fixture, models, plugin: PLUGIN_ROOT };
 }
 

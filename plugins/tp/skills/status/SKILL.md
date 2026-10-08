@@ -4,7 +4,7 @@ description: Shows where every ticket in the work directory stands — stage, ra
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). Its checkpoint and any other document it writes in the work directory go through `node <lib>/state.mjs doc <.claude>/work/_scratch <name>` (the text on stdin or `--from <file>`; a draft or a command's output goes under `<.claude>/worktrees/_out/`, in a name that carries its slug or date — the one place below `.claude/` an agent may write): a hook refuses a raw write.
 
 One table for all tickets, or one ticket in detail. Everything comes from
 `state.mjs` (`reference/definitions.md` § Definitions, The scripts); this skill formats, it doesn't infer.
@@ -50,8 +50,8 @@ or abandoned but still hold a worktree (`worktrees` non-empty: the ticket's one
 worktree per repo, kept for the whole run and removed by `/tp:accept`'s `done` or the
 close-out of a closed or parked ticket — `reference/work-directory.md` § Worktrees; a stopped
 ticket keeps it on purpose and is not listed here) — for each, the exact cleanup:
-`git -C <repo path> worktree remove <workdir>/wt/<entry>` with the repo path from
-`ticket.json` (by name), then the directory. A stale lock is listed with
+`git -C <repo path> worktree remove <worktree>`, both from `ticket.json` (by name), then
+`rmdir` the ticket's folder in `<.claude>/worktrees/`. A stale lock is listed with
 `state.mjs unlock <workdir> <owner>`; a live lock of a run the user declares dead
 with `--force` (`reference/work-directory.md` § Concurrency).
 

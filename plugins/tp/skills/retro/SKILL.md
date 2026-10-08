@@ -4,7 +4,7 @@ description: Compares the plan with what happened after acceptance — deviation
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/retro-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/retro-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write. Its `.md` documents are written the same way: `node <lib>/state.mjs doc <workdir> <name>`, the text on stdin or `--from <file>` (`--append` adds to the end); a long one is drafted under `<.claude>/worktrees/_out/<id>/`, the one place below `.claude/` an agent may write.
 
 The improvement loop, optional and after the fact: the work directory holds the plan,
 the check, the implementation summary, the review, every stop and answer, and the
@@ -31,7 +31,7 @@ proposes changes; the user decides which land. Conventions and the state script:
 `state.mjs state <workdir>` then `state.mjs log <workdir> retro started`
 (`reference/definitions.md` § Definitions, Resume). This agent reads the record itself — no
 second agent for the same reading (tools: read, the hosting platform's CLI reads, the
-state script; write only `retro.md` and `checkpoint.retro.md`, and `retro.json` through `state.mjs put`; it asks
+state script; write only `retro.md` and `checkpoint.retro.md` (through `state.mjs doc`), and `retro.json` through `state.mjs put`; it asks
 `model.mjs compact` between the questions below, rule 7): from the work directory,
 the files the questions name — `plan.md` (§ Implementation summary), `plan-check.json`,
 `implement[.repo].json`, `answers.md`, `accept.json`, `ticket.json` (estimate,

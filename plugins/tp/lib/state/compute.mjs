@@ -12,6 +12,7 @@ import { readLock } from './lock.mjs';
 import { classifyStop } from './classify.mjs';
 import { usage } from './usage.mjs';
 import { pendingAnswer } from './answers.mjs';
+import { worktreesOnDisk as onDisk } from './paths.mjs';
 
 export function computeState(workdir) {
   const problems = [];
@@ -155,9 +156,8 @@ export function computeState(workdir) {
     classifyStop(stopped, { id: ticket?.id || basename(workdir), unblocked, triageBlocked: triage?.decision === 'blocked', workdir });
   }
 
-  // worktrees: expected from ticket.json while the ticket is open; present on disk under wt/
-  const wt = join(workdir, 'wt');
-  const worktreesOnDisk = isDir(wt) ? readdirSync(wt).filter((w) => isDir(join(wt, w))) : [];
+  // worktrees: expected from ticket.json while the ticket is open; present on disk under <.claude>/worktrees/<id>/ (or the wt/ an earlier pickup made)
+  const worktreesOnDisk = onDisk(workdir);
   const started = out.some((s) => s.name === 'start-ticket' && s.status === 'done');
   if (ticket && Array.isArray(ticket.repos) && started) {
     for (const r of ticket.repos) {

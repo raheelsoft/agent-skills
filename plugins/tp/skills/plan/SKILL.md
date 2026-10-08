@@ -4,7 +4,7 @@ description: Writes a self-contained implementation plan for a ticket, has a fre
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/plan-files.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/plan-files.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write. Its `.md` documents are written the same way: `node <lib>/state.mjs doc <workdir> <name>`, the text on stdin or `--from <file>` (`--append` adds to the end); a long one is drafted under `<.claude>/worktrees/_out/<id>/`, the one place below `.claude/` an agent may write.
 
 Write `plan.md` for one ticket, prove it holds, and put it in front of the person.
 A fresh agent plans — this skill's dedicated agent, which knows nothing but its
@@ -55,7 +55,7 @@ pages than `research.maxFetches`, and a hook holds it to that. The planner reads
 instructions, cites a finding as `RS<n>` where the plan relies on it, and turns each `unknowns` entry into an open
 question or a risk. Then
 **plan — this agent is the planner**: restricted to reading the worktree (searches,
-read-only commands and type checks) and writing only `plan.md` and, through `state.mjs put`, `plan.json`, from
+read-only commands and type checks) and writing only `plan.md` (through `state.mjs doc`) and, through `state.mjs put`, `plan.json`, from
 the absolute work directory; `ticket.md`, `triage.md`, `answers.md`, the `findings`
 file when given; each repo's worktree, branch, base and conventions file from
 `ticket.json` (the conventions bind the plan); the template
@@ -68,9 +68,10 @@ steps, openQuestions, complexity }`, the planner's own rating confirming or revi
 triage's with what the code showed). Independent investigations (each affected area,
 the pattern to follow, the test setup) may be parallel read-only lookups inside this
 agent, sequential at the depth that cannot spawn. A re-plan in step 2's loop (or with
-`findings=`, a change request) is this same agent revising `plan.md` in place — the
-blocking findings and nothing else, with the code it already read — after copying
-the plan to `plan.prev.md`. Then: `state.mjs log <workdir> plan done "<n> steps -
+`findings=`, a change request) is this same agent revising `plan.md` — the blocking
+findings and nothing else, with the code it already read: `state.mjs doc <workdir>
+plan.prev.md --from <workdir>/plan.md` keeps the old text, the revision is made on a copy
+under `<.claude>/worktrees/_out/<id>/` and placed with `doc … plan.md --from <copy>`. Then: `state.mjs log <workdir> plan done "<n> steps -
 risks: <flags>" plan.md` — before the check, so the check's entry comes after.
 
 ### 2. Check the plan

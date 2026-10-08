@@ -55,7 +55,7 @@ actually delivered.
 ## The loop
 
 After every pass, record it: `node <lib>/findings.mjs record
-<.claude>/work/_scratch/review-<slug>.json <workdir> [--repo <name>]` (`<slug>` = `<repo-name>--<PR
+<.claude>/worktrees/_out/review-<slug>.json <workdir> [--repo <name>]` (`<slug>` = `<repo-name>--<PR
 number>`, as `/tp:review` names it) — appends the pass's row `{ round, sha, verdict, open, new }` to
 `pr[.repo].json.reviews`, sets `reviewRounds` and the top-level `verdict`, and adds the pass to
 `quality.json`; a pass whose findings file is not there (a reviewer from before it existed) is

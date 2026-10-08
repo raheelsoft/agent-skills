@@ -125,8 +125,8 @@ The rules that keep an agent inside its context and the run inside its budget of
 11. **Command output by excerpt, never by stream.** A command whose output can exceed
     a screen — a dependency install, a build, a test run, a code generation, a deploy
     tool's run list or log, a platform API's object dump — never runs with its output
-    into the agent's context: it writes to a file (`<command> > <file> 2>&1`, under
-    `_scratch/` or the work directory) and the agent reads the lines it needs — the
+    into the agent's context: it writes to a file (`<command> > <file> 2>&1`, in the ticket's
+    folder `<.claude>/worktrees/_out/<id>/`; a skill with no ticket names its own) and the agent reads the lines it needs — the
     exit code, the summary line (`tail -3`), the first failing lines (`head -20`,
     `grep -n error`) — the way `/tp:verify` reads a gate. A platform CLI is asked for
     fields (`--json a,b`, `--jq`, `--exit-status`), never for a whole object or a

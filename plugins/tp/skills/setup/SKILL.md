@@ -124,7 +124,8 @@ stays); the result names what was added for a dependency and which rules changed
 unreadable `settings.json` stops it before anything is written. `node <lib>/setup.mjs sync
 <.claude>` regenerates the rules from the current `pipeline.json`. Then, in this order:
 1. **The allowlist** — print the permission lines the selection needs (reference/using.md
-   § Install, step 2): the scripts, `git` and `node --test` always; the hosting CLI's
+   § Install, step 2): the scripts, `git` and `node --test` always, and the `Edit` line for this
+   project's `<.claude>/worktrees/` (the absolute form); the hosting CLI's
    `pr`/`run`/`api` when `tp:create-pr`, `tp:merge`, `tp:review` or `tp:release` is on; the
    tracker's and chat tool's read tools by name when the tracker is real; the gate
    commands when `tp:verify` is on. The person adds them to the runtime's settings — a

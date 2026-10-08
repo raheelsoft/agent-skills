@@ -24,6 +24,8 @@
 //   node state.mjs actual <workdir> '<json>'    -> record the person's actual hours in ticket.json ({ focusedHours, source, by })
 //   node state.mjs put <workdir> <artifact> ['<json>'|--from <file>] [--merge]  -> check the JSON against the artifact's schema (schemas/) and write it; JSON on stdin
 //                                                when neither is given. Refuses (exit 2) and writes nothing when it does not conform
+//   node state.mjs doc <dir> <name> [--append] [--from <file>]  -> write a document (plan.md, report.md, a checkpoint …) into a ticket's work directory, or _scratch or _day;
+//                                                the text on stdin when there is no --from. The agents' own tools cannot write under <.claude>/, this can
 //   node state.mjs agent join  <workroot> '<json>'          -> register an agent for the office (returns its record, with its name)
 //   node state.mjs agent leave <workroot> <id> [done|stopped|gone]  -> mark it gone
 //   node state.mjs office <workroot>          -> JSON: team, projects, tickets, agents, inbox, day, budget, doctor, totals — what the office draws
@@ -43,6 +45,7 @@ import { usage } from './state/usage.mjs';
 import { inbox, answerQueue, answerTake } from './state/inbox.mjs';
 import { recordBlockers, recordActual } from './state/records.mjs';
 import { putArtifact, payloadText } from './state/put.mjs';
+import { writeDoc, docText } from './state/doc.mjs';
 import { agentJoin, agentLeave } from './state/agents.mjs';
 import { office } from './state/office.mjs';
 
@@ -85,6 +88,7 @@ function dispatch() {
     case 'blockers': emit(recordBlockers(target, rest[0])); break;
     case 'actual': emit(recordActual(target, rest[0])); break;
     case 'put': { const o = flags(rest.slice(1)); emit(putArtifact(target, rest[0], payloadText({ arg: String(rest[1]).startsWith('--') ? undefined : rest[1], from: o.from }), { merge: o.merge === true }), 0, true); break; }
+    case 'doc': { const o = flags(rest.slice(1)); emit(writeDoc(target, rest[0], docText({ from: o.from }), { append: o.append === true }), 0, true); break; }
     case 'lock': process.stdout.write(lockRun(target, rest[0])); break;
     case 'unlock': process.stdout.write(unlockRun(target, rest[0], rest.includes('--force'))); break;
     case 'agent': {

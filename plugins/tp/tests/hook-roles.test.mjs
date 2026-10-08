@@ -58,13 +58,18 @@ describe('role policy — git is read-only for a verifier', () => {
 });
 
 describe('role policy — what a verifier may write', () => {
-  it('the plan checker writes plan-check.json (through put) and its checkpoint, temporary files, and nothing else', async (t) => {
+  const doc = (p, dir, name, from = '/tmp/draft.md') => `node ${LIB}/state.mjs doc ${dir} ${name} --from ${from}`;
+  const put = (p, artifact) => `node ${LIB}/state.mjs put ${p.wd} ${artifact} --from /tmp/x.json`;
+
+  it('the plan checker writes plan-check.json (through put) and its checkpoint (through doc), temporary files, and nothing else', async (t) => {
     const p = project(t);
     const R = 'tp:plan-checker';
-    for (const command of [`echo x > /tmp/out.txt`, `echo x > ${p.wd}/checkpoint.plan-check.md`, `node ${LIB}/state.mjs put ${p.wd} plan-check --from /tmp/x.json`, `cat ${p.wd}/plan.md`, `grep -n foo ${p.wd}/plan.md > /dev/null`, `cp ${p.wd}/plan.md /tmp/copy.md`]) assert.equal(denied(await bash(p, R, command)), false, command);
+    for (const command of [`echo x > /tmp/out.txt`, `echo x > ${p.claude}/worktrees/_out/T-1.draft.md`, doc(p, p.wd, 'checkpoint.plan-check.md'), put(p, 'plan-check'), `cat ${p.wd}/plan.md`, `grep -n foo ${p.wd}/plan.md > /dev/null`, `cp ${p.wd}/plan.md /tmp/copy.md`]) assert.equal(denied(await bash(p, R, command)), false, command);
     for (const [command, shown] of [
       [`echo x > ${p.wt}/src/a.ts`, 'src/a.ts'], [`sed -i s/a/b/ ${p.wt}/src/a.ts`, 'src/a.ts'], [`echo x >> ${p.wd}/plan.md`, 'plan.md'], [`cat > ${p.wd}/answers.md`, 'answers.md'],
       [`rm ${p.wd}/plan.md`, 'plan.md'], [`mv /tmp/x ${p.wd}/plan.md`, 'plan.md'], [`mv ${p.wd}/plan.md /tmp/x`, 'plan.md'], [`tee /opt/elsewhere/notes.txt < /dev/null`, 'notes.txt'], [`echo x > "$HOME/x"`, '$HOME'],
+      [doc(p, p.wd, 'plan.md'), 'T-1/plan.md'], [doc(p, p.wd, 'answers.md'), 'T-1/answers.md'], [doc(p, p.wd, 'checkpoint.implement.md'), 'T-1/checkpoint.implement.md'], [put(p, 'plan'), 'T-1/plan.json'], [put(p, 'implement'), 'T-1/implement.json'],
+      [`node ${LIB}/state.mjs doc "$WD" checkpoint.plan-check.md`, '$WD'],
     ]) {
       const out = await bash(p, R, command);
       assert.equal(denied(out), true, command);
@@ -73,48 +78,63 @@ describe('role policy — what a verifier may write', () => {
     }
   });
 
-  it('a temporary file is fine outside a git checkout, and not inside one', async (t) => {
+  it('the state script is no way round it: put and doc are held to the role\'s own files, in any ticket\'s directory', async (t) => {
+    const p = project(t);
+    const other = join(p.work, 'T-2'); mkdirSync(other, { recursive: true });
+    assert.equal(denied(await bash(p, 'tp:plan-checker', put({ wd: other }, 'plan-check'))), false, 'its own file, wherever the ticket');
+    assert.equal(denied(await bash(p, 'tp:plan-checker', `node ${LIB}/state.mjs put ${other} plan --from /tmp/x.json`)), true);
+    assert.equal(denied(await bash(p, 'tp:plan-checker', `cd ${p.wd} && node ${LIB}/state.mjs doc . plan.md`)), true, 'a relative directory is read from the call');
+    assert.equal(denied(await bash(p, 'tp:plan-checker', `node ${LIB}/state.mjs state ${p.wd}`)), false, 'reading is theirs');
+  });
+
+  it('a draft or command output goes in the folder an agent may write in, and nowhere in a checkout', async (t) => {
     const p = project(t);
     const scratch = join(p.root, 'tmp-out'); mkdirSync(scratch, { recursive: true });
     assert.equal(denied(await bash(p, 'tp:plan-checker', `echo x > ${scratch}/o.txt`)), false, 'tmp, no checkout');
     mkdirSync(join(scratch, 'co', '.git'), { recursive: true });
     assert.equal(denied(await bash(p, 'tp:plan-checker', `echo x > ${scratch}/co/src.ts`)), true, 'tmp, but inside a checkout');
+    for (const role of Object.keys(ROLES)) assert.equal(denied(await write(p, role, join(p.claude, 'worktrees', '_out', 'T-1.draft.md'))), false, `${role}: the output folder`);
+    assert.equal(denied(await write(p, 'tp:plan-checker', join(p.claude, 'worktrees', 'T-1', 'shop', 'src', 'a.ts'))), true, 'but not a ticket\'s worktree');
   });
 
-  it('the researcher writes research.json (through put) and its checkpoint, and nothing else', async (t) => {
+  it('the researcher writes research.json (through put) and its checkpoint (through doc), and nothing else', async (t) => {
     const p = project(t); const R = 'tp:researcher';
-    assert.equal(denied(await bash(p, R, `node ${LIB}/state.mjs put ${p.wd} research --from /tmp/r.json`)), false);
-    assert.equal(denied(await write(p, R, join(p.wd, 'checkpoint.research.md'))), false);
+    assert.equal(denied(await bash(p, R, put(p, 'research'))), false);
+    assert.equal(denied(await bash(p, R, doc(p, p.wd, 'checkpoint.research.md'))), false);
+    assert.equal(denied(await write(p, R, join(p.wd, 'checkpoint.research.md'))), true, 'a checkpoint is placed by doc, never written');
     assert.equal(denied(await write(p, R, join(p.wd, 'research.json'))), true, 'research.json is put, never written');
     for (const file of [join(p.wd, 'plan.md'), join(p.wd, 'triage.json'), join(p.wt, 'src', 'a.ts')]) assert.equal(denied(await write(p, R, file)), true, file);
     assert.match(why(await bash(p, R, `echo x > ${p.wt}/src/a.ts`)), /the researcher writes only research\.json/);
+    assert.equal(denied(await bash(p, R, doc(p, p.wd, 'plan.md'))), true);
     assert.equal(denied(await bash(p, R, 'git commit -am x')), true);
   });
 
-  it('the diff validator writes diff-validation.md and its checkpoint', async (t) => {
+  it('the diff validator writes diff-validation.md and its checkpoint, through doc', async (t) => {
     const p = project(t); const R = 'tp:diff-validator';
-    assert.equal(denied(await bash(p, R, `cat > ${p.wd}/diff-validation.md`)), false);
-    assert.equal(denied(await bash(p, R, `cat > ${p.wd}/checkpoint.create-pr.shop.md`)), false);
-    assert.equal(denied(await bash(p, R, `cat > ${p.wd}/plan-check.json`)), true);
-    assert.equal(denied(await bash(p, R, `cat > ${p.wd}/diff-validation.json`)), true);
+    assert.equal(denied(await bash(p, R, doc(p, p.wd, 'diff-validation.md'))), false);
+    assert.equal(denied(await bash(p, R, doc(p, p.wd, 'checkpoint.create-pr.shop.md'))), false);
+    assert.equal(denied(await bash(p, R, doc(p, p.wd, 'plan.md'))), true);
+    assert.equal(denied(await bash(p, R, doc(p, p.wd, 'diff-validation.json'))), true);
+    assert.equal(denied(await bash(p, R, `cat > ${p.wd}/diff-validation.md`)), true, 'a raw write is refused to everyone');
   });
 
-  it('the reviewer writes under _scratch/ and nowhere else in the work directory', async (t) => {
+  it('the reviewer writes under _scratch/ and nowhere else in the work directory, through doc', async (t) => {
     const p = project(t); const R = 'tp:reviewer';
-    assert.equal(denied(await bash(p, R, `cat > ${p.work}/_scratch/review-shop--12.md`)), false);
-    assert.equal(denied(await bash(p, R, `cat > ${p.wd}/report.md`)), true);
+    assert.equal(denied(await bash(p, R, doc(p, join(p.work, '_scratch'), 'review-shop--12.md'))), false);
+    assert.equal(denied(await bash(p, R, doc(p, join(p.work, '_scratch'), 'review-shop--12.json'))), false);
+    assert.equal(denied(await bash(p, R, doc(p, p.wd, 'report.md'))), true);
     assert.equal(denied(await bash(p, R, `cat > ${p.wt}/src/a.ts`)), true);
   });
 
-  it('the file tools: the same rule for Write, Edit and MultiEdit, and a notebook is never theirs', async (t) => {
+  it('the file tools: the same rule for Write, Edit and MultiEdit, a notebook is never theirs, and the work directory takes nothing raw', async (t) => {
     const p = project(t);
     for (const tool of ['Write', 'Edit', 'MultiEdit']) {
-      assert.equal(denied(await write(p, 'tp:plan-checker', join(p.wd, 'checkpoint.plan-check.md'), tool)), false, tool);
+      for (const file of [join(p.wd, 'checkpoint.plan-check.md'), join(p.wd, 'plan.md')]) assert.equal(denied(await write(p, 'tp:plan-checker', file, tool)), true, `${tool} ${file}`);
       const out = await write(p, 'tp:plan-checker', join(p.wd, 'plan.md'), tool);
-      assert.equal(denied(out), true, tool);
       assert.match(why(out), /the plan checker writes only plan-check\.json/);
       assert.equal(denied(await write(p, 'tp:plan-checker', join(p.wt, 'src', 'a.ts'), tool)), true, tool);
     }
+    assert.match(why(await write(p, 'tp:plan-checker', join(p.wd, 'checkpoint.plan-check.md'))), /state\.mjs doc /, 'its own file, but through the script');
     assert.equal(denied(await write(p, 'tp:plan-checker', '/tmp/scratch.txt')), false);
     assert.equal(denied(await call('write', p, 'tp:plan-checker', 'NotebookEdit', { notebook_path: join(p.wt, 'n.ipynb'), new_source: 'x' })), true);
   });

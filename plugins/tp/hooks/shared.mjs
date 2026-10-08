@@ -4,6 +4,7 @@ import { existsSync, readdirSync, realpathSync } from 'node:fs';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { liveLocks } from '../lib/state/lock.mjs';
 import { artifactOf } from '../lib/contract/registry.mjs';
+import { outDir, worktreesRoot } from '../lib/state/paths.mjs';
 
 /** The path with its symlinks resolved as far as it exists (macOS's /tmp is /private/tmp): the part that is not there yet is kept as written. */
 export function real(p) {
@@ -29,43 +30,73 @@ export function legacyCopy(ctx) {
   try { return readdirSync(join(ctx.claudeDir, 'skills')).some((n) => n.startsWith('tp-')); } catch { return false; }
 }
 
-/** Is this tool call part of a pipeline run: made by a sub-agent, made inside a ticket's work directory (its worktrees), or made while a run lock is live. */
+/** Is `dir` inside a ticket's worktree (`<.claude>/worktrees/<id>/…`, with a work directory for `<id>`) — not the runtime's own worktree of a person's, which sits in the same folder. */
+function inTicketWorktree(dir, ctx) {
+  const root = real(worktreesRoot(ctx.claudeDir));
+  const abs = real(dir);
+  if (!abs.startsWith(root + sep)) return false;
+  const id = abs.slice(root.length + 1).split(sep)[0];
+  return !id.startsWith('_') && existsSync(join(workRoot(ctx), id));
+}
+
+/** Is this tool call part of a pipeline run: made by a sub-agent, made inside the work directory or a ticket's worktree, or made while a run lock is live. */
 export function inRun(payload, ctx) {
   if (payload.agent_id) return true;
   if (payload.cwd && existsSync(workRoot(ctx)) && within(payload.cwd, workRoot(ctx))) return true;
+  if (payload.cwd && inTicketWorktree(payload.cwd, ctx)) return true;
   return liveLocks(workRoot(ctx)).length > 0;
 }
 
-/** What a file in a ticket's work directory is written through, or null for a file anybody may write (plan.md, answers.md, checkpoints, reports …). */
-export function writerOf(file) {
-  const name = basename(file);
-  const kind = artifactOf(name);
-  if (kind) return { kind: 'put', artifact: name.replace(/\.json$/, ''), name };
-  if (name === 'progress.md') return { kind: 'log', name };
-  if (name === 'lock.json') return { kind: 'lock', name };
-  return null;
+// The work directory is the pipeline's record and the runtime keeps `<.claude>/` from an agent's own tools when nobody is there to approve it
+// (lib/state/paths.mjs), so every file in it is written by a script: the stage JSON by `put`, progress.md by `log`, the lock by `lock`, any other
+// document by `doc`. What an agent writes itself goes under `<.claude>/worktrees/`.
+const SCRATCH = new Set(['_scratch', '_day']);
+const DOCUMENT = /\.(md|txt)$/;
+
+/** Where a path sits below the work root, as segments; null for a path outside it or a checkout kept inside it (`<id>/wt/…`, `_scratch/wt/…`). */
+function workSegments(literal, payload, ctx) {
+  let segs = null;
+  if (/\$/.test(literal)) { // a variable in the path: only its literal text can say
+    const m = /\/work\/((?:[^/$]+\/)*[^/$]+)$/.exec(literal);
+    segs = m ? m[1].split('/') : null;
+  } else {
+    const file = real(literal.startsWith('/') ? literal : resolve(payload.cwd || ctx.projectDir, literal));
+    const root = real(workRoot(ctx));
+    segs = file.startsWith(root + sep) ? file.slice(root.length + 1).split(sep) : null;
+  }
+  return segs && segs[1] !== 'wt' ? segs : null;
+}
+
+/** What writes the file at `segs` (below the work root): put, log, lock, doc — or, for a file that is not a document, the output folder; else a script. */
+export function writerOf(segs) {
+  const name = segs[segs.length - 1];
+  if (segs.length === 2 && !segs[0].startsWith('_')) { // a ticket's own file
+    if (artifactOf(name)) return { kind: 'put', artifact: name.replace(/\.json$/, ''), name };
+    if (name === 'progress.md') return { kind: 'log', name };
+    if (name === 'lock.json') return { kind: 'lock', name };
+    return DOCUMENT.test(name) ? { kind: 'doc', name } : name.endsWith('.json') ? { kind: 'script', name } : { kind: 'out', name };
+  }
+  if (segs.length === 2 && SCRATCH.has(segs[0])) return DOCUMENT.test(name) || name.endsWith('.json') ? { kind: 'doc', name } : { kind: 'out', name };
+  return { kind: 'script', name };
 }
 
 /** The refusal for a write to `target` (a path as written in the command, or a tool's file_path), or null when it may go ahead. */
 export function protectedReason(target, payload, ctx) {
-  const writer = writerOf(target);
-  if (!writer) return null;
   const literal = String(target);
-  let inTicketDir;
-  if (/\$/.test(literal)) inTicketDir = /\/work\/[^/$_][^/$]*\/[^/]+$/.test(literal); // a variable in the path: only its literal text can say
-  else {
-    const abs = literal.startsWith('/') ? literal : resolve(payload.cwd || ctx.projectDir, literal);
-    const file = real(abs);
-    const root = real(workRoot(ctx));
-    const rel = file.startsWith(root + sep) ? file.slice(root.length + 1).split(sep) : null;
-    inTicketDir = !!rel && rel.length === 2 && !rel[0].startsWith('_'); // a ticket's own file: not the work root's, not a _ folder's, not a repo file inside a worktree
-  }
-  if (!inTicketDir) return null;
+  const segs = workSegments(literal, payload, ctx);
+  if (!segs) return null;
+  const writer = writerOf(segs);
   const lib = join(ctx.pluginRoot, 'lib');
+  const folder = `${outDir(ctx.claudeDir)}/${segs[0].startsWith('_') ? '' : `${segs[0]}/`}`; // where this file's drafts and output go: its ticket's folder in the output folder, or the output folder itself
   const wd = /\$/.test(literal) ? '<workdir>' : dirname(literal.startsWith('/') ? literal : resolve(payload.cwd || ctx.projectDir, literal)); // the directory this file is in: the one the command takes
-  if (writer.kind === 'put') return `refused: ${writer.name} is written with \`node ${lib}/state.mjs put ${wd} ${writer.artifact} '<json>'\` (the JSON as an argument, with --from <file>, or on stdin), which checks it against its schema first (schemas/README.md); a raw write skips the check. To edit it by hand, use your own editor.`;
-  if (writer.kind === 'log') return `refused: progress.md is appended with \`node ${lib}/state.mjs log ${wd} <stage> <started|done|stopped|note> "<summary>"\`; a raw write can break the grammar the state script reads.`;
-  return `refused: lock.json is taken and released with \`node ${lib}/state.mjs lock|unlock ${wd} <owner>\`.`;
+  switch (writer.kind) {
+    case 'put': return `refused: ${writer.name} is written with \`node ${lib}/state.mjs put ${wd} ${writer.artifact} '<json>'\` (the JSON as an argument, with --from <file>, or on stdin), which checks it against its schema first (schemas/README.md); a raw write skips the check. To edit it by hand, use your own editor.`;
+    case 'log': return `refused: progress.md is appended with \`node ${lib}/state.mjs log ${wd} <stage> <started|done|stopped|note> "<summary>"\`; a raw write can break the grammar the state script reads.`;
+    case 'lock': return `refused: lock.json is taken and released with \`node ${lib}/state.mjs lock|unlock ${wd} <owner>\`.`;
+    case 'doc': return `refused: ${writer.name} is written with \`node ${lib}/state.mjs doc ${wd} ${writer.name}\` — the text on stdin, or \`--from <file>\` (\`--append\` adds to the end of what is there). The runtime does not let an agent write under .claude/ itself: draw a long document up in ${folder} and place it with --from.`;
+    case 'out': return `refused: ${writer.name} is a command's output, and the work directory takes documents only — send the output to ${folder} (\`<command> > ${folder}${writer.name} 2>&1\`), where an agent may write.`;
+    default: return `refused: ${writer.name} is part of the work directory's record, written by the pipeline's scripts alone.`;
+  }
 }
 
 /** A PreToolUse answer. */

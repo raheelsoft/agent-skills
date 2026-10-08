@@ -4,7 +4,7 @@ description: Decides from evidence whether a ticket is implemented directly, pla
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/triage-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/triage-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write. Its `.md` documents are written the same way: `node <lib>/state.mjs doc <workdir> <name>`, the text on stdin or `--from <file>` (`--append` adds to the end); a long one is drafted under `<.claude>/worktrees/_out/<id>/`, the one place below `.claude/` an agent may write.
 
 Decide **direct**, **plan**, **needs-input**, **close** or **blocked** for one ticket
 and record why. The decision is made by a fresh agent — this skill's dedicated agent,
@@ -34,7 +34,7 @@ user).
 `state.mjs state <workdir>` then `state.mjs log <workdir> triage started` (§ Definitions,
 Resume). This agent does the sizing itself, restricted to reading the worktree and
 writing only `triage.md` and, through `state.mjs put`, `triage.json` (its tools: read and search in the
-worktrees, write `triage.md`, `state.mjs put` for the JSON), from: the absolute work directory; `ticket.md`,
+worktrees, a shell for the state script — `doc` for `triage.md`, `put` for the JSON), from: the absolute work directory; `ticket.md`,
 `answers.md`; each repo's worktree and conventions file from `ticket.json`; the
 criteria file (`instructions/criteria.md`). The task — locate the code the ticket
 touches (its frontier: the acceptance criteria and the code they name —

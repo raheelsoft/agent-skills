@@ -3,9 +3,10 @@
 // (tests/sim/setup.mjs: two small repos, a `.claude` with tiers.json, the fixture tracker, a silent notify.json), plus the work directory
 // state a scenario needs, made by the pipeline's own scripts so it is as valid as a real run's.
 //
-//   node evals/lib/bed.mjs <scenario>      scenario: empty | picked-up | stopped | in-run
+//   node evals/lib/bed.mjs <scenario>      scenario: empty | picked-up | triaged | stopped | in-run
 //     empty      the bed alone
 //     picked-up  DEMO-4's work directory as /tp:start-ticket leaves it: ticket.json, ticket.md, progress.md, a worktree on a fix branch
+//     triaged    picked-up, then triaged as direct work (triage.md, triage.json): what /tp:implement starts from
 //     stopped    picked-up, then triage stopped with a question (what /tp:inbox lists)
 //     in-run     picked-up, with a live run lock — a call made now counts as part of a run (the guard hooks apply)
 // The models are the ceiling's: tiers.json names one model (sonnet), so every agent the pipeline spawns runs on the model the eval does.
@@ -17,6 +18,7 @@ import { setup } from '../../tests/sim/setup.mjs';
 import { log } from '../../lib/state/progress.mjs';
 import { lockRun } from '../../lib/state/lock.mjs';
 import { putArtifact } from '../../lib/state/put.mjs';
+import { writeDoc } from '../../lib/state/doc.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PLUGIN_ROOT = resolve(HERE, '..', '..');
@@ -28,7 +30,7 @@ export function bed(dir, scenario) {
   const work = join(root.claude, 'work', 'DEMO-4');
   mkdirSync(work, { recursive: true });
   const repo = root.repos.api;
-  const worktree = join(work, 'wt', 'api');
+  const worktree = join(root.claude, 'worktrees', 'DEMO-4', 'api');
   execFileSync('git', ['worktree', 'add', '-q', '-b', 'fix/contacts-list-ignores-q-filter', worktree, 'HEAD'], { cwd: repo });
   writeFileSync(join(work, 'ticket.md'), '# DEMO-4 — BE: contacts list ignores the `q` filter\n\nGET /contacts?q=ann returns every contact; it should filter by name.\n\nAcceptance criteria:\n1. GET /contacts?q=ann returns only contacts whose name contains "ann" (case-insensitive)\n2. no q → every contact\n');
   putArtifact(work, 'ticket', {
@@ -39,6 +41,12 @@ export function bed(dir, scenario) {
   });
   log(work, 'start-ticket', 'started', 'DEMO-4 pickup', '');
   log(work, 'start-ticket', 'done', 'picked up; fix/contacts-list-ignores-q-filter in api', 'fixture://DEMO-4');
+  if (scenario === 'triaged') {
+    log(work, 'triage', 'started', '', '');
+    writeDoc(work, 'triage.md', '# Triage — DEMO-4\n\n**Decision:** direct (confidence high, complexity low)\n\n## Evidence\n\nThe whole fix is in `src/handlers/list.js`: `list(req)` returns every contact and never reads `req`.\nOne file, one repo, no shared state, access or contract change. The criteria are clear.\n\n## Approach\n\nRead `req.query.q` (absent is fine), lower-case and trim it, and when it is not empty keep the contacts whose name contains it;\notherwise return them all. Add a `node --test` test for both criteria.\n');
+    putArtifact(work, 'triage', { decision: 'direct', confidence: 'high', override: 'none', flags: [], questions: [], blockedBy: [], complexity: 'low', why: 'One-file in-memory filter; criteria clear, no shared state, access or contract change.' });
+    log(work, 'triage', 'done', 'direct (high) - low', 'triage.md');
+  }
   if (scenario === 'stopped') {
     log(work, 'triage', 'started', '', '');
     log(work, 'triage', 'stopped', 'Should GET /contacts?q= match the email as well as the name? Default: the name only.', '');
@@ -50,6 +58,6 @@ export function bed(dir, scenario) {
 function isMain(url) { try { return resolve(process.argv[1]) === fileURLToPath(url); } catch { return false; } }
 if (isMain(import.meta.url)) {
   const scenario = process.argv[2];
-  if (!['empty', 'picked-up', 'stopped', 'in-run'].includes(scenario)) { console.error('usage: bed.mjs empty|picked-up|stopped|in-run'); process.exit(2); }
+  if (!['empty', 'picked-up', 'triaged', 'stopped', 'in-run'].includes(scenario)) { console.error('usage: bed.mjs empty|picked-up|triaged|stopped|in-run'); process.exit(2); }
   bed(process.cwd(), scenario);
 }

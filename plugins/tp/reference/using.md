@@ -21,7 +21,7 @@ Install, run, resume, schedule, simulate: how a person uses the pipeline.
    `pipeline.json` (which skills it uses — versioned), `tiers.json`, `notify.json`,
    `office.json`, `tracker.json`, `settings.local.json` and `work/`. Add every one of
    them but `pipeline.json` to `.gitignore` (per machine): `.claude/work/`,
-   `.claude/tiers.json`, `.claude/notify.json`, `.claude/office.json`,
+   `.claude/worktrees/`, `.claude/tiers.json`, `.claude/notify.json`, `.claude/office.json`,
    `.claude/tracker.json`, `.claude/settings.local.json`. `<project>` is the folder that
    holds your repo, or the parent folder of several repos worked together (the skills
    find the git checkouts at or under where the session runs).
@@ -50,9 +50,13 @@ Install, run, resume, schedule, simulate: how a person uses the pipeline.
    Bash(git add *) Bash(git commit *) Bash(git merge *) Bash(git push *)
    Bash(<hosting CLI> pr *) Bash(<hosting CLI> run *) Bash(<hosting CLI> api *)
    Bash(<the gate commands the conventions file names>)
+   Edit(//<absolute path of .claude>/worktrees/**)
    ```
    The first two name the plugin's own folder, which moves when the plugin updates:
    `/tp:doctor` flags a rule that no longer matches and `/tp:setup` prints the new line.
+   The `Edit` line names this project's `worktrees/` (the absolute form, with the leading
+   `//`): the run edits its checkouts and sends command output to files there without a
+   prompt, which is the write the runtime lets an agent make below `.claude/`.
    Add the tracker's and chat tool's read tools as the runtime lists them (§ Definitions,
    Tracker — a fixture tracker needs none). Everything
    else stays a prompt (§ Definitions, Tools and permissions). In `tiers.json`, set
@@ -62,14 +66,16 @@ Install, run, resume, schedule, simulate: how a person uses the pipeline.
    rules: `lockMinutes` 30, `keepBases` 10, `keepResults` 50) needs no setting.
 
    **Writes under `.claude/`.** The runtime treats anything below a `.claude` folder as its
-   own configuration: its file tools (Write, Edit) ask before writing there, and no
-   permission rule, no hook and no accept-edits mode answers that question — only a person at
-   the prompt (or the runtime's bypass mode) does. The work directory and, by default, the
-   ticket worktrees live under `<.claude>/work/`, so in a session a person watches, the first
-   write of a run asks, and an unattended run (`claude -p`, the workflow script, a scheduled
-   task) either runs in the runtime's bypass mode — inside a container or a machine you can
-   afford to lose — or stops at the first document it writes. The state script's own writes
-   (`put`, `log`, `lock`) are not affected: they are the script writing, not a file tool.
+   own configuration: its file tools (Write, Edit), a shell redirect and a `mkdir` there ask a
+   person, and no permission rule, no hook and no accept-edits mode answers in their place —
+   only a person at the prompt, or the runtime's bypass mode. The exception is
+   `.claude/worktrees/`, which it keeps for git worktrees. The pipeline is built to that: the
+   state script alone writes the work directory (`put`, `log`, `lock`, `doc`), and the two
+   things an agent writes with its own tools — a ticket's checkouts and the output of its
+   commands — live in `<.claude>/worktrees/` (§ Worktrees). So an unattended run (`claude -p`,
+   the workflow script, a scheduled task) needs a mode that lets it edit files and redirect
+   output (`acceptEdits`), or the allowlist above with its `Edit` line — and no bypass. A
+   raw write to the work directory is refused by a hook, with the command that takes it.
 3. Tell it about the project in the **conventions file** (the first of `AGENTS.md`,
    `CONTRIBUTING.md`, `CLAUDE.md` in each repo) and your standing instructions. The
    skills look there for: the base branch PRs target; branch and commit conventions;

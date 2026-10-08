@@ -4,7 +4,7 @@ description: Proves a ticket is delivered by walking every acceptance criterion 
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/accept-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/accept-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write. Its `.md` documents are written the same way: `node <lib>/state.mjs doc <workdir> <name>`, the text on stdin or `--from <file>` (`--append` adds to the end); a long one is drafted under `<.claude>/worktrees/_out/<id>/`, the one place below `.claude/` an agent may write.
 
 Stage 8 of the workflow (`reference/README.md`): the closing check. "Delivered" means a
 check proved it — this stage is that check, run by an agent that did not write the code
@@ -31,9 +31,9 @@ user, The scripts).
   are `skills/start-ticket/instructions/branch-and-pull.md` § 3, outputs to files —
   rule 11), logged as a `note`. A criterion proven by a command (a test, a query)
   runs the same way: its output to a file, the proving lines as the evidence.
-  No worktree at `<workdir>/wt/<repo-name>` (a merge run before this rule, a cleanup
-  by hand) → create one there, detached at the merge commit, and make it usable the
-  same way — never a second checkout beside an existing one.
+  No worktree at the path `ticket.json` records (a merge run before this rule, a cleanup
+  by hand) → create one at `<.claude>/worktrees/<id>/<repo-name>`, detached at the merge
+  commit, and make it usable the same way — never a second checkout beside an existing one.
 - `env=<name>` (optional) — with `where=live`, another documented environment than
   the one `release[.repo].json` recorded; one the docs don't name → `stopped "env
   <name> is not documented — walk <recorded env> (keep), or name another? Default:
@@ -62,7 +62,7 @@ never pasted into a prompt.
 ### 2. Walk the criteria — this agent
 This agent is the walker (`reference/definitions.md` § Definitions, Dedicated agent — fresh,
 no second agent for the same walk; its tools: read and search, a shell for requests,
-queries and CLI reads, write only `accept.md` and its checkpoint, and `accept.json` through `state.mjs put`;
+queries and CLI reads, write only `accept.md` and its checkpoint (through `state.mjs doc`), and `accept.json` through `state.mjs put`;
 frontier: the criteria alone — rule 8), with what step 1 collected: the criteria
 list, the manual steps, per repo the environment and how to reach it (or the checkout
 path), and the constraints — `live` is **read-only** (requests, queries, CLI reads;

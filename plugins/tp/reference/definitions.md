@@ -9,12 +9,13 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
 - **Conventions file** — per repo, the first that exists of `AGENTS.md`,
   `CONTRIBUTING.md`, `CLAUDE.md`. None → the repo's git history and the tracker's
   existing tickets are the convention.
-- **Tracker** — where the tickets live: the connected tracker tool, found by name
-  with the runtime's tool lookup (Runtime notes) — or, when `<.claude>/tracker.json`
-  says `{ "kind": "fixture", "path": "<abs>" }`, the file-backed tracker
+- **Tracker** — where the tickets live. First look at `<.claude>/tracker.json`: when it
+  says `{ "kind": "fixture", "path": "<abs>" }` the tracker is the file-backed one,
   `<lib>/tracker.mjs` (`get`, `list`, `save`, `comment`, `create`,
   `iterations`, `labels`, `states`, `me`), whose commands are the same reads and
-  writes the skills make against a real one (§ Using it, Simulation). Every skill
+  writes the skills make against a real one (§ Using it, Simulation), and no connected
+  tool is touched; with no such file it is the connected tracker tool, found by name
+  with the runtime's tool lookup (Runtime notes). Every skill
   that reads or writes a ticket, a relation, a comment, an iteration or a label
   means this definition by "the tracker"; a fixture ticket's link is
   `fixture://<id>`.
@@ -39,15 +40,16 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   conventions file → base of recent merged PRs → the remote's default; ask once if two
   candidates remain.
 - **`<.claude>`** — the project's `.claude` directory (`${CLAUDE_PROJECT_DIR}/.claude`):
-  its configuration and `work/`, resolved to an absolute path once; every path handed
-  to an agent is absolute.
+  its configuration, `work/` (the record, written by the state script) and `worktrees/` (the
+  checkouts and command output — the one place below it an agent may write), resolved to an
+  absolute path once; every path handed to an agent is absolute.
 - **`<plugin>`, `<lib>`** — the plugin's own folder (`${CLAUDE_PLUGIN_ROOT}`, which moves
   when the plugin updates) and its `lib/`, where the scripts are. A SKILL.md defines
   `<lib>` and `<.claude>` once, in its first line, because Claude Code substitutes the
   variables in a skill's body and not in the files it reads: those files say `<lib>` and
   mean that line's.
 - **Repo name** — `basename(<repo path>)`, the key everywhere a repo is named:
-  `wt/<name>`, `<file>.<name>.json`, `checkpoint.<stage>.<name>.md`, `repo=<name>`, and
+  `worktrees/<id>/<name>`, `<file>.<name>.json`, `checkpoint.<stage>.<name>.md`, `repo=<name>`, and
   the stage names `implement:<name>` / `create-pr:<name>` / `merge:<name>` /
   `release:<name>` of a
   cross-repo ticket (single-repo tickets use the plain names; the script rejects the
@@ -295,7 +297,8 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   `durations`, `usage` and `totals` (tokens and cost), `inbox` (every open stop),
   `answer` (queue or `--consume` an answer for a stop), `blockers` (record a re-check
   in `ticket.json.blockedBy`), `actual` (the person's hours), `put` (write a work-directory JSON after checking it against its
-  schema), `lock`/`unlock`, `agent
+  schema), `doc` (write a work-directory document — the text on stdin or `--from` a draft;
+  `--append` adds to the end), `lock`/`unlock`, `agent
   join|leave`, `office`: skills log
   through it and resume from it, never by re-reading `progress.md` and reasoning) and
   `<lib>/model.mjs`

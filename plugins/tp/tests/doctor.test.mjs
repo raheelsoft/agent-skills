@@ -44,7 +44,7 @@ function install(root, tiers = {}) {
   writeJson(c, 'tiers.json', { ceiling: 'c', ladder: ['a', 'b', 'c'], low: 'a', medium: 'b', high: 'c', prices: { low: 1, medium: 2, high: 3 }, ...tiers });
   writeJson(c, 'notify.json', { tool: 'chat', target: '#dev', project: 'p', levels: ['stop'], setAt: 'x' });
   writeJson(join(c, 'work'), '_heartbeat.json', { at: new Date().toISOString(), source: 'startup', session: 's', plugin: '0.2.0' }); // what the plugin's SessionStart hook writes
-  writeJson(c, 'settings.local.json', { permissions: { allow: [`Bash(node ${LIB}/*)`, `Bash(node ${PLUGIN_ROOT}/office/*)`, 'Bash(node --test *)', 'Bash(git *)'] } });
+  writeJson(c, 'settings.local.json', { permissions: { allow: [`Bash(node ${LIB}/*)`, `Bash(node ${PLUGIN_ROOT}/office/*)`, 'Bash(node --test *)', 'Bash(git *)', `Edit(//${c.replace(/^\/+/, '')}/worktrees/**)`] } });
   return c;
 }
 
@@ -211,6 +211,15 @@ describe('doctor.mjs', () => {
     rm(r6);
   });
 
+  it('wants the Edit rule for this project\'s worktrees folder, in the absolute form the runtime reads', () => {
+    const r7 = tmp('doctor-'); const c7 = install(r7);
+    writeJson(c7, 'settings.local.json', { permissions: { allow: [`Bash(node ${LIB}/*)`, `Bash(node ${PLUGIN_ROOT}/office/*)`, 'Bash(node --test *)', 'Bash(git *)'] } });
+    const a = byName(doctor('run', c7).json, 'allowlist');
+    assert.equal(a.status, 'warn');
+    assert.ok(a.detail.includes(`Edit(//${c7.replace(/^\/+/, '')}/worktrees/**)`), a.detail);
+    rm(r7);
+  });
+
   it('checks the allowlist against the plugin\'s own scripts, wherever the plugin is installed', () => {
     const r5 = tmp('doctor-'); const c5 = install(r5);
     writeJson(c5, 'settings.local.json', { permissions: { allow: ['Bash(node /somewhere/else/lib/*)', 'Bash(git *)', 'Bash(node --test *)'] } });
@@ -218,6 +227,28 @@ describe('doctor.mjs', () => {
     assert.equal(byName(d, 'allowlist').status, 'warn');
     assert.ok(byName(d, 'allowlist').detail.includes(`node ${LIB}/*`), 'the missing rule names this plugin\'s lib folder');
     rm(r5);
+  });
+});
+
+describe('doctor.mjs — the folders that are per machine', () => {
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' });
+  it('in a project that is a git repository, warns until .claude/work/ and .claude/worktrees/ are ignored', () => {
+    const r = tmp('doctor-'); const c = install(r);
+    git(r, 'init', '-q', '-b', 'main');
+    const open = byName(doctor('run', c).json, 'gitignore');
+    assert.equal(open.status, 'warn');
+    assert.match(open.detail, /\.claude\/work\/ and \.claude\/worktrees\/ not ignored/);
+    writeFileSync(join(r, '.gitignore'), '.claude/work/\n');
+    assert.match(byName(doctor('run', c).json, 'gitignore').detail, /^\.claude\/worktrees\/ not ignored/);
+    writeFileSync(join(r, '.gitignore'), '.claude/work/\n.claude/worktrees/\n');
+    assert.equal(byName(doctor('run', c).json, 'gitignore').status, 'ok');
+    rm(r);
+  });
+
+  it('says nothing about it when the project folder is not a git repository', () => {
+    const r = tmp('doctor-'); const c = install(r);
+    assert.equal(byName(doctor('run', c).json, 'gitignore'), undefined);
+    rm(r);
   });
 });
 

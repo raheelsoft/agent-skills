@@ -8,7 +8,11 @@ The state every stage shares: its files and contracts, the worktrees, and how ru
 
 `<.claude>/work/<id>/`, `<id>` normalised to the tracker's identifier form by every
 entry point. Kept after the run as the record; worktrees go when the run ends
-(§ Worktrees). Cross-repo tickets have one work directory with one repo row each;
+(§ Worktrees). The runtime refuses an agent's own tools — a file tool, a shell redirect, a
+`mkdir` — anything below `.claude/` when no person is there to approve it, except under
+`.claude/worktrees/`. So the state script writes this directory (`put` the JSON, `log`,
+`lock`, and `doc` every document, the text on stdin or from a draft), and what an agent writes
+itself lives in `worktrees/` (§ Worktrees). Cross-repo tickets have one work directory with one repo row each;
 stacked tickets have one each (`stackedOn`). `<.claude>/work/_scratch/` holds the
 checkpoints and summaries of `/tp:review`, `/tp:verify` and `/tp:status`, which never log to a
 ticket, the per-repo gate baseline and records (`_scratch/wt/base-<repo>`,
@@ -43,7 +47,7 @@ inbox lists it; `/tp:status` and the state script's `all` ignore every `_`-prefi
 | `report.md` | create-pr creates or appends; merge, release, accept, run-ticket append | what shipped, PR, verdict, merge, deploy, acceptance, deviations, follow-ups, manual steps |
 | `checkpoint.<stage>[.<repo>].md` | any agent that hands off | done / decisions / remaining / open questions — the next agent starts here |
 | `lock.json` | run-ticket via the state script | `{ owner, since, updated }` (§ Concurrency) |
-| `wt/<repo-name>/` | start-ticket; accept moves it to the merge commit; a new round re-branches it | the ticket's one worktree per repo, from pickup to the end of the run (§ Worktrees: removed by `/tp:accept`'s `done`, or by `/tp:run-ticket`'s close-out of a closed or parked ticket) |
+| `<.claude>/worktrees/<id>/<repo-name>/` — not in the work directory | start-ticket; accept moves it to the merge commit; a new round re-branches it | the ticket's one worktree per repo, from pickup to the end of the run (§ Worktrees: removed by `/tp:accept`'s `done`, or by `/tp:run-ticket`'s close-out of a closed or parked ticket). A ticket picked up before this layout has it at `wt/<repo-name>/` here; `ticket.json` records either |
 
 The `.md` is for people; the `.json` is the contract the next stage and the state
 script read. Every filesystem path a record holds — a repo's `path`, its `worktree` — is
@@ -116,7 +120,7 @@ stage names are logged: `/tp:review` and `/tp:verify` never write to `progress.m
 
 ## Worktrees
 
-Each ticket gets **one** `git worktree` per repo, at `<.claude>/work/<id>/wt/<repo-name>/`
+Each ticket gets **one** `git worktree` per repo, at `<.claude>/worktrees/<id>/<repo-name>/`
 on a new branch from the base, and keeps it for the whole run: every stage runs
 there — the implementation, the gates (`/tp:verify path=<worktree>`), the commits and the
 push, the review's gates (`/tp:merge` hands the reviewer that path as a run fact: a
@@ -142,6 +146,17 @@ gets its own PR branches from the open branch and records `dependsOn`, and
 `/tp:create-pr` sets the PR's base from it. A branch checked out in the person's own copy
 is a stop, never worked around. The commands live in `/tp:start-ticket`'s instructions
 (`branch-and-pull.md`).
+
+**Why `worktrees/`, and what else goes there.** It is the one folder below `.claude/` the
+runtime lets an agent write without a person at the prompt (it keeps it for git worktrees), so
+the implementation can be edited, committed and gated by an unattended run. `worktrees/_out/<id>/`
+holds the output of the commands an agent runs (§ Context management, rule 11) and the drafts
+it hands to `state.mjs doc`: one folder per ticket, so two tickets running side by side
+share no file name, and for the run's own use — it goes with the worktrees. A project's own test runner, linter and
+compiler should skip `.claude/`, as they had to skip the worktrees that used to sit in `work/`.
+The runtime's own sweep of old worktrees (`cleanupPeriodDays`) removes only those it created and
+marked; a ticket's, made by the pipeline with plain git, is never swept. Both folders are per machine: `.claude/worktrees/` is in the
+`.gitignore` of a project that is a git repository itself (`/tp:doctor` checks).
 
 ## Concurrency
 

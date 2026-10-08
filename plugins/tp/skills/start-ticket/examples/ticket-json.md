@@ -18,7 +18,7 @@ re-branch on a new round) go through `put … --merge`, and the blockers and act
   "derived": false,
   "complexity": "medium",
   "repos": [
-    { "name": "shop-web", "path": "/work/shop-web", "worktree": "/work/shop/.claude/work/ACME-42/wt/shop-web", "branch": "feat/acme-42-invoice-vat", "base": "main", "conventions": "/work/shop-web/CLAUDE.md" }
+    { "name": "shop-web", "path": "/work/shop-web", "worktree": "/work/shop/.claude/worktrees/ACME-42/shop-web", "branch": "feat/acme-42-invoice-vat", "base": "main", "conventions": "/work/shop-web/CLAUDE.md" }
   ]
 }
 ```
@@ -37,7 +37,7 @@ Stacked on a sibling ticket's open PR; the criteria were derived because the tic
   "derived": true,
   "complexity": "low",
   "repos": [
-    { "name": "shop-web", "path": "/work/shop-web", "worktree": "/work/shop/.claude/work/ACME-43/wt/shop-web", "branch": "feat/acme-43-round-once", "base": "feat/acme-42-invoice-vat" }
+    { "name": "shop-web", "path": "/work/shop-web", "worktree": "/work/shop/.claude/worktrees/ACME-43/shop-web", "branch": "feat/acme-43-round-once", "base": "feat/acme-42-invoice-vat" }
   ]
 }
 ```
