@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "name": "start-ticket-fixture",
+  "description": "/tp:start-ticket picks a ticket up from the file-backed fixture tracker: the work directory begins with ticket.md (placed by the state script), ticket.json is validated, and the ticket's one worktree is created under .claude/worktrees/ \u2014 all without a person at the prompt.",
+  "tags": [
+    "smoke",
+    "stage"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "/tp:start-ticket DEMO-4 inline=true",
+    "max_turns": 40,
+    "timeout_seconds": 600,
+    "model": "sonnet",
+    "allowed_tools": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Skill"
+    ]
+  },
+  "runs": 1,
+  "graders": [
+    {
+      "type": "file_exists",
+      "name": "ticket.md is there",
+      "path": ".claude/work/DEMO-4/ticket.md"
+    },
+    {
+      "type": "file_exists",
+      "name": "ticket.json is there",
+      "path": ".claude/work/DEMO-4/ticket.json"
+    },
+    {
+      "type": "regex",
+      "name": "through put (the schema version is stamped)",
+      "pattern": "\"schemaVersion\": 1",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/ticket.json"
+      }
+    },
+    {
+      "type": "regex",
+      "name": "the worktree is recorded where the runtime lets an agent write",
+      "pattern": "\\.claude/worktrees/DEMO-4/api",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/ticket.json"
+      }
+    },
+    {
+      "type": "file_exists",
+      "name": "and the checkout is there",
+      "path": ".claude/worktrees/DEMO-4/api/src/handlers/list.js"
+    },
+    {
+      "type": "regex",
+      "name": "and the stage is logged done",
+      "pattern": "start-ticket \u00b7 done",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/progress.md"
+      }
+    },
+    {
+      "type": "tool_used",
+      "name": "the tracker was the fixture one",
+      "tool": "Bash",
+      "input_match": "tracker\\.mjs"
+    }
+  ]
+}

@@ -230,6 +230,26 @@ describe('doctor.mjs', () => {
   });
 });
 
+describe('doctor.mjs — the tracker a fixture names', () => {
+  it('answers for a fixture tracker itself, and fails one whose file is gone', () => {
+    const r = tmp('doctor-'); const c = install(r);
+    assert.equal(byName(doctor('run', c).json, 'tracker'), undefined, 'no tracker.json: the skill checks the connected tool');
+    const fixture = join(r, 'tracker.fixture.json');
+    writeFileSync(fixture, readFileSync(join(PLUGIN_ROOT, 'tests', 'fixtures', 'tracker.json'), 'utf8'));
+    writeJson(c, 'tracker.json', { kind: 'fixture', path: fixture });
+    const ok = byName(doctor('run', c).json, 'tracker');
+    assert.equal(ok.status, 'ok');
+    assert.match(ok.detail, /fixture tracker answered/);
+    writeJson(c, 'tracker.json', { kind: 'fixture', path: join(r, 'gone.json') });
+    const gone = byName(doctor('run', c).json, 'tracker');
+    assert.equal(gone.status, 'fail');
+    assert.match(gone.fix, /tracker\.json/);
+    writeFileSync(join(c, 'tracker.json'), '{nope');
+    assert.match(byName(doctor('run', c).json, 'tracker').detail, /not valid JSON/);
+    rm(r);
+  });
+});
+
 describe('doctor.mjs — the folders that are per machine', () => {
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' });
   it('in a project that is a git repository, warns until .claude/work/ and .claude/worktrees/ are ignored', () => {

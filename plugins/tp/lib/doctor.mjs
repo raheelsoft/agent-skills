@@ -15,6 +15,7 @@
 // The ceiling (reference/models-and-budget.md § Models and budget, The ceiling): `ceiling` says whether tiers.json records one and agrees with it (every tier on the ladder
 // at or below it); `starting model` is the `model` the project's settings start a session on; `session model` is `--session <the model the invoking
 // context runs on>` — a warning when either is above the ceiling, never a block: the pipeline can ask for a session within it, not cap one.
+// `tracker` is answered here for a fixture tracker (<.claude>/tracker.json); a connected one is the skill's own check, added with `add`.
 // `contracts` reads every JSON the stages left in the work directory against its schema (schemas/README.md; read mode: an older shape is not an error);
 // `hooks heartbeat` is the file the plugin's SessionStart hook writes — missing or older than doctor.heartbeatHours means the plugin's guards are not running here.
 // Repos: --repos, else the paths every work directory's ticket.json names, else the git checkouts at or one level under
@@ -176,6 +177,14 @@ export function run(claudeDir, opts = {}) {
   else if (!notify.tool) add('notify', 'warn', 'notifications off (no chat tool)', '/tp:notify setup after connecting a chat tool');
   else if (!notify.target) add('notify', 'warn', `${notify.tool} connected, channel not set`, '/tp:notify setup target=<channel>');
   else add('notify', 'ok', `${notify.tool} → ${notify.target}`);
+  // a fixture tracker (<.claude>/tracker.json) needs no tool, so the script answers for it; a connected tracker is the skill's one tool-based check
+  const trackerConfig = readJson(join(claudeDir, 'tracker.json'));
+  if (trackerConfig === undefined && isFile(join(claudeDir, 'tracker.json'))) add('tracker', 'fail', 'tracker.json is not valid JSON', 'fix or delete the file');
+  else if (trackerConfig?.kind === 'fixture') {
+    const me = cmd([process.execPath, join(HERE, 'tracker.mjs'), 'me', '--claude', claudeDir], t);
+    if (me.code === 0) add('tracker', 'ok', `fixture tracker answered: ${me.stdout.replace(/\s+/g, ' ').trim().slice(0, 80)}`);
+    else add('tracker', 'fail', `fixture tracker: ${me.error || firstLine(me.stderr) || `exit ${me.code}`}`, 'check the path in <.claude>/tracker.json');
+  }
   const office = join(claudeDir, 'office.json');
   if (isFile(office) && readJson(office) === undefined) add('office.json', 'warn', 'not valid JSON: the office uses its defaults', 'fix the file');
   else add('office.json', 'ok', isFile(office) ? 'present' : 'absent (defaults)');

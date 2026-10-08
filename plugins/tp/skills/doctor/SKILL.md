@@ -39,8 +39,9 @@ fix per line are the script's header; `tiers.json.doctor.checks` names the
 project's own commands (the hosting CLI's auth status — reference/using.md § Install, step 2).
 
 ### 2. The tracker
-The one check a script cannot make: one read through the tracker (§ Definitions,
-Tracker) in the project's scope — the scope `/tp:plan-day` uses (`plan-day/instructions/
+A fixture tracker (`<.claude>/tracker.json`) is answered by the script — its `tracker` row —
+and there is nothing more to do here. Otherwise it is the one check a script cannot make:
+one read through the connected tracker (§ Definitions, Tracker) in the project's scope — the scope `/tp:plan-day` uses (`plan-day/instructions/
 selection.md` § Scope) — by this agent itself (a `low` lookup; no sub-agent for one
 call). Reachable and answering → `node <lib>/doctor.mjs add <.claude>
 '{ "name": "tracker", "status": "ok", "detail": "<tool> answered for <scope>" }'`;

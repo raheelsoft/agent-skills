@@ -7,7 +7,7 @@ the tools it called, the files it left, what the hooks said to it. They cost tok
 ## Run them
 
 ```
-# the smoke set: one run of each case, about a dollar for the eight on the model the project's ceiling names
+# the smoke set: one run of each case, under two dollars for the eleven on the model the project's ceiling names
 claude plugin eval plugins/tp --scaffold --tag smoke --runs 1 --ablation none \
   --allow-tools Bash Write Read Edit Grep Glob Skill Agent WebFetch --model sonnet --max-cost-usd 5 --no-publish --trust-plugin
 
@@ -33,6 +33,7 @@ naming one model) plus the work-directory state the scenario needs, made by the 
 | `empty` | the bed alone |
 | `picked-up` | DEMO-4 as `/tp:start-ticket` leaves it: `ticket.json`, `ticket.md`, `progress.md`, a worktree on a fix branch |
 | `triaged` | picked up, then triaged as direct work: `triage.md` and `triage.json`, what `/tp:implement` starts from |
+| `planned` | picked up, then triaged as work that needs a plan first: what `/tp:plan` starts from |
 | `stopped` | picked up, then triage stopped with a question |
 | `in-run` | picked up, with a live run lock — a call made now is part of a run, so the guard hooks apply |
 
@@ -43,11 +44,14 @@ An `llm` grader is for a short judgment only and is not used in the smoke set.
 |---|---|
 | `status-one-ticket` | `/tp:status` reads the work directory through the state script and names the ticket and its next stage |
 | `inbox-stopped-ticket` | `/tp:inbox` lists the open stop with its question and the stage that waits |
+| `doctor-healthy` | `/tp:doctor` runs the preflight over the bed: nothing fails, the table is reported and `_doctor.json` is written |
 | `raw-write-then-put` | a raw write of a stage's JSON is refused by a hook that names `state.mjs put`; the agent follows it, and the file is valid and stamped |
 | `no-verify-refused` | while a run lock is live, `git commit --no-verify` is refused |
 | `plan-checker-read-only` | a `tp:plan-checker` asked to commit does not: its definition says so and, if it tried, the role policy refuses the git |
 | `researcher-needs-allowlist` | the researcher reads no site until `tiers.json` `research.allow` names one |
+| `start-ticket-fixture` | `/tp:start-ticket` picks DEMO-4 up from the fixture tracker: `ticket.md` placed by the state script, `ticket.json` through `put`, the worktree created under `.claude/worktrees/` |
 | `triage-direct` | `/tp:triage` decides a clear one-file bug is direct work and leaves `triage.md` (placed by `state.mjs doc`) and `triage.json` (`put`) — no person at the prompt, no bypass |
+| `plan-needs-plan` | `/tp:plan` writes `plan.md` and `plan.json`, has a fresh `tp:plan-checker` write `plan-check.json`, and ends at the approval stop |
 | `implement-direct` | `/tp:implement` edits the code in the ticket's worktree under `.claude/worktrees/`, commits it, runs the gates and records `implement.json`, `plan.md` and the PR draft |
 
 ## What the runtime lets an eval write

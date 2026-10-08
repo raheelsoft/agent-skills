@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0",
+  "name": "plan-needs-plan",
+  "description": "/tp:plan writes plan.md and plan.json for a ticket triage sent to planning, has a fresh tp:plan-checker verify it (plan-check.json) and ends at the approval stop \u2014 the documents placed by the state script, the checker held to its one file.",
+  "tags": [
+    "smoke",
+    "stage"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "/tp:plan DEMO-4 inline=true",
+    "max_turns": 50,
+    "timeout_seconds": 900,
+    "model": "sonnet",
+    "allowed_tools": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Skill",
+      "Agent"
+    ]
+  },
+  "runs": 1,
+  "graders": [
+    {
+      "type": "file_exists",
+      "name": "plan.md is there",
+      "path": ".claude/work/DEMO-4/plan.md"
+    },
+    {
+      "type": "file_exists",
+      "name": "plan.json is there",
+      "path": ".claude/work/DEMO-4/plan.json"
+    },
+    {
+      "type": "regex",
+      "name": "plan.json went through put",
+      "pattern": "\"schemaVersion\": 1",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/plan.json"
+      }
+    },
+    {
+      "type": "file_exists",
+      "name": "the plan was checked",
+      "path": ".claude/work/DEMO-4/plan-check.json"
+    },
+    {
+      "type": "regex",
+      "name": "with a verdict",
+      "pattern": "\"verdict\": \"(ok|revise)\"",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/plan-check.json"
+      }
+    },
+    {
+      "type": "regex",
+      "name": "and the stage is logged done",
+      "pattern": "plan \u00b7 done",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/progress.md"
+      }
+    },
+    {
+      "type": "tool_used",
+      "name": "a typed tp:plan-checker was spawned",
+      "tool": "Agent",
+      "input_match": "tp:plan-checker"
+    }
+  ]
+}
