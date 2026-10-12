@@ -160,6 +160,56 @@ describe('setup — the interview\'s catalogue is consistent', () => {
   });
 });
 
+describe('setup — the documentation sites research may read', () => {
+  const tiersOf = (claude) => JSON.parse(readFileSync(join(claude, 'tiers.json'), 'utf8'));
+  function withTiers(root) {
+    const claude = project(root);
+    writeJson(claude, 'tiers.json', { ceiling: 'sonnet', ladder: ['haiku', 'sonnet'], low: 'haiku', medium: 'sonnet', high: 'sonnet', prices: { low: 1 } });
+    return claude;
+  }
+
+  it('reads the recorded block without writing, with the defaults filled in', (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    const claude = withTiers(root);
+    const r = setup('research', claude);
+    assert.equal(r.code, 0);
+    assert.deepEqual(r.json, { research: { allow: [], maxFetches: 8 } });
+    assert.equal('research' in tiersOf(claude), false, 'asking writes nothing');
+  });
+
+  it('records the domains the person named — lower-cased, scheme and path dropped, each once — and keeps everything else in tiers.json', (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    const claude = withTiers(root);
+    const r = setup('research', claude, 'allow=Docs.Example.com, https://other.org/guide ,docs.example.com', 'maxFetches=5');
+    assert.deepEqual(r.json.research, { allow: ['docs.example.com', 'other.org'], maxFetches: 5 });
+    const tiers = tiersOf(claude);
+    assert.deepEqual([tiers.ceiling, tiers.prices, tiers.research.maxFetches], ['sonnet', { low: 1 }, 5]);
+    assert.deepEqual(setup('research', claude, 'allow=none').json.research, { allow: [], maxFetches: 5 }, 'none clears the list and keeps the budget');
+  });
+
+  it('refuses what is not a host, a bad budget and a missing tiers.json, writing nothing', (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    const claude = withTiers(root);
+    for (const bad of ['allow=not_a_domain', 'allow=localhost', 'allow=a b.com', 'allow=-x.com']) assert.equal(setup('research', claude, bad).code, 2, bad);
+    for (const bad of ['maxFetches=0', 'maxFetches=2.5', 'maxFetches=lots', 'maxFetches=1000']) assert.equal(setup('research', claude, bad).code, 2, bad);
+    assert.equal(setup('research', claude, 'allow').code, 2, 'a pair needs its =');
+    assert.equal('research' in tiersOf(claude), false);
+    const bare = tmp(); t.after(() => rm(bare));
+    const none = project(bare);
+    const r = setup('research', none, 'allow=docs.example.com');
+    assert.equal(r.code, 2);
+    assert.match(r.err, /is missing or not valid JSON/);
+  });
+
+  it('what it writes is what the fetch hook reads', async (t) => {
+    const root = tmp(); t.after(() => rm(root));
+    const claude = withTiers(root);
+    setup('research', claude, 'allow=docs.example.com', 'maxFetches=3');
+    const { researchConfig } = await import('../hooks/handlers/fetch.mjs');
+    assert.deepEqual(researchConfig({ claudeDir: claude }), { allow: ['docs.example.com'], maxFetches: 3 });
+  });
+});
+
 describe('setup — moving from a project-local copy', () => {
   /** A project `.claude` as an older install left it: the pipeline copied in, `tp-` keys, allow rules naming the copy. */
   function legacy(root) {

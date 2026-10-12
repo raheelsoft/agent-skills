@@ -21,7 +21,7 @@ same skills.
 
 ## Input
 
-- No argument → the interview (steps 1–4).
+- No argument → the interview (steps 1–4, with 3b and 3c).
 - `all=true` → every skill, no question (an install that wants everything).
 - `skills=<a,b,c>` → exactly these, plus what they need, no question.
 - `ceiling=<model>` → the largest model the pipeline may use, without asking (step 3).
@@ -29,6 +29,8 @@ same skills.
 - `session=<yes|no>` → answer step 3's second question without asking.
 - `hooks=<yes|no|dry>` → answer step 3b's question without asking (`dry` prints the
   hooks it would write and writes nothing).
+- `research=<domain,domain|none>` → the documentation sites the planning researcher may read,
+  without asking (step 3c).
 - `status` → what is on, what is off, and any problem (a dependency off, a name the
   plugin does not have) — `node <lib>/setup.mjs status <.claude>`; nothing changes.
 - `migrate` → what is left of a copy of the pipeline kept in this project's own
@@ -115,6 +117,17 @@ claudeDir }'`, then
 The files are the **project's**, in its repo: the report names them and says they are
 an uncommitted change for the person to commit (or to take through a ticket), and that
 `core.hooksPath` is per clone unless the project's `prepare` script sets it.
+
+### 3c. Documentation sites for research
+Only when `tp:plan` is on. The planning researcher reads the codebase's own precedent first and,
+for what that cannot answer, pages from the sites the project allows and no others
+(`reference/definitions.md` § Definitions, Role agents). Ask once: *which documentation sites may
+research read — domains such as `docs.example.com`, comma-separated, or none (the codebase
+alone)? Default: none*. The answer goes in with `node <lib>/setup.mjs research <.claude>
+allow=<domains|none>` (it merges into `tiers.json`'s `research`, refuses anything that is not a
+host, and `maxFetches=<n>` sets the page budget, 8 by default); with no pair it reports what is
+recorded, which is said and not asked again. Reading a page needs no permission rule: the plugin's
+fetch hook allows exactly these hosts to the researcher, and nothing else.
 
 ### 4. Apply
 `node <lib>/setup.mjs apply <.claude> '{ "skills": [<the selection>],

@@ -14,6 +14,9 @@
 //   node setup.mjs status <.claude>                     -> { pipeline, on, off, problems: [..], drift: { missing, stale } } — a dependency that is off, a
 //                                                          name nobody knows; a deny rule missing or left over; exit 1 on either
 //   node setup.mjs stages <.claude>                     -> { off: [stage names the state script leaves out] }   (release, accept, merge when off)
+//   node setup.mjs research <.claude> [allow=<domain,domain>|none] [maxFetches=<n>]
+//                                                       -> { research: { allow, maxFetches } }: the documentation sites the planning researcher may read
+//                                                          (tiers.json `research`, which the fetch hook enforces); with no pair it only reports them
 //   node setup.mjs migrate <.claude> [--fix]            -> { copy, pipeline, permissions, launch, nothingLeft }: what is left of a copy of the pipeline kept in the
 //                                                          project's own .claude (folders to remove, `tp-` keys in pipeline.json, allow rules naming the copy,
 //                                                          launch.json entries that start an office server other than this plugin's); exit 1 while something
@@ -246,13 +249,39 @@ export function migrate(claudeDir, { fix = false } = {}) {
   return { copy, pipeline: { legacyKeys, fixed }, permissions, launch, nothingLeft: !copy.length && !legacyKeys.length && !permissions.length && !launch.length };
 }
 
+const HOST = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+
+/**
+ * The documentation sites the planning researcher may read: `allow` is domains ("docs.example.com,other.org", or "none" for the codebase alone) and
+ * `maxFetches` the most pages one research may read. Merged into tiers.json's `research`; nothing else in the file is touched. Called with neither it reads.
+ */
+export function setResearch(claudeDir, { allow, maxFetches } = {}) {
+  const file = join(resolve(String(claudeDir)), 'tiers.json');
+  const tiers = readJson(file);
+  if (!tiers || typeof tiers !== 'object') throw new Error(`${file} is missing or not valid JSON — /tp:setup writes it, with the ceiling`);
+  const research = { ...(tiers.research && typeof tiers.research === 'object' ? tiers.research : {}) };
+  if (allow !== undefined) {
+    const list = String(allow).trim().toLowerCase() === 'none' ? [] : String(allow).split(',').map((d) => d.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')).filter(Boolean);
+    const bad = list.filter((d) => !HOST.test(d));
+    if (bad.length) throw new Error(`not a domain: ${bad.join(', ')} — name hosts such as docs.example.com, comma-separated, or "none"`);
+    research.allow = [...new Set(list)];
+  }
+  if (maxFetches !== undefined) {
+    const n = Number(maxFetches);
+    if (!Number.isInteger(n) || n < 1 || n > 100) throw new Error('maxFetches is a whole number of pages, 1 to 100');
+    research.maxFetches = n;
+  }
+  if (allow !== undefined || maxFetches !== undefined) writeJson(file, { ...tiers, research });
+  return { research: { allow: [], maxFetches: 8, ...research } };
+}
+
 function isMain(url) { try { return realpathSync(process.argv[1]) === fileURLToPath(url); } catch { return false; } }
 if (isMain(import.meta.url)) {
   const [cmd, target, ...rest] = process.argv.slice(2);
   const out = (o) => console.log(JSON.stringify(o, null, 2));
   const arg = () => (rest[0] ? JSON.parse(rest[0]) : {});
   try {
-    if (!target) throw new Error('usage: setup.mjs list|check|apply|sync|status|stages|migrate <.claude> [json]');
+    if (!target) throw new Error('usage: setup.mjs list|check|apply|sync|status|stages|research|migrate <.claude> [json]');
     if (cmd === 'list') out(list(target));
     else if (cmd === 'check') out(check(arg()));
     else if (cmd === 'apply') out(apply(target, arg()));
@@ -260,7 +289,8 @@ if (isMain(import.meta.url)) {
     else if (cmd === 'status') { const s = status(target); out(s); process.exit(s.problems.length || s.drift.missing.length || s.drift.stale.length ? 1 : 0); }
     else if (cmd === 'stages') out({ off: offStages(target) });
     else if (cmd === 'migrate') { const m = migrate(target, { fix: rest.includes('--fix') }); out(m); process.exit(m.nothingLeft ? 0 : 1); }
-    else throw new Error('usage: setup.mjs list|check|apply|sync|status|stages|migrate <.claude> [json]');
+    else if (cmd === 'research') out(setResearch(target, Object.fromEntries(rest.map((p) => { const i = p.indexOf('='); if (i < 1) throw new Error(`bad pair "${p}" — use allow=<domain,domain>|none and maxFetches=<n>`); return [p.slice(0, i), p.slice(i + 1)]; }))));
+    else throw new Error('usage: setup.mjs list|check|apply|sync|status|stages|research|migrate <.claude> [json]');
   } catch (e) {
     console.error(String(e.message || e));
     process.exit(e.unknown ? 1 : 2);

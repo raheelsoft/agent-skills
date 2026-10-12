@@ -1,0 +1,88 @@
+{
+  "schema_version": "1.0",
+  "name": "create-pr-fixture",
+  "description": "/tp:create-pr takes DEMO-4's committed change to a pushed, described pull request on the fixture hosting platform: the diff validated, the PR opened with the draft as its body, the comments posted, pr.json and report.md recorded.",
+  "tags": [
+    "smoke",
+    "stage"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "/tp:create-pr DEMO-4 inline=true",
+    "max_turns": 50,
+    "timeout_seconds": 900,
+    "model": "sonnet",
+    "allowed_tools": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Skill",
+      "Agent"
+    ]
+  },
+  "runs": 1,
+  "graders": [
+    {
+      "type": "file_exists",
+      "name": "pr.json is there",
+      "path": ".claude/work/DEMO-4/pr.json"
+    },
+    {
+      "type": "regex",
+      "name": "it names the pull request on the fixture platform",
+      "pattern": "\"url\": \"fixture://api/pull/1\"",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/pr.json"
+      }
+    },
+    {
+      "type": "regex",
+      "name": "and the platform holds it, open",
+      "pattern": "\"state\": \"open\"",
+      "target": {
+        "source": "file",
+        "path": ".claude/hosting.fixture.json"
+      }
+    },
+    {
+      "type": "regex",
+      "name": "for the ticket's branch",
+      "pattern": "fix/contacts-list-ignores-q-filter",
+      "target": {
+        "source": "file",
+        "path": ".claude/hosting.fixture.json"
+      }
+    },
+    {
+      "type": "file_exists",
+      "name": "the branch was validated against the intent",
+      "path": ".claude/work/DEMO-4/diff-validation.md"
+    },
+    {
+      "type": "file_exists",
+      "name": "the report is there",
+      "path": ".claude/work/DEMO-4/report.md"
+    },
+    {
+      "type": "regex",
+      "name": "and the stage is logged done",
+      "pattern": "create-pr \u00b7 done",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/progress.md"
+      }
+    },
+    {
+      "type": "tool_used",
+      "name": "the pull request was opened through the hosting script",
+      "tool": "Bash",
+      "input_match": "hosting\\.mjs pr create"
+    }
+  ]
+}

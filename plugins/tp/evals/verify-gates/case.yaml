@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "name": "verify-gates",
+  "description": "/tp:verify resolves the gates of DEMO-4's worktree, runs the ones the repo's hooks do not already enforce, reports the table, and records the result for the commit it ran on \u2014 reused by every later stage.",
+  "tags": [
+    "smoke",
+    "stage"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "/tp:verify inline=true \u2014 on DEMO-4's worktree, the path .claude/work/DEMO-4/ticket.json records.",
+    "max_turns": 30,
+    "timeout_seconds": 420,
+    "model": "sonnet",
+    "allowed_tools": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Skill"
+    ]
+  },
+  "runs": 1,
+  "graders": [
+    {
+      "type": "regex",
+      "name": "the table shows a gate that passed",
+      "pattern": "PASS"
+    },
+    {
+      "type": "regex",
+      "name": "and no gate failed",
+      "pattern": "(ALL GATES PASSED|Verdict:\\s*\\**\\s*(ALL )?(GATES )?PASS)",
+      "flags": "i"
+    },
+    {
+      "type": "tool_used",
+      "name": "the gate script recorded or read the result",
+      "tool": "Bash",
+      "input_match": "gates\\.mjs"
+    }
+  ]
+}

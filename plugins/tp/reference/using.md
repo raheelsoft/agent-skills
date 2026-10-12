@@ -32,7 +32,8 @@ Install, run, resume, schedule, simulate: how a person uses the pipeline.
    the only place a model name is ever written (§ Models and budget, The ceiling) — with
    the offer to start this project's sessions on that model, offers to put each
    repo's own gate commands in its **pre-commit and pre-push hooks**, which is what
-   makes those gates free for the pipeline (§ Verification rules), writes
+   makes those gates free for the pipeline (§ Verification rules), asks which documentation
+   sites the planning researcher may read (none by default), writes
    `pipeline.json`, prints the permission lines the selection needs, runs
    `/tp:notify setup` when notifications are on, and ends with `/tp:doctor`.
    `/tp:setup all=true` takes every skill without asking and `ceiling=<model>` answers
@@ -115,12 +116,13 @@ writes the first two and prints the allowlist; the rest you set once, or never.
 | File | Written by | Versioned | What it holds |
 |---|---|---|---|
 | `pipeline.json` | `/tp:setup` | yes — the project's choice | which of the skills this project uses; an absent file means all of them |
-| `tiers.json` | `/tp:setup`, then by hand | no — per machine | `ceiling` (the largest model the pipeline may use), `ladder` (the runtime's models, smallest first) and the three tiers `low`/`medium`/`high` derived from them — **the only place a model name is written** (§ Models and budget, The ceiling). Also every tunable, each with a working default: `prices` (§ Models and budget), `budget`, `retries`, `compact`, `review`, `day`, `estimate`, `checks`, `doctor`, `gates`, `hooks`, `codegen`, `research` (`{ allow: [<documentation domains the researcher may read>], maxFetches: 8 }` — empty `allow` means the codebase alone) |
+| `tiers.json` | `/tp:setup`, then by hand | no — per machine | `ceiling` (the largest model the pipeline may use), `ladder` (the runtime's models, smallest first) and the three tiers `low`/`medium`/`high` derived from them — **the only place a model name is written** (§ Models and budget, The ceiling). Also every tunable, each with a working default: `prices` (§ Models and budget), `budget`, `retries`, `compact`, `review`, `day`, `estimate`, `checks`, `doctor`, `gates`, `hooks`, `codegen`, `research` (`{ allow: [<documentation domains the researcher may read>], maxFetches: 8 }` — empty `allow` means the codebase alone; `/tp:setup` asks, or `setup.mjs research <.claude> allow=<domains\|none>`) |
 | `notify.json` | `/tp:notify setup` | no — per install | the chat tool and the channel one line per stop goes to; without it notifications are a silent no-op |
 | `settings.json` | you; `/tp:setup` writes only the deny rules | yes — the team's | the plugin enabled at project scope, and one `Skill(skill:tp:<name>)` deny rule per skill that is off. Those rules are the only part `/tp:setup` writes, and it owns only rules of exactly that shape: every other key and rule is yours. `/tp:doctor` flags a rule that no longer matches `pipeline.json`; `setup.mjs sync` regenerates them |
 | `settings.local.json` (or your runtime's settings) | you, from the list `/tp:setup` prints; `model` by `/tp:setup` when you accept its offer | no | the permission allowlist — the commands the skills may run without asking — and the `model` a session in this project starts on (§ Models and budget, The ceiling) |
 | `office.json` | you, optional | no | the office's team name, the projects always drawn, the name pools (§ Observability) |
 | `tracker.json` | you, only for a dry run | no | `{ "kind": "fixture", "path": "<abs>" }` — points the skills at the file-backed tracker instead of a real one (§ Simulation) |
+| `hosting.json` | you, only for a dry run | no | `{ "kind": "fixture", "path": "<abs>" }` — points the skills at the file-backed hosting platform (`lib/hosting.mjs`, pull requests over the repos' own remotes) instead of a real one (§ Simulation) |
 | each repo's **conventions file** (`AGENTS.md`, `CONTRIBUTING.md` or `CLAUDE.md`) | you | yes — it is the repo's | everything project-specific: base branch, branch and commit conventions, merge strategy and who reviews, the gate commands, what a merge triggers, operator follow-ups, environments, test data. The skills carry none of this |
 | each repo's `.husky/` hooks | `/tp:setup` | yes — the team's | the gates the repo enforces itself, which the pipeline then does not re-run (§ Verification rules) |
 
@@ -250,14 +252,17 @@ project: two small repos (`api`, `web`) on `main` with a conventions file and a 
 remote each, and a `.claude` holding `tiers.json` (the models of the file given with
 `--tiers`, else placeholders), `tracker.json` pointing at a copy of the fixture tracker
 (`tests/fixtures/tracker.json`: a sprint, an epic with children, a blocked ticket, a
-bug, a tracker estimate, a finished ticket), a silent `notify.json` and the allowlist; the
-pipeline itself is not copied — a session opened there loads the plugin by path
-(`claude --plugin-dir <plugin>`) and runs it against no tracker account and no hosting
-account: `/tp:doctor`, `/tp:plan-day` (the sprint from the fixture), `/tp:status`, `/tp:inbox`,
-`/tp:eod`, and `/tp:run-ticket <id>` through pickup, triage, plan and implement —
-`/tp:create-pr` onwards needs a real hosting platform (the bed stops at the push), and
-the office serves the bed's own work directory. The fixture is copied, so nothing a
-run does reaches `tests/fixtures/`.
+bug, a tracker estimate, a finished ticket), `hosting.json` pointing at a file-backed
+hosting platform over the two bare remotes (`lib/hosting.mjs`, § Definitions, Hosting
+platform), a silent `notify.json` and the allowlist; the pipeline itself is not copied — a
+session opened there loads the plugin by path (`claude --plugin-dir <plugin>`) and runs it
+against no tracker account and no hosting account: `/tp:doctor`, `/tp:plan-day` (the sprint
+from the fixture), `/tp:status`, `/tp:inbox`, `/tp:eod`, and `/tp:run-ticket <id>` from pickup
+to acceptance — a pull request is a real branch on the bed's bare remote, opened, reviewed and
+merged through `hosting.mjs`, so the review loop, the merge and the acceptance run for real;
+the one thing a bed cannot show is a deploy (its conventions file says none runs after a
+merge). The office serves the bed's own work directory. The fixtures are copied, so nothing
+a run does reaches `tests/fixtures/`.
 
 ### Preflight
 

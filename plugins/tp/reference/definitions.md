@@ -19,6 +19,15 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   that reads or writes a ticket, a relation, a comment, an iteration or a label
   means this definition by "the tracker"; a fixture ticket's link is
   `fixture://<id>`.
+- **Hosting platform** — where the repos' remotes, pull requests and pipeline runs live.
+  First look at `<.claude>/hosting.json`: when it says `{ "kind": "fixture", "path": "<abs>" }`
+  the platform is the file-backed one, `<lib>/hosting.mjs` (`pr create|view|list|comment|edit|diff|merge|close|checks`,
+  `run list`, `me`, with `gh`'s flags and JSON field names), over the repos' own remotes — a pull
+  request is real git: its head branch must be on the remote, a merge writes a merge commit
+  into it — and no connected CLI is touched (§ Using it, Simulation); with no such file it is
+  the connected platform's CLI or tool (`gh`, `glab`). Every skill that opens, reads, comments on
+  or merges a pull request, or reads a pipeline run, means this definition by "the hosting
+  platform"; a fixture pull request's link is `fixture://<repo>/pull/<n>`.
 - **Active skills** — `<.claude>/pipeline.json` (`/tp:setup`; absent = everything on)
   says which skills this project uses; a skill that is off is not run — the plugin
   stays whole, because every project that enables it shares it. Three things read that

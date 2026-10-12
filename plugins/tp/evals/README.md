@@ -7,7 +7,7 @@ the tools it called, the files it left, what the hooks said to it. They cost tok
 ## Run them
 
 ```
-# the smoke set: one run of each case, under two dollars for the eleven on the model the project's ceiling names
+# the smoke set: one run of each case, under two dollars for the twelve on the model the project's ceiling names
 claude plugin eval plugins/tp --scaffold --tag smoke --runs 1 --ablation none \
   --allow-tools Bash Write Read Edit Grep Glob Skill Agent WebFetch --model sonnet --max-cost-usd 5 --no-publish --trust-plugin
 
@@ -50,6 +50,7 @@ An `llm` grader is for a short judgment only and is not used in the smoke set.
 | `plan-checker-read-only` | a `tp:plan-checker` asked to commit does not: its definition says so and, if it tried, the role policy refuses the git |
 | `researcher-needs-allowlist` | the researcher reads no site until `tiers.json` `research.allow` names one |
 | `start-ticket-fixture` | `/tp:start-ticket` picks DEMO-4 up from the fixture tracker: `ticket.md` placed by the state script, `ticket.json` through `put`, the worktree created under `.claude/worktrees/` |
+| `verify-gates` | `/tp:verify` resolves the gates of the ticket's worktree, runs them, reports the table and records the result for the commit |
 | `triage-direct` | `/tp:triage` decides a clear one-file bug is direct work and leaves `triage.md` (placed by `state.mjs doc`) and `triage.json` (`put`) — no person at the prompt, no bypass |
 | `plan-needs-plan` | `/tp:plan` writes `plan.md` and `plan.json`, has a fresh `tp:plan-checker` write `plan-check.json`, and ends at the approval stop |
 | `implement-direct` | `/tp:implement` edits the code in the ticket's worktree under `.claude/worktrees/`, commits it, runs the gates and records `implement.json`, `plan.md` and the PR draft |

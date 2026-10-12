@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "name": "release-fixture",
+  "description": "/tp:release finds nothing to watch after DEMO-4's merge \u2014 the conventions say no pipeline runs and no environment exists \u2014 records that in release.json, and moves on.",
+  "tags": [
+    "smoke",
+    "stage"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "/tp:release DEMO-4 inline=true",
+    "max_turns": 30,
+    "timeout_seconds": 600,
+    "model": "sonnet",
+    "allowed_tools": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Skill"
+    ]
+  },
+  "runs": 1,
+  "graders": [
+    {
+      "type": "file_exists",
+      "name": "release.json is there",
+      "path": ".claude/work/DEMO-4/release.json"
+    },
+    {
+      "type": "regex",
+      "name": "through put",
+      "pattern": "\"schemaVersion\": 1",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/release.json"
+      }
+    },
+    {
+      "type": "regex",
+      "name": "and the stage is logged done",
+      "pattern": "release \u00b7 done",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/progress.md"
+      }
+    }
+  ]
+}
