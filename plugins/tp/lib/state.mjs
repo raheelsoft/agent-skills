@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Deterministic state for the ticket workflow (see reference/README.md).
 //
+// <workdir> may be a bare ticket id (PIK-12): it stands for <.claude>/work/PIK-12 of this project.
 //   node state.mjs log   <workdir> <stage> <started|done|stopped|note> <summary> [links]
 //   node state.mjs state <workdir>            -> JSON: id, title, link, decision, complexity, estimate, stages, next, stopped, closed, prs, worktrees, lock, retro, lastEvent, problems
 //   node state.mjs state <workdir> --brief    -> the decision fields only: id, complexity, next, stopped, closed, unblocked, lock, worktrees, problems
@@ -24,6 +25,7 @@
 //   node state.mjs actual <workdir> '<json>'    -> record the person's actual hours in ticket.json ({ focusedHours, source, by })
 //   node state.mjs put <workdir> <artifact> ['<json>'|--from <file>] [--merge]  -> check the JSON against the artifact's schema (schemas/) and write it; JSON on stdin
 //                                                when neither is given. Refuses (exit 2) and writes nothing when it does not conform
+//   node state.mjs shape [<artifact>]          -> the form `put` accepts, field by field, in a few lines (no argument: every artifact); implement.<repo> is implement
 //   node state.mjs doc <dir> <name> [--append] [--from <file>]  -> write a document (plan.md, report.md, a checkpoint …) into a ticket's work directory, or _scratch or _day;
 //                                                the text on stdin when there is no --from. The agents' own tools cannot write under <.claude>/, this can
 //   node state.mjs agent join  <workroot> '<json>'          -> register an agent for the office (returns its record, with its name)
@@ -38,6 +40,7 @@
 
 
 import { CliError } from './state/util.mjs';
+import { resolveWorkdir } from './state/paths.mjs';
 import { log } from './state/progress.mjs';
 import { lockRun, unlockRun } from './state/lock.mjs';
 import { computeState, brief, durations, all, totals } from './state/compute.mjs';
@@ -46,6 +49,7 @@ import { inbox, answerQueue, answerTake } from './state/inbox.mjs';
 import { recordBlockers, recordActual } from './state/records.mjs';
 import { putArtifact, payloadText } from './state/put.mjs';
 import { writeDoc, docText } from './state/doc.mjs';
+import { shape } from './state/shape.mjs';
 import { agentJoin, agentLeave } from './state/agents.mjs';
 import { office } from './state/office.mjs';
 
@@ -68,7 +72,10 @@ function flags(list) {
 
 process.stdout.on('error', () => {}); // a closed pipe must never undo a log line already appended
 
-const [, , cmd, target, ...rest] = process.argv;
+const [, , cmd, rawTarget, ...rest] = process.argv;
+// the commands whose first argument is one ticket's work directory: a bare ticket id stands for it
+const PER_TICKET = new Set(['log', 'state', 'check', 'durations', 'usage', 'blockers', 'actual', 'put', 'doc', 'lock', 'unlock']);
+const target = PER_TICKET.has(cmd) ? resolveWorkdir(rawTarget) : rawTarget;
 function dispatch() {
   switch (cmd) {
     case 'log': process.stdout.write(log(target, rest[0], rest[1], rest[2], rest[3])); break;
@@ -88,6 +95,7 @@ function dispatch() {
     case 'blockers': emit(recordBlockers(target, rest[0])); break;
     case 'actual': emit(recordActual(target, rest[0])); break;
     case 'put': { const o = flags(rest.slice(1)); emit(putArtifact(target, rest[0], payloadText({ arg: String(rest[1]).startsWith('--') ? undefined : rest[1], from: o.from }), { merge: o.merge === true }), 0, true); break; }
+    case 'shape': process.stdout.write(shape(target) + '\n'); break;
     case 'doc': { const o = flags(rest.slice(1)); emit(writeDoc(target, rest[0], docText({ from: o.from }), { append: o.append === true }), 0, true); break; }
     case 'lock': process.stdout.write(lockRun(target, rest[0])); break;
     case 'unlock': process.stdout.write(unlockRun(target, rest[0], rest.includes('--force'))); break;

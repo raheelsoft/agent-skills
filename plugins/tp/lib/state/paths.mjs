@@ -9,7 +9,7 @@
 // A ticket picked up before this layout keeps its worktree at `<.claude>/work/<id>/wt/<repo-name>`: ticket.json records the absolute path, so
 // every stage still finds it, and the listing below reads both.
 import { readdirSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { isDir } from './util.mjs';
 
 export const WORKTREES = 'worktrees';
@@ -32,4 +32,22 @@ const subdirs = (dir) => (isDir(dir) ? readdirSync(dir).filter((n) => isDir(join
 export function worktreesOnDisk(workdir) {
   const id = basename(resolve(workdir));
   return [...new Set([...subdirs(ticketWorktrees(claudeOf(workdir), id)), ...subdirs(join(workdir, 'wt'))])].sort();
+}
+
+const TICKET_ID = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
+
+/** The project's `<.claude>`: CLAUDE_PROJECT_DIR's, else the nearest `.claude` above the working directory (a ticket's worktree sits inside it). */
+function projectClaude(env, cwd) {
+  if (env.CLAUDE_PROJECT_DIR && isDir(join(env.CLAUDE_PROJECT_DIR, '.claude'))) return join(env.CLAUDE_PROJECT_DIR, '.claude');
+  for (let dir = resolve(cwd); ; dir = dirname(dir)) {
+    if (isDir(join(dir, '.claude', 'work'))) return join(dir, '.claude');
+    if (dirname(dir) === dir) return null;
+  }
+}
+
+/** A ticket's work directory from what an agent typed: a path stays as it is; a bare ticket id (`PIK-12`) that is no folder here becomes `<.claude>/work/<id>`. */
+export function resolveWorkdir(arg, { env = process.env, cwd = process.cwd() } = {}) {
+  if (typeof arg !== 'string' || !TICKET_ID.test(arg) || isDir(arg)) return arg;
+  const claude = projectClaude(env, cwd);
+  return claude ? join(claude, 'work', arg) : arg;
 }

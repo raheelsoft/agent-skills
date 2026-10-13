@@ -28,6 +28,7 @@ describe('the simulation bed', () => {
     assert.equal(d.checks.find((c) => c.name === 'tracker')?.status, 'ok');
     const hosting = spawnSync(process.execPath, [script('hosting.mjs'), 'pr', 'list', '--repo', 'api', '--claude', bed.claude], { encoding: 'utf8' });
     assert.deepEqual(JSON.parse(hosting.stdout), [], 'no pull request yet, over the bed\'s own remotes');
+    for (const f of ['tracker', 'hosting']) assert.equal(JSON.parse(readFileSync(join(bed.claude, `${f}.json`), 'utf8')).command, `node ${join(PLUGIN_ROOT, 'lib', `${f}.mjs`)}`, `${f}.json names the command that runs the fixture`);
     for (const name of ['api', 'web']) assert.match(readFileSync(join(bed.repos[name], 'CLAUDE.md'), 'utf8'), /Hosting platform: the fixture in `\.claude\/hosting\.json`/, 'the conventions file says where the platform is');
   });
 });

@@ -970,3 +970,17 @@ describe('inbox — every open stop, oldest first', () => {
     assert.equal(d.resume, '/tp:run-ticket D-4 answers=retry');
   });
 });
+
+it('resolveWorkdir: a bare ticket id stands for the work directory of this project; a path stays as it is', async () => {
+  const { resolveWorkdir } = await import('../lib/state/paths.mjs');
+  const { mkdtempSync, mkdirSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const proj = mkdtempSync(join(tmpdir(), 'rw-'));
+  mkdirSync(join(proj, '.claude', 'work', 'PIK-12'), { recursive: true });
+  mkdirSync(join(proj, '.claude', 'worktrees', 'PIK-12', 'api'), { recursive: true });
+  assert.equal(resolveWorkdir('PIK-12', { env: { CLAUDE_PROJECT_DIR: proj }, cwd: '/' }), join(proj, '.claude', 'work', 'PIK-12'));
+  assert.equal(resolveWorkdir('PIK-99', { env: {}, cwd: join(proj, '.claude', 'worktrees', 'PIK-12', 'api') }), join(proj, '.claude', 'work', 'PIK-99'));
+  assert.equal(resolveWorkdir('/abs/work/PIK-12', { env: { CLAUDE_PROJECT_DIR: proj } }), '/abs/work/PIK-12');
+  assert.equal(resolveWorkdir('PIK-12', { env: {}, cwd: '/' }), 'PIK-12');
+});

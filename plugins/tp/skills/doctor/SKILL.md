@@ -4,7 +4,7 @@ description: Runs the preflight: whether this install can run a ticket right now
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`) · `<skill>` = `${CLAUDE_SKILL_DIR}` (this skill's folder, where the `instructions/` and `examples/` files named below are).
 
 Catch the environment failure before the run does. Every check here is something a
 stage would otherwise hit mid-task and hand up as an `error:` stop (`reference/failures-and-stops.md`

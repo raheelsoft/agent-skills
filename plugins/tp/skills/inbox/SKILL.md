@@ -4,7 +4,7 @@ description: Gathers everything waiting on a person in one pass: each open stop 
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). Its checkpoint and any other document it writes in the work directory go through `node <lib>/state.mjs doc <.claude>/work/_scratch <name>` (the text on stdin or `--from <file>`; a draft or a command's output goes under `<.claude>/worktrees/_out/`, in a name that carries its slug or date — the one place below `.claude/` an agent may write): a hook refuses a raw write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`) · `<skill>` = `${CLAUDE_SKILL_DIR}` (this skill's folder, where the `instructions/` and `examples/` files named below are). Its checkpoint and any other document it writes in the work directory go through `node <lib>/state.mjs doc <.claude>/work/_scratch <name>` (the text on stdin or `--from <file>`; a draft or a command's output goes under `<.claude>/worktrees/_out/`, in a name that carries its slug or date — the one place below `.claude/` an agent may write): a hook refuses a raw write.
 
 One list of every open stop, and one round of answers for all of them. The state
 script already classifies each stop and names its resume command (`reference/definitions.md`

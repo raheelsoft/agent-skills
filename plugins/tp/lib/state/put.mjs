@@ -47,7 +47,7 @@ export function putArtifact(workdir, name, payload, { merge = false } = {}) {
   if (!r.ok) {
     const shown = r.errors.slice(0, MAX_LINES).map((e) => `  ${e}`);
     if (r.errors.length > MAX_LINES) shown.push(`  … and ${r.errors.length - MAX_LINES} more`);
-    throw new CliError(`refused ${file}: it does not match schemas/${kind.artifact}.schema.json\n${shown.join('\n')}\nnothing was written — correct the JSON and put it again`, 2);
+    throw new CliError(`refused ${file}: it does not match schemas/${kind.artifact}.schema.json\n${shown.join('\n')}\nnothing was written — correct the JSON and put it again (\`state.mjs shape ${kind.artifact}\` prints the form)`, 2);
   }
   writeAtomic(target, doc);
   return { file, artifact: kind.artifact };

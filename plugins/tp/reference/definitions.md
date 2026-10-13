@@ -10,8 +10,8 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   `CONTRIBUTING.md`, `CLAUDE.md`. None → the repo's git history and the tracker's
   existing tickets are the convention.
 - **Tracker** — where the tickets live. First look at `<.claude>/tracker.json`: when it
-  says `{ "kind": "fixture", "path": "<abs>" }` the tracker is the file-backed one,
-  `<lib>/tracker.mjs` (`get`, `list`, `save`, `comment`, `create`,
+  says `{ "kind": "fixture", "path": "<abs>", "command": "node <lib>/tracker.mjs" }` the tracker is the
+  file-backed one, which that `command` runs (`get`, `list`, `save`, `comment`, `create`,
   `iterations`, `labels`, `states`, `me`), whose commands are the same reads and
   writes the skills make against a real one (§ Using it, Simulation), and no connected
   tool is touched; with no such file it is the connected tracker tool, found by name
@@ -20,8 +20,8 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   means this definition by "the tracker"; a fixture ticket's link is
   `fixture://<id>`.
 - **Hosting platform** — where the repos' remotes, pull requests and pipeline runs live.
-  First look at `<.claude>/hosting.json`: when it says `{ "kind": "fixture", "path": "<abs>" }`
-  the platform is the file-backed one, `<lib>/hosting.mjs` (`pr create|view|list|comment|edit|diff|merge|close|checks`,
+  First look at `<.claude>/hosting.json`: when it says `{ "kind": "fixture", "path": "<abs>", "command":
+  "node <lib>/hosting.mjs" }` the platform is the file-backed one, which that `command` runs (`pr create|view|list|comment|edit|diff|merge|close|checks`,
   `run list`, `me`, with `gh`'s flags and JSON field names), over the repos' own remotes — a pull
   request is real git: its head branch must be on the remote, a merge writes a merge commit
   into it — and no connected CLI is touched (§ Using it, Simulation); with no such file it is
@@ -53,10 +53,12 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   checkouts and command output — the one place below it an agent may write), resolved to an
   absolute path once; every path handed to an agent is absolute.
 - **`<plugin>`, `<lib>`** — the plugin's own folder (`${CLAUDE_PLUGIN_ROOT}`, which moves
-  when the plugin updates) and its `lib/`, where the scripts are. A SKILL.md defines
-  `<lib>` and `<.claude>` once, in its first line, because Claude Code substitutes the
-  variables in a skill's body and not in the files it reads: those files say `<lib>` and
-  mean that line's.
+  when the plugin updates) and its `lib/`, where the scripts are; `<skill>` is a skill's
+  own folder (`${CLAUDE_SKILL_DIR}`), where its `instructions/` and `examples/` are. A
+  SKILL.md defines `<lib>`, `<.claude>` and, when it has files of its own, `<skill>` once, in
+  its first line, because Claude Code substitutes the variables in a skill's body and not in
+  the files it reads: those files say `<lib>` and mean that line's. A path the agent would
+  otherwise have to find is a turn it pays for.
 - **Repo name** — `basename(<repo path>)`, the key everywhere a repo is named:
   `worktrees/<id>/<name>`, `<file>.<name>.json`, `checkpoint.<stage>.<name>.md`, `repo=<name>`, and
   the stage names `implement:<name>` / `create-pr:<name>` / `merge:<name>` /

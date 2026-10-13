@@ -4,7 +4,7 @@ description: Takes a feature branch to a pushed, described, gated pull request a
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/pr-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write. Its `.md` documents are written the same way: `node <lib>/state.mjs doc <workdir> <name>`, the text on stdin or `--from <file>` (`--append` adds to the end); a long one is drafted under `<.claude>/worktrees/_out/<id>/`, the one place below `.claude/` an agent may write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`) · `<skill>` = `${CLAUDE_SKILL_DIR}` (this skill's folder, where the `instructions/` and `examples/` files named below are). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/pr-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write. Its `.md` documents are written the same way: `node <lib>/state.mjs doc <workdir> <name>`, the text on stdin or `--from <file>` (`--append` adds to the end); a long one is drafted under `<.claude>/worktrees/_out/<id>/`, the one place below `.claude/` an agent may write.
 
 Take a feature branch from "ready for review" to a pushed, described, review-ready
 pull request (PR below also means merge request) — or, if the PR already exists, sync
@@ -97,20 +97,27 @@ Verification, Implementation summary) are the first sources when they exist.
 ### 5. Gates and diff validation — concurrently
 In one message, awaited in the foreground (§ Definitions, Runtime notes), the two
 that apply:
-- **Diff validation** (`instructions/diff-validation.md` § Before push). A **creation
-  round** validates the whole branch, `git diff <remote>/<base>...HEAD`, in a
-  sub-agent — the one reading this agent keeps out of its own context (rule 9): rated
-  as this agent, catching step; an agent of type `tp:diff-validator` (git reads, read and
-  search, its one file — the type's hooks hold it to that); office id `<id>:<stage>:qa:1` (`<stage>` as
-  logged — `create-pr:<name>` on a cross-repo ticket), this agent as `parent`, the
-  join/leave commands; given the repo path, the intent from step 2 and the diff
-  command; it writes the per-file table to `<workdir>/diff-validation.md` (with the
-  sha it validated through) and returns the Unexpected items, the path and the
-  contract's two lines. An **update round** validates the round's delta only — `git
-  diff <the sha diff-validation.md was validated through>..HEAD`; the earlier rows
-  carry forward — and by **this agent itself** when `model.mjs rate` on that delta's
-  `--stat` says `low` (a handful of files the fixer named: read the hunks, append the
-  rows, advance the sha); the sub-agent, on the delta, otherwise.
+- **Diff validation** (`instructions/diff-validation.md` § Before push). The script first, on
+  this machine and for no tokens: `node <lib>/diffcheck.mjs '{ "repo": "<worktree>", "base":
+  "<remote>/<base>", "workdir": "<workdir>" }'` — a **creation round** over the whole branch; an
+  **update round** with `"since": "<the sha diff-validation.md was validated through>"` in place
+  of `base`, the round's delta only. It sorts every file as Expected / Supporting / Unexpected
+  from the plan and the file's own name (a lockfile with its manifest, a test beside its
+  source, generated output) and names the warning signs that need no reading. `verdict: clean`
+  → **no agent**: the table is the script's, written with `node <lib>/diffcheck.mjs '<the same
+  input>' --render | node <lib>/state.mjs doc <workdir> diff-validation.md` (`--append` on an
+  update round, whose rows join the earlier ones). `verdict: review` → what needs a reading is
+  the Unexpected files and the warnings, nothing else, and that reading is the one this agent
+  keeps out of its own context (rule 9): an agent of type `tp:diff-validator` (git reads, read
+  and search, its one file — the type's hooks hold it to that), rated as this agent, catching
+  step; office id `<id>:<stage>:qa:1` (`<stage>` as logged — `create-pr:<name>` on a
+  cross-repo ticket), this agent as `parent`, the join/leave commands; given the repo path, the
+  intent from step 2, the script's JSON and the diff command, it reads the hunks of the flagged
+  files alone, writes `<workdir>/diff-validation.md` through `state.mjs doc` — the script's
+  table with its verdict and a line of reasoning on each Unexpected item, ending with the sha
+  validated through — and returns the Unexpected items, the path and the contract's two lines.
+  An update round of `low` rating (`model.mjs rate` on the delta's `--stat`) is read by **this
+  agent itself**, no sub-agent.
 - **The gates**: **reuse, hooks, then run** (§ Verification rules) — a result recorded
   for this head and base is the table (the sync moved nothing since `/tp:implement`'s run:
   the same commit, the same result); the gates the repo's hooks own are enforced by the

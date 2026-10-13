@@ -10,6 +10,7 @@ export { inbox, answerQueue, answerTake } from './inbox.mjs';
 export { recordBlockers, recordActual } from './records.mjs';
 export { putArtifact, payloadText } from './put.mjs';
 export { writeDoc, docText } from './doc.mjs';
+export { shape } from './shape.mjs';
 export { claudeOf, worktreesRoot, ticketWorktrees, outDir, ticketOut, worktreesOnDisk } from './paths.mjs';
 export { recordReview } from './review.mjs';
 export { agentJoin, agentLeave, readAgents } from './agents.mjs';

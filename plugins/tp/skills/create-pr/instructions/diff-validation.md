@@ -15,27 +15,30 @@ stray file with a one-word decision instead of a revert later.
 
 ## Before push (SKILL.md step 5)
 
-After the sync. A **creation round** covers the **whole branch** against the base, in
-a sub-agent that writes only `diff-validation.md`; an **update round** covers the
-**round's delta** — the commits since the sha the file was last validated through —
-and appends to the same file: the earlier rows stand (a file already judged is not
-judged again unless the delta touched it), so drift across rounds is still caught,
-without re-reading a diff that did not change. The delta is read by the skill's own
-agent when it is small (`model.mjs rate` on its `--stat` says `low`), by the sub-agent
-otherwise.
+After the sync. A **creation round** covers the **whole branch** against the base; an
+**update round** covers the **round's delta** — the commits since the sha the file was
+last validated through — and appends to the same file: the earlier rows stand (a file
+already judged is not judged again unless the delta touched it), so drift across rounds
+is still caught, without re-reading a diff that did not change.
 
-1. Creation round: `git diff <remote>/<base>...HEAD --stat`, then the hunks **per
-   file** (`git diff … -- <path>`) for the files whose content must be read.
-   Update round: `git diff <validated sha>..HEAD --stat`, then that diff the same way.
-   Never the hunks of a lockfile, a generated file (an ORM client, API types,
-   snapshots, build output, `linguist-generated`), a binary or a vendored tree
-   (`reference/context-management.md` § Context management, rule 8): those are classified from the
-   stat and their names — Supporting when their source changed with them (manifest
-   ↔ lockfile, schema ↔ client), Unexpected otherwise.
-2. Same question per file.
-3. Report each file as Expected / Supporting / Unexpected with one line of reasoning;
-   decisions about Unexpected items are the author's, not the validator's. End the
-   file with `Validated through: <HEAD sha>` — the next round's starting point.
+1. `node <lib>/diffcheck.mjs` (SKILL.md step 5) does the part that needs no reading, on
+   this machine: from `git diff` and the plan it classifies each file — Expected when the
+   plan's steps name it (or a folder they name), Supporting when it is a lockfile whose
+   manifest changed with it, a generated file (snapshots, build output, `linguist-generated`)
+   with its source, or a test beside the code it tests; Unexpected otherwise — and lists the
+   warning signs below it can see. A lockfile, a generated file, a binary or a vendored tree
+   is classified from the stat and its name and its hunks are never read
+   (`reference/context-management.md` § Context management, rule 8). Nothing Unexpected and no
+   warning → the table is the script's and no one reads the diff.
+2. Otherwise the reader — a sub-agent on a creation round, the skill's own agent for a small
+   delta (`model.mjs rate` on its `--stat` says `low`) — reads the hunks **per file**
+   (`git diff … -- <path>`) of the Unexpected files and the ones a warning names, and nothing
+   else: the script's rows for the rest stand. Same question per file: does this change serve
+   the stated problem?
+3. Report each file as Expected / Supporting / Unexpected with one line of reasoning (the
+   script wrote them for the files it classified); decisions about Unexpected items are the
+   author's, not the validator's. End the file with `Validated through: <HEAD sha>` — the next
+   round's starting point (the script's table ends with it).
 
 ## Categories
 

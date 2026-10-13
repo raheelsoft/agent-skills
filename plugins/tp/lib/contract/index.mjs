@@ -5,3 +5,4 @@ export { invariants } from './invariants.mjs';
 export { PRIORITIES, TIERS, tierOf, verdictOf, idsOf, rowOf, renderReview } from './findings.mjs';
 export { PRIORITY_KEYS, WEIGHTS, scoreOf, compareOpen, aggregate } from './quality.mjs';
 export { parsePlan, lintPlan, lintWorkdir } from './plan.mjs';
+export { shapeOf, catalogue } from './shape.mjs';

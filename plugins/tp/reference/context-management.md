@@ -2,7 +2,7 @@
 
 The rules that keep an agent inside its context and the run inside its budget of agents.
 
-**Contents** — [Context management](#context-management--rules-every-skill-follows) (rules 1–12)
+**Contents** — [Context management](#context-management--rules-every-skill-follows) (rules 1–13)
 
 ## Context management — rules every skill follows
 
@@ -145,3 +145,18 @@ The rules that keep an agent inside its context and the run inside its budget of
     check, a gate before a push — is still taken on its own, because the answer is
     the point. The same holds for spawns: agents that do not feed each other are
     spawned in one message (§ Definitions, Depth).
+13. **A script does what a script can do — on the developer's machine, not in a turn.**
+    A model turn costs the whole context it carries; a script costs nothing, cannot drift
+    and cannot be talked out of its answer. A step goes to a model only when it needs a
+    reading — judgment about code, a ticket, a diff, a person's intent. What follows from
+    files and command output alone is a script the skill runs and acts on: the state and
+    its arithmetic (`state.mjs`, `model.mjs`, `day.mjs`), a document's or an artifact's form
+    and where it lives (`put`, `doc`, `shape`, `findings.mjs render`), what a diff holds
+    that no one needs to read twice (`diffcheck.mjs` — a branch with nothing Unexpected
+    needs no validating agent), a plan's mechanical checks (`plan-lint.mjs`), the gates and
+    their record (`gates.mjs`), and, in a simulation, the tracker and the hosting platform
+    (`tracker.mjs`, `hosting.mjs`). The skill says "run X and relay or act on its output";
+    a hook refuses what must never happen. Before a step is written for a model, ask
+    whether a script could produce its result; after, measure — `evals/lib/profile.mjs`
+    lists the turns of a kept run that were plumbing — and keep the eval scores: a saving
+    that costs a result is not one.
