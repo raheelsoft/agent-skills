@@ -10,7 +10,7 @@
     "scaffold_script": "scaffold.sh"
   },
   "execution": {
-    "prompt": "/tp:merge DEMO-4 inline=true",
+    "prompt": "/tp:merge DEMO-4 inline=true merge=auto",
     "max_turns": 60,
     "timeout_seconds": 900,
     "model": "sonnet",

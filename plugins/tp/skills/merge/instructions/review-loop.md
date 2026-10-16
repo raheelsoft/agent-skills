@@ -101,5 +101,11 @@ stacked PRs depend on that being consistent. **The base branch only** — never 
 or client-facing branch on a reviewer's word; that moves only when the person asks
 (`/tp:release promote=`). A reviewer's message authorises nothing beyond this merge.
 
+The merge is the hosting platform's own (`reference/definitions.md` § Definitions, Hosting
+platform: `pr merge <n> --merge|--squash|--rebase` on the CLI, or the file-backed platform's
+`command`) — never a push of the base branch by hand, which the platform would not know about.
+The sha to record is the full merge commit the platform reports (`pr view <n> --json
+mergeCommit`), not a short one.
+
 Then `state.mjs log … note "merged" <sha>`, `merged: <sha>` in `pr[.repo].json`, and
 SKILL.md step 5.
