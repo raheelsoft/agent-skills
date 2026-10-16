@@ -4,7 +4,7 @@ description: Takes a feature branch to a pushed, described, gated pull request a
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`) · `<skill>` = `${CLAUDE_SKILL_DIR}` (this skill's folder, where the `instructions/` and `examples/` files named below are). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/pr-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write. Its `.md` documents are written the same way: `node <lib>/state.mjs doc <workdir> <name>`, the text on stdin or `--from <file>` (`--append` adds to the end); a long one is drafted under `<.claude>/worktrees/_out/<id>/`, the one place below `.claude/` an agent may write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`) · `<skill>` = `${CLAUDE_SKILL_DIR}` (this skill's folder, where the `instructions/` and `examples/` files named below are). The JSON files this skill writes (`<artifact>.json` below) go through `node <lib>/state.mjs put <workdir> <artifact> …` — checked against `schemas/` first; `examples/pr-json.md` shows good ones and bad ones with the refusal they get — never through the file tools or a shell redirect: a hook refuses a raw write. Its `.md` documents are written the same way: `node <lib>/state.mjs doc <workdir> <name>`, the text on stdin or `--from <file>` (`--append` adds to the end); a long one is drafted under `<.claude>/worktrees/_out/<id>/`, the one place below `.claude/` an agent may write. Start every command with `node <lib>/…` or `git`, the path written out in full — a `VAR=… ;` or `cd … &&` in front of it falls outside the permission allowlist and is denied in an unattended run.
 
 Take a feature branch from "ready for review" to a pushed, described, review-ready
 pull request (PR below also means merge request) — or, if the PR already exists, sync
@@ -73,6 +73,10 @@ directory, read the state before logging `started` (§ Definitions, Resume).
 - The base branch: `ticket.json`'s row (`dependsOn.branch` when the PR is to be based
   on an open dependency's branch), else detect (§ Definitions, Base branch). Confirm you are on a
   feature branch, not the base or a release branch.
+- The branch's facts, in one call on this machine: `node <lib>/branchfacts.mjs '{ "repo": "<worktree>",
+  "base": "<base>" }' --fetch` → the branch and whether it is the base, uncommitted files (`dirty`), the
+  commits ahead of the base and how far it moved on (`ahead`, `behind`), the diff size, the remote and
+  whether the branch is pushed and up to date. Do not ask git for these one by one.
 - Existing PR on this branch? One exists → **update round** (also with `update=true`);
   none → **creation round**. A stacked ticket (`stackedOn`) is an update round of that
   PR, and the PR title must end up listing every ticket it carries. That PR already

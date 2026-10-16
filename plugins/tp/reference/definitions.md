@@ -304,7 +304,8 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   defined in its skill's § Stops — never a bare `yes` that would satisfy several.
 - **Review verdicts** — `PASS`, `PASS WITH WARNINGS`, `BLOCK` (from `/tp:review`).
 - **The scripts** — `<lib>/state.mjs` (`log`, `state`/`check` (`--brief`
-  for a spawner's routing: the decision fields alone), `all`,
+  for a spawner's routing: the decision fields alone), `all`, `table` (the status board
+  as text, below),
   `durations`, `usage` and `totals` (tokens and cost), `inbox` (every open stop),
   `answer` (queue or `--consume` an answer for a stop), `blockers` (record a re-check
   in `ticket.json.blockedBy`), `actual` (the person's hours), `put` (write a work-directory JSON after checking it against its
@@ -320,7 +321,9 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   ordering and lanes, the day's end) and `<lib>/gates.mjs` (`base`,
   `release`, `cache get|put`, `normalise`, `new`, `result get|put` — the gate
   baseline and the gate record, § Verification rules) and
-  `<lib>/ref.mjs` (`"<Section>[, <Item>…]"`, `list` — the reference read by
+  `<lib>/diffscan.mjs` (`'{ "repo", "range" | "base" }'` — the added lines of a diff that match a known bad pattern, and the files that
+  should not be committed, as candidates with `file:line` and a priority hint; the review's mechanical scan) and `<lib>/branchfacts.mjs` (`'{ "repo", "base" }' [--fetch]` — a branch's git facts in one call: dirty files, commits ahead and behind,
+  diff size, remote, whether it is pushed) and `<lib>/ref.mjs` (`"<Section>[, <Item>…]"`, `list` — the reference read by
   section, § Context management, rule 10), `<lib>/hooks.mjs`
   (`detect`, `cover`, `plan`, `install` — the repo's hooks as gate owners,
   § Verification rules), `<lib>/codegen.mjs` (`detect`, `status`,
@@ -333,3 +336,12 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   (`list`, `check`, `apply`, `status`, `stages` — the catalogue of skills and their
   dependencies, the one place they are declared; § Definitions, Active skills). Every `model.mjs`, `day.mjs` and
   `gates.mjs` call carries `claudeDir: "<.claude>"` so `tiers.json` applies.
+
+  `state.mjs table <workroot> [problems]` prints `/tp:status`'s board. Columns: ticket, title, `decision · rating`,
+  `Estimate` (`<focusedHours>h · <days>d`, `*` when the pipeline made it, `actual <h>h` once `/tp:eod` recorded the person's hours),
+  `Status` (`in-progress`, `stopped (<kind>)`, `closed`, `done`, `done · retro`, `error`), `Next / waiting on` (the stop's question and
+  default, each blocker with its last recorded state, `answer queued (<by>, <when>)`, the closing reason, or the next stage), `Run`
+  (the lock's owner and start, `stale` when the script says so), `PR · verdict · merged` (ending with `quality <open P0–P4 counts> · score <n>`
+  from `quality.json`, `clean` when nothing is open), `Tokens · cost` (`+<m> unpriced` when `tiers.json` names no price, `partial`
+  when the run said so — § Models and budget, Cost), the last event and the age. Below it: the totals line, the problems, the worktrees
+  that done or closed tickets still hold with the command that removes each, and stale locks with their `unlock`.

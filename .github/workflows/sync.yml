@@ -132,7 +132,10 @@ jobs:
           printf '%s\n' "$TARGET_NOT_SYNC_PATHS" \
             | grep -v '^[[:space:]]*$' \
             | grep -v '^#' \
-            > /tmp/sync_exclude_patterns
+            > /tmp/sync_exclude_patterns || true
+
+          # Never mirrored, whatever the variable holds: the tp plugin and the marketplace entry that lists it stay in this repo.
+          printf '%s\n' 'plugins/tp' '.claude-plugin/marketplace.json' >> /tmp/sync_exclude_patterns
 
           if [[ -s /tmp/sync_exclude_patterns ]]; then
             echo "Exclusion patterns:"

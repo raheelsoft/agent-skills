@@ -4,7 +4,7 @@ description: Reviews a remote PR (or the local diff before pushing) in an isolat
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`) · `<skill>` = `${CLAUDE_SKILL_DIR}` (this skill's folder, where the `instructions/` and `examples/` files named below are). Its checkpoint and any other document it writes in the work directory go through `node <lib>/state.mjs doc <.claude>/work/_scratch <name>` (the text on stdin or `--from <file>`; a draft or a command's output goes under `<.claude>/worktrees/_out/`, in a name that carries its slug or date — the one place below `.claude/` an agent may write): a hook refuses a raw write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`) · `<skill>` = `${CLAUDE_SKILL_DIR}` (this skill's folder, where the `instructions/` and `examples/` files named below are). Its checkpoint and any other document it writes in the work directory go through `node <lib>/state.mjs doc <.claude>/work/_scratch <name>` (the text on stdin or `--from <file>`; a draft or a command's output goes under `<.claude>/worktrees/_out/`, in a name that carries its slug or date — the one place below `.claude/` an agent may write): a hook refuses a raw write. Start every command with `node <lib>/…` or `git`, the path written out in full — a `VAR=… ;` or `cd … &&` in front of it falls outside the permission allowlist and is denied in an unattended run.
 
 You are the reviewer, not the author. This skill runs in its own dedicated agent
 (`reference/definitions.md` § Definitions, Dedicated agent) whose whole context is the arguments it was given —
@@ -128,6 +128,14 @@ Base branch = in remote mode, the PR's declared base; in local mode, detected pe
   delta is read solely to judge them. Keep the PR's identifier and repo for step 6.
 
 ### 2. Checklist
+First the scan, on this machine and for no tokens: `node <lib>/diffscan.mjs '{ "repo": "<checkout>", "range":
+"<the range step 1 reads>" }'` lists every added line that matches a known bad pattern — a secret, a conflict
+marker, a focused or skipped test, a leftover debugger or debug output, a TODO — and every file that should
+not be committed (an env file, a key, a vendored folder), each with `file:line` and a priority `hint`. Each
+hit is a candidate: confirm it in its hunk and raise it with that priority, or dismiss it in a clause (a
+`console.log` in a CLI is the product). Do not search the hunks for these patterns by reading; no hits means
+none of them is there.
+
 Read the hunks and the lines around them, widening to the enclosing function or
 declaration when a hunk cannot be judged without it — never a file end to end, and
 never the hunks of a lockfile, a generated file, a binary or a vendored tree, which

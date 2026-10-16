@@ -984,3 +984,22 @@ it('resolveWorkdir: a bare ticket id stands for the work directory of this proje
   assert.equal(resolveWorkdir('/abs/work/PIK-12', { env: { CLAUDE_PROJECT_DIR: proj } }), '/abs/work/PIK-12');
   assert.equal(resolveWorkdir('PIK-12', { env: {}, cwd: '/' }), 'PIK-12');
 });
+
+it('table: one row per ticket, the stop and its default in the waiting column, quality and problems below', async () => {
+  const { statusTable, age, compact } = await import('../lib/state/table.mjs');
+  const rows = [
+    { id: 'DEMO-1', title: 'A | pipe', decision: 'plan', complexity: 'high', estimate: { source: 'pipeline', focusedHours: 8, days: 1.5 }, actual: { focusedHours: 7 }, status: 'done', retro: { proposals: 2 }, prs: [{ url: 'https://github.com/o/r/pull/12', verdict: 'PASS', merged: 'abcdef1234' }], quality: { open: { P0: 0, P1: 1, P2: 0, P3: 2, P4: 0 }, score: 103 }, tokens: 1234567, cost: 4.5, tokensUnpriced: 0, worktrees: ['api'], problems: [], ageMin: 3000 },
+    { id: 'DEMO-2', title: 'B', decision: 'direct', complexity: 'low', status: 'stopped', stopped: { kind: 'question', question: 'Retry, or skip?', default: 'retry' }, next: 'release', lock: { owner: 'run-1', since: '2026-10-01T10:00:00Z', stale: true }, prs: [], tokens: 900, problems: ['progress.md:5 does not match'], worktrees: [], ageMin: 20 },
+  ];
+  const text = statusTable('/nowhere', { rows, sum: { tokens: 1235467, cost: 4.5, unpriced: 0, partial: false, tickets: { active: 0, stopped: 1, done: 1, closed: 0 } } });
+  const lines = text.split('\n');
+  assert.equal(lines[0].split(' | ').length, 11);
+  assert.match(lines[2], /DEMO-1 \| A \\\| pipe \| plan · high \| 8h · 1.5d\* · actual 7h \| done · retro \| {2}\| {2}\| #12 PASS merged abcdef12 · quality P1×1 P3×2 · score 103 \| 1.2M · \$4.5 \| {2}\| 2d \|$/);
+  assert.match(lines[3], /stopped \(question\) \| Retry, or skip\? \[default: retry\] \| run-1 since 2026-10-01T10:00 stale/);
+  assert.match(text, /2 ticket\(s\): 0 active · 1 stopped · 1 done · 0 closed — 1.2M tokens · \$4.5/);
+  assert.match(text, /Problems\n- DEMO-2: progress\.md:5/);
+  assert.match(text, /Worktrees still held by finished tickets\n- DEMO-1 api:/);
+  assert.match(text, /Stale locks\n- DEMO-2: node state\.mjs unlock DEMO-2 run-1/);
+  assert.equal(statusTable('/nowhere', { rows, sum: { tokens: 0, tickets: {} }, filter: 'problems' }).split('\n').filter((l) => l.startsWith('| DEMO')).length, 1);
+  assert.equal(age(20), '20m'); assert.equal(age(300), '5h'); assert.equal(age(5000), '3d'); assert.equal(compact(54321), '54k');
+});

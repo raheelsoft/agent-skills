@@ -4,7 +4,7 @@ description: Shows where every ticket in the work directory stands — stage, ra
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). Its checkpoint and any other document it writes in the work directory go through `node <lib>/state.mjs doc <.claude>/work/_scratch <name>` (the text on stdin or `--from <file>`; a draft or a command's output goes under `<.claude>/worktrees/_out/`, in a name that carries its slug or date — the one place below `.claude/` an agent may write): a hook refuses a raw write.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). Its checkpoint and any other document it writes in the work directory go through `node <lib>/state.mjs doc <.claude>/work/_scratch <name>` (the text on stdin or `--from <file>`; a draft or a command's output goes under `<.claude>/worktrees/_out/`, in a name that carries its slug or date — the one place below `.claude/` an agent may write): a hook refuses a raw write. Start every command with `node <lib>/…` or `git`, the path written out in full — a `VAR=… ;` or `cd … &&` in front of it falls outside the permission allowlist and is denied in an unattended run.
 
 One table for all tickets, or one ticket in detail. Everything comes from
 `state.mjs` (`reference/definitions.md` § Definitions, The scripts); this skill formats, it doesn't infer.
@@ -21,39 +21,11 @@ One table for all tickets, or one ticket in detail. Everything comes from
 ## Steps
 
 ### All tickets
-`node <lib>/state.mjs all <.claude>/work` → one row per ticket
-(every `_`-prefixed entry — `_office/`, `_scratch/`, `_day/` — is not one):
-
-```
-| Ticket | Title | Decision · rating | Estimate | Status | Next / waiting on | Run | PR · verdict · merged | Tokens · cost | Last event | Age |
-```
-`PR · verdict · merged` ends with `quality <open P0–P4 counts> · score <n>` (`P1×1 P3×1 · score 103`, `clean` when nothing is open) when the row's `quality`
-is non-null — what the review passes left open (`schemas/README.md` § Reviews).
-`Estimate` is the row's `estimate` — `<focusedHours>h · <days>d` with `*` when the
-pipeline made it (`source: pipeline`), followed by `actual <h>h` when `/tp:eod` recorded
-the person's hours, empty when there is none (`reference/models-and-budget.md`
-§ Models and budget, Estimates).
-`Status` is `in-progress`, `stopped` (with the stop's `kind` and the question in *Next
-/ waiting on* — `blocked` shows `blockedBy` with each blocker's last recorded state
-and `checkedAt`, and `unblocked` when all are resolved; an answer queued for the stop
-shows as `answer queued (<by>, <when>)`),
-`closed` (closed early — the `why` in *Next / waiting on*), `done` or `error` (a
-directory the script could not read — its problem in *Next / waiting on*); a `done`
-ticket whose `retro` is non-null shows `done · retro`. `Run` is the
-lock (`reference/work-directory.md` § Concurrency): `<owner> since <time>`, `stale` appended when
-the script says so, empty otherwise. `Tokens · cost` is the row's `tokens` (the sum of
-logged `tokens=<n>`; empty when the runtime reports none) and `cost` as `$<n>`, with
-`+<m> unpriced` when tokens carried no tier or `tiers.json` names no price for it, and
-`partial` when the run said so (§ Models and budget, Cost). Below the table: the
-totals line (`state.mjs totals`: tokens, cost, today's share), tickets with problems (each problem on its own line), and tickets that are done
-or abandoned but still hold a worktree (`worktrees` non-empty: the ticket's one
-worktree per repo, kept for the whole run and removed by `/tp:accept`'s `done` or the
-close-out of a closed or parked ticket — `reference/work-directory.md` § Worktrees; a stopped
-ticket keeps it on purpose and is not listed here) — for each, the exact cleanup:
-`git -C <repo path> worktree remove <worktree>`, both from `ticket.json` (by name), then
-`rmdir` the ticket's folder in `<.claude>/worktrees/`. A stale lock is listed with
-`state.mjs unlock <workdir> <owner>`; a live lock of a run the user declares dead
-with `--force` (`reference/work-directory.md` § Concurrency).
+`node <lib>/state.mjs table <.claude>/work` (`… table <.claude>/work problems` for the argument `problems`) prints the
+whole board — one row per ticket (every `_`-prefixed entry — `_office/`, `_scratch/`, `_day/` — is not one), the totals
+line, the problems, the worktrees that done or closed tickets still hold with the command that removes each, and stale locks
+with their `unlock` command. Relay it as it is; the columns and what fills them are described under
+`state.mjs table` in `reference/definitions.md`. Nothing is recomputed here.
 
 ### One ticket
 `state.mjs state <workdir>` and `state.mjs durations <workdir>` → the stage list with

@@ -4,7 +4,7 @@ description: Runs tickets end to end in one orchestrator agent per ticket — pi
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`).
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). Start every command with `node <lib>/…` or `git`, the path written out in full — a `VAR=… ;` or `cd … &&` in front of it falls outside the permission allowlist and is denied in an unattended run.
 
 Orchestrate `/tp:start-ticket → /tp:triage → (/tp:plan →) /tp:implement → /tp:create-pr → /tp:merge →
 /tp:release → /tp:accept (→ /tp:retro)` for a ticket. The orchestrator holds only each stage's short
