@@ -39,8 +39,13 @@ worktrees, a shell for the state script — `doc` for `triage.md`, `put` for the
 criteria file (`instructions/criteria.md`). The task — locate the code the ticket
 touches (its frontier: the acceptance criteria and the code they name —
 `reference/context-management.md` § Context management, rule 8), estimate the blast radius, check
-every criterion, rate the ticket's complexity from the same evidence
-(`instructions/criteria.md` § Complexity), write `triage.md` in the template below
+every criterion, then let the script add the rows up: judge each row of `instructions/criteria.md` and run `node <lib>/model.mjs
+triage '{ criteria: clear|partial|missing|contradict, files, areas, pattern: adjacent|elsewhere|none, dataModel, access,
+contract, repos, irreversible, sharedEnv, questions: none|planner|stakeholder, epic, derived, uncertain }'` — it returns the
+`decision` (needs-input, plan or direct: the first column that applies, plan when direct and plan are both defensible) and
+the `complexity` (the highest rubric column, one level up when `uncertain`) with the reasons; `close` and `blocked` are your
+call on named evidence. Use its answer as `triage.json`'s `decision` and `complexity` — a different one is an `override`, said
+with the evidence for it — write `triage.md` in the template below
 and `triage.json` (`{ decision, confidence, override, flags, questions, blockedBy,
 complexity, why }` — `why` for `close`: what delivers or supersedes the ticket, for
 `blocked`: what must land first, with the blockers' ids in `blockedBy`; `estimate`

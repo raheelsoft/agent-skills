@@ -53,6 +53,7 @@ An `llm` grader is for a short judgment only and is not used in the smoke set.
 | `verify-gates` | `/tp:verify` resolves the gates of the ticket's worktree, runs them, reports the table and records the result for the commit |
 | `triage-direct` | `/tp:triage` decides a clear one-file bug is direct work and leaves `triage.md` (placed by `state.mjs doc`) and `triage.json` (`put`) — no person at the prompt, no bypass |
 | `plan-needs-plan` | `/tp:plan` writes `plan.md` and `plan.json`, has a fresh `tp:plan-checker` write `plan-check.json`, and ends at the approval stop |
+| `create-pr-fixture`, `merge-fixture`, `accept-fixture`, `retro-fixture`, `release-fixture` | the stages from `/tp:create-pr` onward against the file-backed hosting platform and tracker (`hosting.mjs`, `tracker.mjs`); each ends in its work-directory artifacts and the fixture's own state |
 | `implement-direct` | `/tp:implement` edits the code in the ticket's worktree under `.claude/worktrees/`, commits it, runs the gates and records `implement.json`, `plan.md` and the PR draft |
 
 ## What the runtime lets an eval write

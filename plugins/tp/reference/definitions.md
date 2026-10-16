@@ -348,3 +348,11 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   from `quality.json`, `clean` when nothing is open), `Tokens · cost` (`+<m> unpriced` when `tiers.json` names no price, `partial`
   when the run said so — § Models and budget, Cost), the last event and the age. Below it: the totals line, the problems, the worktrees
   that done or closed tickets still hold with the command that removes each, and stale locks with their `unlock`.
+
+  Also: `state.mjs route <id>` (what `/tp:run-ticket` does first with a ticket), `approve <id>` (a plan's go-ahead in its one shape),
+  `retro-facts <id>`, `show <id>`, `inbox <root> --render`; `<lib>/coverage.mjs <workdir> --repo <name>` (is the plan implemented
+  and every criterion proved: steps by their files in the diff, criteria by the check § Verification names for each);
+  `<lib>/worktree.mjs add|rebranch|remove` (a ticket's worktree, install and generated code); `<lib>/ticketlint.mjs <draft>
+  --repo <checkout>` (a ticket draft against the template); `<lib>/notify.mjs prepare <.claude> <level> "<text>"` (what a
+  notification would send); `model.mjs triage '<evidence>'` (the triage rubric over the rows the agent judged);
+  `findings.mjs next <review.json> <workdir>` (record a review pass, ask the loop, decide the merge).

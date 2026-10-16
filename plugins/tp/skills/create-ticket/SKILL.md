@@ -56,10 +56,17 @@ checklist; the discovery result as the implementation brief; labels, priority,
 iteration and relations (parent, blocked-by, related) from the hints and the tracker's
 existing conventions. No personal data (`reference/procedures.md` § Personal data).
 
+### 3b. Check the draft
+`node <lib>/ticketlint.mjs <draft file> --repo <checkout>…` (the draft under `<.claude>/worktrees/_out/`) checks the
+template's sections, a checklist of acceptance criteria, a defect's Current/Expected block, that every `path:line` in the
+brief is really there, and that no email or phone number slipped in. A `blocking` finding is fixed in the draft and the
+command run again; nothing is created from a draft that fails.
+
 ### 4. Create it
 Create the ticket with the tracker (`reference/definitions.md` § Definitions, Tracker) in its backlog/unstarted state,
 unassigned unless the user said otherwise; add the relations. If the tracker rejects a
-field (a label that doesn't exist, a quota), create without it and say so.
+field (a label that doesn't exist, a quota), create without it and say so. Then read the ticket back from the tracker
+and compare title, labels, parent and relations with the draft: what did not land is said in the report.
 
 ### 5. Report
 The ticket link, its classification and repo target, and anything the discovery

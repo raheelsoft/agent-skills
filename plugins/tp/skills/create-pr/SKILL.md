@@ -74,9 +74,10 @@ directory, read the state before logging `started` (§ Definitions, Resume).
   on an open dependency's branch), else detect (§ Definitions, Base branch). Confirm you are on a
   feature branch, not the base or a release branch.
 - The branch's facts, in one call on this machine: `node <lib>/branchfacts.mjs '{ "repo": "<worktree>",
-  "base": "<base>" }' --fetch` → the branch and whether it is the base, uncommitted files (`dirty`), the
+  "base": "<base>", "claudeDir": "<.claude>" }' --fetch` → the branch and whether it is the base, uncommitted files (`dirty`), the
   commits ahead of the base and how far it moved on (`ahead`, `behind`), the diff size, the remote and
-  whether the branch is pushed and up to date. Do not ask git for these one by one.
+  whether the branch is pushed and up to date — and `hosting.command` / `tracker.command` when the project names a file-backed
+  platform or tracker: that command stands in for `gh` and the tracker tool in every step below. Do not ask git for these one by one.
 - Existing PR on this branch? One exists → **update round** (also with `update=true`);
   none → **creation round**. A stacked ticket (`stackedOn`) is an update round of that
   PR, and the PR title must end up listing every ticket it carries. That PR already

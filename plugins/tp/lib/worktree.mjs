@@ -14,10 +14,12 @@
 // worktree.install overrides), its output in <.claude>/worktrees/_out/<id>/install-<repo>.log, read by exit code and tail; generated code follows codegen.mjs.
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmdirSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { status as codegenStatus, mark as codegenMark } from './codegen.mjs';
 
+// where node is, npm and npx are: the folder of the node running this script goes first on the PATH of the install and the code generation
+const toolEnv = () => ({ ...process.env, PATH: `${dirname(process.execPath)}${delimiter}${process.env.PATH || ''}` });
 const INSTALL = [['package-lock.json', 'npm ci'], ['npm-shrinkwrap.json', 'npm ci'], ['pnpm-lock.yaml', 'pnpm install --frozen-lockfile'], ['yarn.lock', 'yarn install --frozen-lockfile'], ['bun.lock', 'bun install'], ['bun.lockb', 'bun install'],
   ['poetry.lock', 'poetry install'], ['Pipfile.lock', 'pipenv sync'], ['Gemfile.lock', 'bundle install'], ['composer.lock', 'composer install'], ['go.sum', 'go mod download']];
 const sh = (cwd, cmd, args) => { const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); return { ok: r.status === 0, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() }; };
@@ -39,7 +41,7 @@ function prepare(dir, repoName, id, claudeDir, doInstall) {
   if (cmd) {
     const outDir = join(claudeDir, 'worktrees', '_out', id); mkdirSync(outDir, { recursive: true });
     const log = join(outDir, `install-${repoName}.log`);
-    const r = spawnSync(`${cmd} > "${log}" 2>&1`, { cwd: dir, shell: true });
+    const r = spawnSync(`${cmd} > "${log}" 2>&1`, { cwd: dir, shell: true, env: toolEnv() });
     out.install = { command: cmd, exit: r.status, log, ...(r.status === 0 ? {} : { tail: tailOf(log, 8) }) };
     if (r.status !== 0) return { ...out, error: `install failed (${cmd}, exit ${r.status}): ${tailOf(log, 3)}` };
   }
@@ -47,7 +49,7 @@ function prepare(dir, repoName, id, claudeDir, doInstall) {
   if (cg.command && cg.stale) {
     const outDir = join(claudeDir, 'worktrees', '_out', id); mkdirSync(outDir, { recursive: true });
     const log = join(outDir, `codegen-${repoName}.log`);
-    const r = spawnSync(`${cg.command} > "${log}" 2>&1`, { cwd: dir, shell: true });
+    const r = spawnSync(`${cg.command} > "${log}" 2>&1`, { cwd: dir, shell: true, env: toolEnv() });
     out.codegen = { command: cg.command, exit: r.status };
     if (r.status !== 0) return { ...out, error: `generating code failed (${cg.command}, exit ${r.status}): ${tailOf(log, 3)}` };
     codegenMark({ repo: dir, claudeDir });

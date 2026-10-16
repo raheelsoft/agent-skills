@@ -13,12 +13,31 @@
 // Gates are Types, Lint, Build and (with tests:true) Tests; a rewriting command runs in the resolver's check-only form, or is left to the agent.
 import { spawn, spawnSync } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, readFileSync, realpathSync, rmSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cover, gatesOf } from './githooks/index.mjs';
 import { status as codegenStatus, mark as codegenMark } from './codegen.mjs';
 import { resultGet, resultPut } from './gates.mjs';
 
+// the folder of the node running this script goes first on the PATH of every gate: where node is, npm and npx are (a sandbox or a broken shell wrapper may not say so)
+const toolEnv = (extra = []) => ({ ...process.env, PATH: [...extra, dirname(process.execPath), process.env.PATH || ''].join(delimiter), CI: '1', FORCE_COLOR: '0' });
+/** Is `name` resolvable on the PATH a gate gets? A sandbox or a broken shell wrapper can hide npm while node still runs. */
+const onPath = (name, cwd) => spawnSync('sh', ['-c', `command -v ${name}`], { cwd, env: toolEnv(), stdio: 'ignore' }).status === 0;
+const RUNNERS = ['npm', 'pnpm', 'yarn', 'bun'];
+/** The command a gate runs: the resolver's, or — when its package runner is not on the PATH — the script's own body, which is all `npm run` does (npx/pnpm exec prefixes dropped; node_modules/.bin on the PATH). */
+export function commandOf(g, cwd, has = onPath) {
+  const base = g.rewrites ? g.check : g.cmd;
+  if (!base) return { command: null };
+  const runner = RUNNERS.includes(g.runner) ? g.runner : null;
+  const exec = String(g.exec || '').split(' ')[0];
+  if (runner && !has(runner, cwd) && g.body) {
+    const body = g.rewrites ? base : g.body;
+    const bare = body.replace(/^(npx|pnpm exec|yarn|bunx)\s+/, '');
+    return { command: bare, extraPath: [join(cwd, 'node_modules', '.bin')], viaBody: true };
+  }
+  if (exec && base.startsWith(exec) && !has(exec, cwd) && g.rewrites) return { command: base.replace(/^(npx|pnpm exec|yarn|bunx)\s+/, ''), extraPath: [join(cwd, 'node_modules', '.bin')], viaBody: true };
+  return { command: base, extraPath: [] };
+}
 const NAMES = { types: 'Types', lint: 'Lint', build: 'Build', tests: 'Tests' };
 const TIMEOUT_MS = 20 * 60 * 1000;
 const git = (cwd, args) => { const r = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }); return r.status === 0 ? r.stdout.trim() : null; };
@@ -26,11 +45,11 @@ const porcelain = (cwd) => { const r = spawnSync('git', ['-C', cwd, 'status', '-
 const tail = (file, n = 20) => { try { return readFileSync(file, 'utf8').trimEnd().split('\n').slice(-n).join('\n'); } catch { return ''; } };
 
 /** Run one command in `cwd` with its output in `file`; resolves { exit, ms }. */
-function run(command, cwd, file) {
+function run(command, cwd, file, extraPath = []) {
   return new Promise((done) => {
     const t0 = Date.now();
     const fd = openSync(file, 'w');
-    const p = spawn(command, { cwd, shell: true, stdio: ['ignore', fd, fd], env: { ...process.env, CI: '1', FORCE_COLOR: '0' } });
+    const p = spawn(command, { cwd, shell: true, stdio: ['ignore', fd, fd], env: toolEnv(extraPath) });
     const timer = setTimeout(() => p.kill('SIGKILL'), TIMEOUT_MS);
     p.on('close', (code) => { clearTimeout(timer); closeSync(fd); done({ exit: code ?? 137, ms: Date.now() - t0 }); });
     p.on('error', () => { clearTimeout(timer); closeSync(fd); done({ exit: 127, ms: Date.now() - t0 }); });
@@ -81,18 +100,18 @@ export async function gatesRun(input) {
     if (hook && (hook.hook !== 'pre-push' || pushed)) { rows.push({ gate: NAMES[gate], status: 'HOOK', notes: `${hook.hook} · ${String(hook.command).replace(/\s+/g, ' ').slice(0, 80)}` }); continue; }
     const g = resolved[gate];
     if (!g) { skipped.push(NAMES[gate]); continue; }
-    const command = g.rewrites ? g.check : g.cmd;
+    const { command, extraPath } = commandOf(g, path, input._has);
     if (!command) return { status: 'needs-agent', why: `${NAMES[gate]}: \`${g.cmd}\` rewrites files and has no check-only form — the agent decides how to run it`, failures: [], ran: [] };
-    jobs.push({ gate, command });
+    jobs.push({ gate, command, extraPath });
   }
 
   const dir = join(claudeDir, 'work', '_scratch', 'gates', basename(repo), `run-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}`);
   mkdirSync(dir, { recursive: true });
   const before = porcelain(path);
-  const results = await Promise.all(jobs.map(async (j) => ({ ...j, ...(await run(j.command, path, join(dir, `${j.gate}.txt`))), file: join(dir, `${j.gate}.txt`) })));
+  const results = await Promise.all(jobs.map(async (j) => ({ ...j, ...(await run(j.command, path, join(dir, `${j.gate}.txt`), j.extraPath)), file: join(dir, `${j.gate}.txt`) })));
   const after = porcelain(path);
   for (const r of results) rows.push({ gate: NAMES[r.gate], status: r.exit === 0 ? 'PASS' : 'FAIL', notes: r.exit === 0 ? '' : `exit ${r.exit}` });
-  const failures = results.filter((r) => r.exit !== 0).map((r) => ({ gate: NAMES[r.gate], command: r.command, exit: r.exit, tail: tail(r.file) }));
+  const failures = results.filter((r) => r.exit !== 0).map((r) => ({ gate: NAMES[r.gate], command: r.command, exit: r.exit, tail: tail(r.file), ...(r.exit === 127 ? { environment: { node: process.execPath, path: toolEnv().PATH } } : {}) }));
   const ran = results.map((r) => ({ gate: NAMES[r.gate], exit: r.exit, ms: r.ms }));
   let restored = [];
   if (input.readonly && after !== before) { // a checkout that is not ours to change: put back what a gate rewrote

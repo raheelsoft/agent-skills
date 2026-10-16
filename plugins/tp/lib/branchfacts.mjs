@@ -3,14 +3,17 @@
 // the branch and whether it is the base, uncommitted changes, the commits ahead of the base and how far the base moved on, the diff size, the remote and
 // whether the branch is already pushed. Seven or eight separate `git` turns become one, and the facts cannot be misread out of a long output.
 //
-//   node branchfacts.mjs '{ "repo": "<worktree>", "base": "main" }' [--fetch]
+//   node branchfacts.mjs '{ "repo": "<worktree>", "base": "main", "claudeDir"? }' [--fetch]
 //   { repo, branch, onBase, head, base: { ref, sha }, remote: { name, url } | null, fetch?: { ok, error? }, ahead, behind, commits: [{ sha, subject }],
-//     dirty: [{ status, path }], diff: { files, additions, deletions }, pushed: { exists, sha, upToDate } }
+//     dirty: [{ status, path }], diff: { files, additions, deletions }, pushed: { exists, sha, upToDate },
+//     hosting?: { command }, tracker?: { command } }   — with `claudeDir`: the file-backed hosting platform or tracker the project names (<.claude>/hosting.json,
+//     tracker.json, `kind: "fixture"`), whose `command` replaces the platform's CLI for every PR and ticket step; absent: the connected platform's own CLI or tool
 // `base` is a branch name: the remote's copy (`origin/main`) is used when it exists, the local one otherwise. `--fetch` updates the remote first and reports
 // whether that worked (a failed fetch leaves the last known remote state and says so). No dependencies beyond git.
 
 import { execFileSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 function git(repo, args, { raw = false } = {}) {
@@ -24,7 +27,12 @@ function remoteOf(repo) {
   return name ? { name, url: git(repo, ['remote', 'get-url', name]) || '' } : null;
 }
 
-export function branchfacts({ repo, base, fetch = false }) {
+/** The fixture a project's hosting.json or tracker.json names: its command, or null when the project uses the real platform. */
+function fixtureOf(claudeDir, file) {
+  try { const c = JSON.parse(readFileSync(join(claudeDir, file), 'utf8')); return c && c.kind === 'fixture' && c.command ? { command: c.command } : null; } catch { return null; }
+}
+
+export function branchfacts({ repo, base, fetch = false, claudeDir }) {
   if (!repo || !base) throw new Error('usage: branchfacts.mjs \'{ "repo": "<worktree>", "base": "<branch>" }\' [--fetch]');
   if (git(repo, ['rev-parse', '--git-dir']) === null) throw new Error(`${repo} is not a git checkout`);
   const remote = remoteOf(repo);
@@ -47,6 +55,7 @@ export function branchfacts({ repo, base, fetch = false }) {
     dirty: (git(repo, ['status', '--porcelain'], { raw: true }) || '').split('\n').filter(Boolean).map((l) => ({ status: l.slice(0, 2).trim(), path: l.slice(3) })),
     diff: { files: stat.length, additions: stat.reduce((n, c) => n + (Number(c[0]) || 0), 0), deletions: stat.reduce((n, c) => n + (Number(c[1]) || 0), 0) },
     pushed: { exists: Boolean(pushedSha), sha: pushedSha, upToDate: Boolean(pushedSha) && pushedSha === head },
+    ...(claudeDir ? { hosting: fixtureOf(claudeDir, 'hosting.json') || undefined, tracker: fixtureOf(claudeDir, 'tracker.json') || undefined } : {}),
   };
 }
 

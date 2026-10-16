@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmp, rm, script } from './helpers.mjs';
+import { tmp, rm, script, writeJson } from './helpers.mjs';
 import { branchfacts } from '../lib/branchfacts.mjs';
 
 const ID = { GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
@@ -63,5 +63,15 @@ describe('branchfacts', () => {
     assert.equal(ok.status, 0); assert.equal(JSON.parse(ok.stdout).branch, 'feat/x');
     const bad = spawnSync(process.execPath, [script('branchfacts.mjs'), '{}'], { encoding: 'utf8' });
     assert.equal(bad.status, 2); assert.match(bad.stderr, /usage: branchfacts\.mjs/);
+  });
+
+  it('names the file-backed hosting platform and tracker a project uses, so no agent has to look', (t) => {
+    const { root, repo } = bed(t);
+    const claudeDir = join(root, '.claude'); mkdirSync(claudeDir);
+    assert.equal(branchfacts({ repo, base: 'main', claudeDir }).hosting, undefined);
+    writeJson(claudeDir, 'hosting.json', { kind: 'fixture', path: '/x/h.json', command: 'node /lib/hosting.mjs' });
+    writeJson(claudeDir, 'tracker.json', { kind: 'fixture', command: 'node /lib/tracker.mjs' });
+    const f = branchfacts({ repo, base: 'main', claudeDir });
+    assert.deepEqual([f.hosting, f.tracker], [{ command: 'node /lib/hosting.mjs' }, { command: 'node /lib/tracker.mjs' }]);
   });
 });

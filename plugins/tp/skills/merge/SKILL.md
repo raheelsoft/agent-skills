@@ -69,8 +69,9 @@ skip to step 5 without a review.
 ### 2. Hand-off
 `instructions/review-loop.md` § Hand-off: `/tp:review <pr-url> <ticket link> <neutral
 what> tier=<rating> checkout=<the ticket's worktree> [mode=<mode>]` — the reviewer
-gets only that (its dedicated agent, of type `tp:reviewer`, under the office id `review:<PR
-number>:reviewer:<round>`, this agent as `parent`); the checkout is a path at the
+gets only that, in **its own agent**, of type `tp:reviewer` (the Agent tool with `subagent_type: tp:reviewer`, the prompt of § Definitions, Dedicated
+agent, under the office id `review:<PR number>:reviewer:<round>`, this agent as `parent`) — never `/tp:review` run in this context, whose
+independence is the point; the checkout is a path at the
 PR's head it verifies itself, so the review's gates are the recorded ones and no
 worktree is created for them.
 A first invocation with no review yet → `mode=full`; otherwise the mode `model.mjs

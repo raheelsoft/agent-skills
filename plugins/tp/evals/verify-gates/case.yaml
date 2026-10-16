@@ -41,7 +41,7 @@
       "type": "tool_used",
       "name": "the gate script recorded or read the result",
       "tool": "Bash",
-      "input_match": "gates\\.mjs"
+      "input_match": "gates(run)?\\.mjs"
     }
   ]
 }

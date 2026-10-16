@@ -5,7 +5,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmp, rm, script, writeJson } from './helpers.mjs';
-import { gatesRun, renderTable } from '../lib/gatesrun.mjs';
+import { gatesRun, renderTable, commandOf } from '../lib/gatesrun.mjs';
 
 const ID = { GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', env: { ...process.env, ...ID }, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -32,6 +32,28 @@ describe('gatesRun', () => {
     assert.equal(r.recorded, true);
     const again = await gatesRun(b.input);
     assert.equal(again.status, 'reused'); assert.equal(again.table, r.table);
+  });
+
+  it('a gate finds node, npm and npx by the folder of the node that runs the script, whatever the PATH says', async (t) => {
+    const b = bed(t, { lint: 'node -v && npm -v' });
+    const saved = process.env.PATH;
+    process.env.PATH = '/usr/bin:/bin';
+    try { assert.equal((await gatesRun(b.input)).status, 'pass'); } finally { process.env.PATH = saved; }
+  });
+
+  it('when the package runner is not on the PATH, the script\'s own body runs — all `npm run` does', async (t) => {
+    const g = { cmd: 'npm run lint', runner: 'npm', body: 'node --check src/app.js', rewrites: false, exec: 'npx' };
+    assert.deepEqual(commandOf(g, '/w', () => true), { command: 'npm run lint', extraPath: [] });
+    const c = commandOf(g, '/w', () => false);
+    assert.deepEqual([c.command, c.viaBody, c.extraPath], ['node --check src/app.js', true, ['/w/node_modules/.bin']]);
+    const fix = { cmd: 'npm run lint', runner: 'npm', body: 'eslint . --fix', check: 'npx eslint .', rewrites: true, exec: 'npx' };
+    assert.equal(commandOf(fix, '/w', () => false).command, 'eslint .');
+    // end to end: a repo whose lint is a package script, run with npm hidden
+    const b = bed(t, {});
+    writeFileSync(join(b.repo, 'package.json'), JSON.stringify({ name: 'shop', scripts: { lint: 'node -e "process.exit(0)"' } }));
+    git(b.repo, 'add', '.'); git(b.repo, 'commit', '-q', '-m', 'package');
+    const r = await gatesRun({ ...b.input, _has: () => false });
+    assert.equal(r.status, 'pass', JSON.stringify(r)); assert.deepEqual(r.gates, { lint: 'PASS' });
   });
 
   it('a gate the project defines no command for is said to be skipped, not invented', async (t) => {

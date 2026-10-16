@@ -7,6 +7,8 @@
 //   node model.mjs rate   <signals.json | '{…}'>              -> { rating, score, why }
 //   node model.mjs budget <usage.json | '{…}'> [tiers.json]   -> { band, binding, windows, tiers, why }
 //   node model.mjs pick   <task.json | '{…}'>                 -> { action, rating, model, effort, budget, why }
+//   node model.mjs triage '{ criteria, files, areas, pattern, dataModel, access, contract, repos, irreversible, sharedEnv, questions, epic, derived, uncertain }'
+//                                                             -> { decision: needs-input|plan|direct, complexity, why, columns } — the triage rubric over the evidence rows the agent judged
 //   node model.mjs rounds <review.json | '{…}'>               -> { cap, round, next, mode, open, why }
 //   node model.mjs compact <context.json | '{…}'>             -> { action, rating, used, window, headroom, need, threshold, handoffs, why }
 //   node model.mjs retry '{ rating, kind, attempts, claudeDir }' -> { action: retry|fallback|escalate, kind, rating, attempts, max, waitSeconds, why }
@@ -59,7 +61,7 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readTiers } from './model/common.mjs';
-import { rate, budget, pick, rounds, compact, retry, estimate, calibrate, writeTiers, ceilingStatus, pinSession } from './model/index.mjs';
+import { rate, triage, budget, pick, rounds, compact, retry, estimate, calibrate, writeTiers, ceilingStatus, pinSession } from './model/index.mjs';
 
 // the library, for whoever imports this file (hooks, doctor, day.mjs, the tests): everything but the command line lives in model/
 export * from './model/index.mjs';
@@ -84,6 +86,7 @@ if (process.argv[1] && isMain(import.meta.url)) {
       case 'budget': { const u = readArg(a); emit(budget(u, rest[0] ? readArg(rest[0]) : {})); break; }
       case 'pick': emit(pick(readArg(a))); break;
       case 'rounds': emit(rounds(readArg(a))); break;
+      case 'triage': emit(triage(readArg(a))); break;
       case 'compact': emit(compact(readArg(a))); break;
       case 'retry': emit(retry(readArg(a))); break;
       case 'estimate': emit(estimate(readArg(a))); break;
@@ -91,7 +94,7 @@ if (process.argv[1] && isMain(import.meta.url)) {
       case 'tiers': { if (!a) throw new Error('usage: tiers <.claude> ceiling=<model> [ladder=<smallest>,…,<largest>] | low=… medium=… high=…'); emit(writeTiers(a, rest)); break; }
       case 'ceiling': emit(ceilingStatus(readArg(a))); break;
       case 'pin': { if (!a) throw new Error('usage: pin <.claude>'); emit(pinSession(a)); break; }
-      default: console.error('usage: model.mjs rate|budget|pick|rounds|compact|retry|estimate|calibrate|tiers|ceiling|pin …'); process.exit(2);
+      default: console.error('usage: model.mjs rate|triage|budget|pick|rounds|compact|retry|estimate|calibrate|tiers|ceiling|pin …'); process.exit(2);
     }
   } catch (e) { console.error(e.message); process.exit(2); }
 }
