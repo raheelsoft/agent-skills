@@ -54,19 +54,20 @@ actually delivered.
 
 ## The loop
 
-After every pass, record it: `node <lib>/findings.mjs record
-<.claude>/worktrees/_out/review-<slug>.json <workdir> [--repo <name>]` (`<slug>` = `<repo-name>--<PR
-number>`, as `/tp:review` names it) — appends the pass's row `{ round, sha, verdict, open, new }` to
-`pr[.repo].json.reviews`, sets `reviewRounds` and the top-level `verdict`, and adds the pass to
-`quality.json`; a pass whose findings file is not there (a reviewer from before it existed) is
-mirrored from its trailer by hand with `state.mjs put <workdir> pr[.<repo>] … --merge`,
-then `node <lib>/model.mjs rounds '{ rating, files, lines, history,
-claudeDir }'` — `rating` the same rating the reviewer was handed as `tier=` (the
-ticket's, raised by the diff), `files`/`lines` from `git diff --stat
-<remote>/<base>...HEAD`, `history` from `reviews`:
+After every pass, one call: `node <lib>/findings.mjs next <.claude>/worktrees/_out/review-<slug>.json <workdir> [--repo <name>]
+--rating <the rating the reviewer was handed as tier=> --files <n> --lines <n> [--merge auto|ask] [--standing auto|ask]
+[--mergeable true|false] [--checks pass|fail|pending|none]` (`<slug>` = `<repo-name>--<PR number>`, as `/tp:review` names
+it; `files`/`lines` from `node <lib>/diffcheck.mjs` → `changed`, the platform's `mergeable` and checks from `pr view`). It records the pass
+— appends the row `{ round, sha, verdict, open, new }` to `pr[.repo].json.reviews`, sets `reviewRounds` and the top-level
+`verdict`, adds the pass to `quality.json` — asks the loop (`model.mjs rounds`, its history the `reviews` it just
+wrote) and decides the merge (`mergegate`): `decision.action` is the answer, `rounds` and `quality` the evidence.
+A pass whose findings file is not there (a reviewer from before it existed) is mirrored from its trailer by hand with
+`state.mjs put <workdir> pr[.<repo>] … --merge` first.
 
-- `merge` → § Merge.
-- `review` → spawn a fresh **fixer** (a writing agent, one job — `reference/context-management.md`
+- `merge` → § Merge — `decision.action: merge` (merge=auto, or a standing instruction) or `ask` (the stop below).
+- `sync` → the base moved: `/tp:create-pr <id> update=true` to sync, then `findings.mjs next` again with the new facts.
+- `wait` → required checks are still running: look again when they finish, bounded as a gate wait is (§ Verification rules).
+- `fix` → spawn a fresh **fixer** (a writing agent, one job — `reference/context-management.md`
   § Context management, rules 2 and 9; rated from the items with `model.mjs rate`;
   tools: edit and shell in the ticket's worktree, `git`; office id
   `<id>:<stage>:engineer:<round>` (`<stage>` as logged — `merge:<name>` on a cross-repo ticket), parent `<id>:<stage>:lead`, the join/leave commands; frontier:

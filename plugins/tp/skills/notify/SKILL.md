@@ -23,7 +23,7 @@ line; no agent is spawned to send it, or to do nothing (`reference/definitions.m
   data (`reference/procedures.md` § Personal data).
 - `level=stop|done|error|info` (optional, default `info`) — `stop`: a person must
   answer; `done`: a run finished; `error`: a run failed; `info`: anything else. Which
-  levels are sent is the project's choice (setup below); `stop`, `done` and `error` by
+  levels are sent is the project's choice (`instructions/setup.md`); `stop`, `done` and `error` by
   default.
 - `setup` (instead of a text) — the one-time configuration; `setup target=<channel>`
   sets or changes the channel without asking.
@@ -31,57 +31,24 @@ line; no agent is spawned to send it, or to do nothing (`reference/definitions.m
   invoked (`reference/definitions.md` § Definitions, Dedicated agent) — a send because it is
   one tool call, `setup` because it may need to ask the person.
 
-## The configuration — `<.claude>/notify.json`
-
-```
-{ "tool": "<the connected tool that posts a message>" | null,
-  "target": "<channel, team or chat as that tool names it>" | null,
-  "project": "<short label put in front of every message>",
-  "levels": ["stop", "done", "error"],
-  "setAt": "<timestamp>" }
-```
-
-One file per project (the `.claude` directory is per project). `tool: null` means
-"no chat tool here — stay silent, don't ask again". `target: null` with a tool means
-"a tool exists, nobody has named the channel yet" — messages are not sent, and every
-report that would have notified says so once. The file is edited by hand or by
-`setup target=<channel>` at any time.
+## The configuration
+`<.claude>/notify.json`: `{ tool, target, project, levels, setAt }` — `tool: null` means no chat tool here, stay silent;
+`target: null` with a tool means nobody has named the channel yet. `levels` defaults to `stop`, `done`, `error`. Its
+shape, the one-time **setup** (find the tool, ask for the channel once, write the file, prove it with one message) and
+how to change the channel are in `instructions/setup.md`; run `/tp:notify setup` (or `setup target=<channel>`) to do it.
 
 ## Steps
 
-### Setup — when `notify.json` does not exist
-Run when `reference/observability.md` § Observability says (by the invoking context, in the
-session), or by hand with `/tp:notify setup`.
-1. **Find the tool.** Use the runtime's tool lookup (`reference/definitions.md` § Definitions,
-   Runtime notes) for a tool that posts a message to a channel, chat or team (queries
-   such as `send message`, `post message`, `channel`); a tool whose
-   description says it sends/posts to a conversation counts, a "draft" or "schedule"
-   variant does not when a plain send exists. None → write `{ "tool": null, "project":
-   "<repo or folder name>", "levels": [...], "setAt": <now> }`, say "notifications:
-   no chat tool connected — `/tp:notify setup` again after connecting one", and stop.
-2. **Ask for the channel — once.** In a session: one question, "Pipeline
-   notifications will go through `<tool>`; which channel/team/chat? (or `none`)".
-   `none` → `tool: null`. Inside an agent (an unattended run): don't ask; write the
-   file with `target: null` and let the report say "notifications: channel not set —
-   `/tp:notify setup target=<channel>`". `target=<channel>` given → no question.
-3. **Write the file** with `project` = the repo's or folder's name (the label in
-   front of every message; the person can change it) and `levels` defaulted; then send
-   one message `[<project>] pipeline notifications on` straight to the tool — the level
-   filter does not apply to this proof — so the channel is proven reachable. A failure
-   here is reported and `target` is kept — the person fixes the name.
-
 ### Send
-1. Read `notify.json`. Missing or `tool: null` → return `notifications off` and stop
-   (no setup from here: setup runs only where a person can answer). `target: null` →
-   return `notifications: channel not set — /tp:notify setup target=<channel>`.
-2. `level` not in `levels` → return `notifications: <level> muted`.
-3. Load the tool by name with the runtime's tool lookup; gone → return `notifications: <tool>
-   is no longer connected — /tp:notify setup` and change nothing.
-4. Send `[<project>] <text>` to `target`, as one message. Never more than one message
-   per invocation; never a thread of follow-ups; never attachments.
-5. Return one line: `notified <target>` | `notifications off` | `notifications: <why
-   not>`. A failed send is reported this way and **never fails the caller** — the
-   report and `/tp:status` carry every stop regardless.
+1. `node <lib>/notify.mjs prepare <.claude> <level> "<text>"` reads `notify.json`, applies the level filter and builds
+   the line. `send: false` → return its `result` (`notifications off`, `notifications: channel not set — …`,
+   `notifications: <level> muted`) and stop — no setup from here: setup runs only where a person can answer.
+2. `send: true` → load the `tool` by name with the runtime's tool lookup; gone → return `notifications: <tool> is no
+   longer connected — /tp:notify setup` and change nothing.
+3. Post the `message` to `target`, as one message. Never more than one message per invocation; never a thread of
+   follow-ups; never attachments.
+4. Return one line: `notified <target>` | `notifications: <why not>`. A failed send is reported this way and **never
+   fails the caller** — the report and `/tp:status` carry every stop regardless.
 
 ## What is never sent
 Code, diffs, gate output, review findings in full, anything from `answers.md`, real

@@ -52,7 +52,7 @@ names its owner and the ticket waits.
 seats it in the meeting room.
 
 ### 1. Gather
-`node <lib>/state.mjs inbox <.claude>/work` → every open stop with
+`node <lib>/state.mjs inbox <.claude>/work` (JSON) → every open stop with
 `kind`, `default`, `resumable`, `needs`, `resume`, `answer` (queued) and `lock`; plus
 `day.mjs status <.claude>/work [<date>]` for the plan's `stopped`, `resumable`,
 `waiting` and `skipped` (the skipped-blocked candidates carry their blockers). With
@@ -68,9 +68,12 @@ candidates are recorded with `dry: true` (the real advance is the session's
 reflects what landed. Nothing to gather → say when the last check was.
 
 ### 3. Report
-`instructions/report.md` — the groups, one line per stop, and the `act:` tail the
-session executes. Then `state.mjs agent leave <.claude>/work inbox:<date>:lead done`
-and the output contract lines (§ Definitions, Output contract).
+`node <lib>/state.mjs inbox <.claude>/work --render --date <date> --plan "<what /tp:plan-day will start once these are
+answered, or leave --plan out for none>" [--dry]` prints the report — the header counts, the groups in their fixed order,
+one line per stop in the stop's own wording, numbered questions and approvals (oldest first, shared numbering), the day
+plan line and the `act:` tail the session executes (`instructions/report.md` is the format). Return it as it is, then
+`state.mjs agent leave <.claude>/work inbox:<date>:lead done` and the output contract lines (§ Definitions, Output
+contract).
 
 ## Stops
 None of its own for a question — the report *is* the list of questions. `error: …`

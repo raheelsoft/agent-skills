@@ -13,8 +13,8 @@ import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-function git(repo, args) {
-  try { return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }).trim(); } catch { return null; }
+function git(repo, args, { raw = false } = {}) {
+  try { const out = execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }); return raw ? out.replace(/\n+$/, '') : out.trim(); } catch { return null; }
 }
 
 /** The remote the branch is pushed to: `origin`, else the only one, else none. */
@@ -44,7 +44,7 @@ export function branchfacts({ repo, base, fetch = false }) {
   return {
     ...out, branch, onBase: branch === bare, head, base: { ref, sha: baseSha }, remote, ahead, behind,
     commits: (git(repo, ['log', '--format=%H%x09%s', `${ref}..HEAD`]) || '').split('\n').filter(Boolean).map((l) => { const [sha, ...s] = l.split('\t'); return { sha, subject: s.join('\t') }; }),
-    dirty: (git(repo, ['status', '--porcelain']) || '').split('\n').filter(Boolean).map((l) => ({ status: l.slice(0, 2).trim(), path: l.slice(3) })),
+    dirty: (git(repo, ['status', '--porcelain'], { raw: true }) || '').split('\n').filter(Boolean).map((l) => ({ status: l.slice(0, 2).trim(), path: l.slice(3) })),
     diff: { files: stat.length, additions: stat.reduce((n, c) => n + (Number(c[0]) || 0), 0), deletions: stat.reduce((n, c) => n + (Number(c[1]) || 0), 0) },
     pushed: { exists: Boolean(pushedSha), sha: pushedSha, upToDate: Boolean(pushedSha) && pushedSha === head },
   };

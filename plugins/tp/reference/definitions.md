@@ -320,7 +320,8 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   § Models and budget) and
   `<lib>/day.mjs` (`plan`, `advance`, `status` (the plan with live
   statuses, never written), `eod`, `show`, `lanes` — `/tp:plan-day`'s selection,
-  ordering and lanes, the day's end) and `<lib>/gates.mjs` (`base`,
+  ordering and lanes, the day's end) and `<lib>/gatesrun.mjs` (`'{ "repo", "path", "base", "claudeDir" }'` — reuse, hooks, generated code, every gate concurrently, the table and the record, in one call;
+  `needs-agent` only when a gate fails or rewrites files) and `<lib>/gates.mjs` (`base`,
   `release`, `cache get|put`, `normalise`, `new`, `result get|put` — the gate
   baseline and the gate record, § Verification rules) and
   `<lib>/diffscan.mjs` (`'{ "repo", "range" | "base" }'` — the added lines of a diff that match a known bad pattern, and the files that

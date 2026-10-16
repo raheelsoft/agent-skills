@@ -46,11 +46,11 @@ Gates, hooks, generated code and the checks every stage and agent holds to.
   loses nothing: every gate runs as before.
 - **A gate result is a fact about two commits, computed once.** `/tp:verify` records every
   complete run of a clean checkout per (head, base) commit pair — `node
-  <lib>/gates.mjs result put` — and every invoker asks before
-  spawning it: `node <lib>/gates.mjs result get '{ repo, head, base,
-  checkout, claudeDir }'` (exit 0: the record, and the checkout is clean at that
-  head) is the gate table — the same run's evidence, keyed by the commits and checked
-  against the checkout, not anyone's claim — and `/tp:verify` is not invoked. So the
+  <lib>/gates.mjs result put` — and every invoker runs the script before
+  spawning it: `node <lib>/gatesrun.mjs '{ repo, path, base, claudeDir }'` — `reused` (the record for
+  these commits, the checkout clean at that head) or `pass` (every gate ran and passed, now recorded) is the
+  gate table — the same run's evidence, keyed by the commits and checked against the checkout, not anyone's
+  claim — and `/tp:verify` is not invoked; only `needs-agent` (a gate failed or rewrote files) spawns it. So the
   gates run once per pushed commit, in `/tp:create-pr`; `/tp:review` reads that record
   instead of running them again in a checkout of its own; a `/tp:create-pr` whose sync
   moved nothing reuses `/tp:implement`'s. The base's whole-program outputs (type check,

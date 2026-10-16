@@ -17,89 +17,50 @@ base to a release or client-facing branch, that branch is never branched from an
 targeted by a feature PR; a bug reported on it may already be fixed on the base
 (`git log <remote>/<release>..<remote>/<base>` for the area).
 
-## 2. Fetch and create the worktree
+## 2. The worktree — `worktree.mjs add`
 
-```bash
-git -C <repo> fetch <remote> <base>
-```
+`node <lib>/worktree.mjs add '{ repo, id, base, branch, claudeDir, remote?, from?, stack? }'` runs it; this section is what it
+does, for the person who reads or changes it.
 
-**Fresh — a new branch from the base** (SKILL.md step 7, case 3):
-```bash
-git -C <repo> worktree add -b <branch-name> <.claude>/worktrees/<id>/<repo-name> <remote>/<base>
-```
-Name per `ticket-intake.md` § Branch slug; check it doesn't already exist locally or on
-the remote (`git branch --list`, `git ls-remote --heads <remote> <name>`) — two people on
-related tickets can collide on a near-identical slug.
+- **Fresh** (SKILL.md step 7, case 3): `git fetch <remote> <base>`, then `git worktree add -b <branch>
+  <.claude>/worktrees/<id>/<repo-name> <remote>/<base>`. The name is per `ticket-intake.md` § Branch slug; a name
+  already taken locally or on the remote (two people on related tickets) gets a `-2`, `-3` … suffix.
+- **Dependent, own PR** (case 2, `from`): the same, off `<remote>/<open-branch>`; record `dependsOn: { ticket, branch }` in
+  `ticket.json`.
+- **Stacked on an open sibling PR's branch** (case 1, `from` and `stack`): when a worktree of this repo already holds that
+  branch, its path is the ticket's worktree (`reused`) — no new one; otherwise `git worktree add <path> <open-branch>`.
+  When git refuses because the branch is checked out in the person's own checkout the result is `blocked` — never work
+  in the user's checkout. Record `stackedOn` in `ticket.json`; `/tp:create-pr` treats the next push as an update round
+  of that PR.
+- **New round** (`round=<n>`, `worktree.mjs rebranch`): **the same worktree**, re-branched from the base that now holds the
+  merged work (the install, the generated code and the caches are already there): `git checkout -b <branch>-r<n>
+  <remote>/<base>`, dependencies installed again only when a lockfile changed between the old head and the new branch
+  point, generated code regenerated. No worktree at that path → `add` with the new branch name. `ticket.json` gets the new
+  `branch` and `round`; `worktree` stays.
 
-**Dependent, own PR** (case 2): a new branch from the open dependency's branch —
-```bash
-git -C <repo> fetch <remote> <open-branch>
-git -C <repo> worktree add -b <branch-name> <.claude>/worktrees/<id>/<repo-name> <remote>/<open-branch>
-```
-— and `dependsOn: { ticket, branch }` in `ticket.json`.
-
-**Stacked on an open sibling PR's branch** (case 1): if the earlier ticket's worktree
-still holds that branch (`git -C <repo> worktree list`), record that path as this
-ticket's worktree — no new worktree. Otherwise:
-```bash
-git -C <repo> fetch <remote> <open-branch>
-git -C <repo> worktree add <.claude>/worktrees/<id>/<repo-name> <open-branch>   # tracks <remote>/<open-branch>
-```
-If git refuses because the branch is checked out in the person's own checkout, log
-`stopped "<branch> is checked out in <path> — move that copy off it, then
-answers=retry"` and return — never work in the user's checkout; the re-run retries the
-worktree add. Record `stackedOn` in `ticket.json`; `/tp:create-pr` treats the next push
-as an update round of that PR.
-
-**New round** (SKILL.md step 1, `round=<n>`): **the same worktree**, re-branched
-from the base, which now holds the merged work (`reference/work-directory.md` § Worktrees — the
-install, the generated code and the caches are already there) —
-```bash
-git -C <.claude>/worktrees/<id>/<repo-name> fetch <remote> <base>
-git -C <.claude>/worktrees/<id>/<repo-name> checkout -q -b <branch>-r<n> <remote>/<base>
-```
-— from wherever the last stage left it (detached at the merge commit after
-`/tp:accept`); dependencies are re-installed only when a lockfile changed between the
-old head and the new branch point (`git diff --name-only <old head> <remote>/<base>
--- <lockfiles>`), generated code regenerated (§ 3). No worktree at that path (a run
-before this rule, a cleanup by hand) → the fresh form above with the new branch name.
-`ticket.json` gets the new `branch` and `round`; `worktree` stays.
-
-A refused fetch is an access problem (`reference/procedures.md` § Remote access failures);
-it, a worktree add or an install that fails past its documented fallback is the error
-stop of § Failures and escalation — `stopped "error: …"`, the error form, `needs:`
-what the person must fix, `answers=retry` afterwards.
+A refused fetch is an access problem (`reference/procedures.md` § Remote access failures); it, a worktree add or an
+install that fails past its documented fallback is the error stop of § Failures and escalation — `stopped "error: …"`,
+the error form, `needs:` what the person must fix, `answers=retry` afterwards.
 
 ## 3. Make the worktree usable
 
-- Install dependencies in the worktree with the project's lockfile tool, or reuse the
-  main checkout's install where the project's docs allow it (`reference/procedures.md`
-  § Toolchain); log which as a `note`. The install's output goes to a file, never into
-  this context (`<tool> install > <.claude>/worktrees/_out/<id>/install-<repo-name>.log 2>&1`;
-  read its exit code and `tail -5`, the first error lines on failure — § Context
-  management, rule 11); the same for the code generation below.
-- Regenerate generated code — `node <lib>/codegen.mjs status '{ repo:
-  "<this worktree>", claudeDir }'`, and when it reports `stale`, run its `command` here
-  (output to a file, rule 11) and `codegen.mjs mark` (`reference/procedures.md` § Toolchain).
-  A fresh worktree always needs this: the generated output lives outside git.
-- Copy nothing from the user's checkout: untracked config the app needs (env files) is
-  provided the way the project's docs say, on a disposable copy of any data store.
+`worktree.mjs add` installs dependencies with the project's lockfile tool (`tiers.json` `worktree.install` overrides it; `null`
+turns it off, or reuse of the main checkout's install where the project's docs allow it — `reference/procedures.md`
+§ Toolchain) and regenerates generated code (`codegen.mjs status`, then its `command`, then `mark`: a fresh worktree always
+needs it, the output lives outside git). Both write their output to files, read by exit code and last lines (§ Context
+management, rule 11). Nothing is copied from the user's checkout: untracked config the app needs (env files) is provided
+the way the project's docs say, on a disposable copy of any data store.
 
-Local from here — no push, no PR. `/tp:create-pr` does both once there is real work to
-show. A ticket spanning repos does this once per repo, each its own worktree and branch.
+Local from here — no push, no PR. `/tp:create-pr` does both once there is real work to show. A ticket spanning repos does
+this once per repo, each its own worktree and branch.
 
 ## 4. Removing a worktree and a never-pushed branch
 
-Used once per ticket, when its run ends (`reference/work-directory.md` § Worktrees): by
-`/tp:accept`'s `done` — the last stage — and by `/tp:run-ticket`'s close-out of a ticket
-that ends before it (closed by triage, parked as blocked); never by a stage in
-between, and never by a new round, which re-branches the worktree instead (§ 2):
-```bash
-git -C <repo> worktree remove <.claude>/worktrees/<id>/<repo-name>   # --force when it holds untracked files
-git -C <repo> branch -D <branch>                                   # only a branch that was never pushed, or is merged
-rmdir <.claude>/worktrees/<id>                                     # empty once every repo's worktree is gone
-```
-The ticket's `<.claude>/worktrees/_out/<id>/` folder goes with it. A ticket picked up
-before the worktrees moved out of the work directory has its worktree at `<.claude>/work/<id>/wt/<repo-name>`
-— `ticket.json` records the path, and that is the one to remove.
-A worktree another ticket's `ticket.json` still names (a stacked sibling) stays.
+Used once per ticket, when its run ends (`reference/work-directory.md` § Worktrees): by `/tp:accept`'s `done` — the last
+stage — and by `/tp:run-ticket`'s close-out of a ticket that ends before it (closed by triage, parked as blocked); never by
+a stage in between, and never by a new round, which re-branches instead (§ 2). `node <lib>/worktree.mjs remove '{ "repo",
+"id", "branch", "base", "claudeDir" }'` (add `"dry": true` to see the plan) removes the worktree, then the branch only when it
+was never pushed or is merged, then the ticket's empty `worktrees/<id>/` folder; a worktree another ticket's `ticket.json`
+still names (a stacked sibling) stays, and the result says so. The ticket's `<.claude>/worktrees/_out/<id>/` folder goes with
+it. A ticket picked up before the worktrees moved out of the work directory has its worktree at
+`<.claude>/work/<id>/wt/<repo-name>` — `ticket.json` records the path, and that is the one to remove by hand.

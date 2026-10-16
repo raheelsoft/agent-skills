@@ -28,21 +28,17 @@ proposes changes; the user decides which land. Conventions and the state script:
 ## Steps
 
 ### 1. Read the state, log, read the record
-`state.mjs state <workdir>` then `state.mjs log <workdir> retro started`
-(`reference/definitions.md` § Definitions, Resume). This agent reads the record itself — no
-second agent for the same reading (tools: read, the hosting platform's CLI reads, the
-state script; write only `retro.md` and `checkpoint.retro.md` (through `state.mjs doc`), and `retro.json` through `state.mjs put`; it asks
-`model.mjs compact` between the questions below, rule 7): from the work directory,
-the files the questions name — `plan.md` (§ Implementation summary), `plan-check.json`,
-`implement[.repo].json`, `answers.md`, `accept.json`, `ticket.json` (estimate,
-actual) and the `· stopped ·` lines of `progress.md` (a `grep`, not the file whole;
-never the checkpoints, PR bodies or `diff-validation.md`); the PR's review comment(s) and round
-comments (URL from `pr[.repo].json`; read through the hosting platform's CLI/API);
-each repo's conventions file; the output of `state.mjs durations <workdir>`,
-`state.mjs usage <workdir>` and `model.mjs calibrate '{ workroot, claudeDir }'` (the
-estimates' drift so far) — and answers the questions below. It writes both files and reports the
-proposal count by target, plus the two contract lines (§ Definitions, Output
-contract).
+`state.mjs log <workdir> retro started` (`reference/definitions.md` § Definitions, Resume), then
+`node <lib>/state.mjs retro-facts <workdir> --claude <.claude>` — the script gathers what a retrospective counts and
+quotes: the `· stopped ·` lines, every question answers.md holds with its answer, the plan's implementation summary
+(steps, commits, deviations), the criteria that ended `manual`, the plan check's findings, the review rounds and what
+they left open, minutes and tokens per stage, the estimate against the actual hours, and the counts. This agent reads
+that, not the files behind it (tools: read, the hosting platform's CLI reads for the PR's review comments, the state
+script; write only `retro.md` and `checkpoint.retro.md` (through `state.mjs doc`), and `retro.json` through `state.mjs
+put`, which computes `questions` and `manualCriteria` from the record itself). It also reads each repo's conventions file
+and `model.mjs calibrate '{ workroot, claudeDir }'` (the estimates' drift so far), asks `model.mjs compact` between the
+questions below (rule 7), and answers them. It writes both files and reports the proposal count by target, plus the two
+contract lines (§ Definitions, Output contract).
 
 ### 2. What it answers
 - **Plan vs reality** — every deviation in `plan.md` § Implementation summary and every

@@ -87,9 +87,10 @@ dedicated agent under the office id `review:<slug>:qa:verify` with this agent as
   Then the Gates table: **reuse, hooks, then run** (`reference/verification.md` § Verification
   rules) — the result recorded for exactly these commits is the table (the gates ran
   once on this commit, in `/tp:create-pr`, and a `HOOK` row in it is the repo's own hook,
-  not the author's word); otherwise `/tp:verify path=<checkout> base=<base>
-  readonly=true` there (in a checkout handed over, nothing of the author's is ever
-  written). A failure does **not** stop the review — record it in the Gates table,
+  not the author's word); otherwise `node <lib>/gatesrun.mjs '{ "repo": "<repo>", "path": "<checkout>", "base": "<base>",
+  "readonly": true, "claudeDir": "<.claude>" }'` there — `reused`/`pass` is the table; only `needs-agent` runs
+  `/tp:verify path=<checkout> base=<base> readonly=true` (in a checkout handed over, nothing of the author's is ever
+  written; a gate that rewrites files is `needs-agent`, and the checkout is restored). A failure does **not** stop the review — record it in the Gates table,
   add it as a P1 finding (*fix before merging*, so the loop tracks its resolution; its gate row
   is `FAIL`, which makes the verdict BLOCK), and continue; the review is still posted. Gates that
   cannot run here at all (a missing tool past its documented fallback) are an

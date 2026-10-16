@@ -78,9 +78,10 @@ rounds` gives.
 
 ### 3. The loop
 `instructions/review-loop.md` § The loop — the mechanics live there. In short: after
-every pass, ask `rounds` (with the same rating the reviewer got as `tier=`) and act —
-`review`: a fresh **fixer** agent applies this pass's items, then `/tp:create-pr <id>
-update=true` (`repo=<name>` on a cross-repo ticket) and a new hand-off; `merge`: step
+every pass, `findings.mjs next` records it and returns the loop's answer and the merge decision, and act on
+`decision.action` —
+`fix`: a fresh **fixer** agent applies this pass's items, then `/tp:create-pr <id>
+update=true` (`repo=<name>` on a cross-repo ticket) and a new hand-off; `merge` or `ask`: step
 4 (the fix round's `/tp:create-pr` runs under `<id>:create-pr:lead`, this agent as
 `parent` — the same desk revived each round); `stop`: `stopped "review loop: <why>"`
 and return. A stop inside that `/tp:create-pr`

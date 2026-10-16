@@ -102,11 +102,16 @@ commands for each):
 The person's own checkout is never involved.
 
 ### 8. Worktree and branch
-`instructions/branch-and-pull.md`, once per target repo: fetch, create the worktree at
-`<.claude>/worktrees/<id>/<repo-name>` on the new branch (or on the open stacked
-branch), install dependencies, regenerate generated code — the one checkout the
-ticket keeps for its whole run (`reference/work-directory.md` § Worktrees); a new round
-re-branches it. Local only: no push, no PR.
+Once per target repo, one call: `node <lib>/worktree.mjs add '{ "repo": "<repo path>", "id": "<id>", "base": "<base>",
+"branch": "<branch name>", "claudeDir": "<.claude>", "from": "<open branch>", "stack": true }'` (`from` only for step 7's
+cases 1 and 2, `stack` only for case 1). It fetches, picks a branch name nobody has taken (`-2`, `-3` …), creates the
+worktree at `<.claude>/worktrees/<id>/<repo-name>` — or reuses the sibling's for a stacked ticket — installs
+dependencies with the project's lockfile tool (output in `_out/<id>/install-<repo>.log`, read by exit code), regenerates
+generated code, and returns `row` — `{ name, path, worktree, branch, base }` with absolute paths — for `ticket.json`'s
+`repos[]`. `status: blocked` (the branch is checked out in the person's own copy) → `stopped "<branch> is checked out in
+<path> — move that copy off it, then answers=retry"`; `error` → the error stop. A new round is `worktree.mjs rebranch`.
+It is the one checkout the ticket keeps for its whole run (`reference/work-directory.md` § Worktrees).
+`instructions/branch-and-pull.md` has the rules behind it. Local only: no push, no PR.
 
 ### 9. Write the work directory
 `reference/work-directory.md` § Work directory — `ticket.md` first (replacing the stub): `ticket.md` (title, link, description and

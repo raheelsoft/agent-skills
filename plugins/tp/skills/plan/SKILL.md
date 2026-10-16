@@ -133,11 +133,11 @@ derives both waits as `stopped` on `plan` (nothing is logged here):
   risks: <flags> — … approve (go-ahead) or send a change`), so the person sees one
   wording on every pass. Before returning, comment on the ticket that a plan is
   ready for approval (the plan file is local — describe, don't link). Approval arrives as
-  `answers=go-ahead`: record the `answers.md` line `go-ahead: <timestamp> — round
-  <n> — <risk flags>` at the start of a line (`n` = `ticket.json.round`, so an
-  earlier round's go-ahead never covers a new plan), set `plan-check.json.override`
-  when the check still said `revise` (the person accepted the open risks), and log
-  `plan note "approved"`; `/tp:implement` refuses any plan without that line. A change
+  `answers=go-ahead` — from the person, never from an agent: `node <lib>/state.mjs approve <workdir>` records it in the one
+  shape `/tp:implement` reads (the `answers.md` line `go-ahead: <timestamp> — round <n> — <risk flags>`, `n` =
+  `ticket.json.round`, so an earlier round's go-ahead never covers a new plan; `plan-check.json.override` when the check
+  still said `revise`; the `plan note "approved"` log) and refuses a plan that has open questions or is not waiting;
+  `/tp:implement` refuses any plan without that line. A change
   → it goes in `answers.md`, this agent re-plans with it (step 1's re-plan), the
   check runs incrementally (step 2), and the plan is presented again — the person's
   changes never count against the check's bound.

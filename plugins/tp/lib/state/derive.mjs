@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CliError } from './util.mjs';
 import { parsePlan } from '../contract/plan.mjs';
+import { answersOf } from './retrofacts.mjs';
 
 const readJson = (file) => { try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; } };
 
@@ -37,7 +38,16 @@ function accept(doc, workdir, fail) {
   return out;
 }
 
-const DERIVE = { plan, accept };
+/** retro.json: `questions` is the number of questions answers.md holds, `manualCriteria` the criteria accept.json ended `manual` — counted, not recalled. */
+function retro(doc, workdir) {
+  const out = { ...doc };
+  if (existsSync(join(workdir, 'answers.md'))) out.questions = answersOf(readFileSync(join(workdir, 'answers.md'), 'utf8')).length;
+  const acc = readJson(join(workdir, 'accept.json'));
+  if (acc && Array.isArray(acc.criteria)) out.manualCriteria = acc.criteria.filter((c) => c && c.result === 'manual').length;
+  return out;
+}
+
+const DERIVE = { plan, accept, retro };
 
 /** The document with its derived fields filled, or a CliError (exit 2) naming what makes it inconsistent. */
 export function derive(kind, doc, workdir) {

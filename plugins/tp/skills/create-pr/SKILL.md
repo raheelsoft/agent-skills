@@ -126,10 +126,11 @@ that apply:
   for this head and base is the table (the sync moved nothing since `/tp:implement`'s run:
   the same commit, the same result); the gates the repo's hooks own are enforced by the
   commit and by the push in step 7 and need nothing here; whatever is left →
-  `/tp:verify path=<worktree> base=<base branch>` (its dedicated agent under the office id
-  `<id>:<stage>:qa:verify`, this agent as `parent`; `inline=true` when this agent cannot
-  spawn — § Definitions, Depth), which records its result for the commit — the record
-  the review reads instead of running the gates again. Nothing is left and no record
+  `node <lib>/gatesrun.mjs '{ "repo": "<repo>", "path": "<worktree>", "base": "<base branch>", "claudeDir": "<.claude>" }'`
+  (`reused` or `pass`: the table, recorded for the commit — the record the review reads instead of running the
+  gates again). Only `needs-agent` spawns `/tp:verify path=<worktree> base=<base branch>` (its dedicated agent under the
+  office id `<id>:<stage>:qa:verify`, this agent as `parent`; `inline=true` when this agent cannot spawn —
+  § Definitions, Depth); `error` is the error stop. Nothing is left and no record
   exists → the table is the `HOOK` rows, and the push proves them.
 Collect both. A failed gate is fixed by a fresh **fixer** (a writing agent, one job — rule 9;
 tools: edit and shell in the worktree, `git`; office id `<id>:<stage>:engineer:2`,

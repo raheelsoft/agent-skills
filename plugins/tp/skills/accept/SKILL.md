@@ -96,10 +96,9 @@ itself.
   round (`/tp:run-ticket <id> round=<n+1>`, § Worktrees); `answers=leave` → the ticket
   stays stopped for the person.
 - No fails → `state.mjs log … done "<passed> pass - <manual> manual"`, then the
-  run's cleanup — this is the last stage (§ Worktrees): remove each repo's worktree
-  and its merged local branch (`skills/start-ticket/instructions/branch-and-pull.md`
-  § 4; a worktree another ticket's `ticket.json` still names stays) and log `note
-  "worktrees removed"`. The `manual` criteria go to the person as numbered steps;
+  run's cleanup — this is the last stage (§ Worktrees): per repo `node <lib>/worktree.mjs remove '{ "repo", "id", "branch",
+  "base", "claudeDir" }'` takes the worktree and its merged local branch (`skills/start-ticket/instructions/branch-and-pull.md`
+  § 4; a worktree another ticket's `ticket.json` still names stays, and the result says so); log `note "worktrees removed"`. The `manual` criteria go to the person as numbered steps;
   the ticket's status is theirs. A fail keeps the worktrees: the next round
   re-branches them.
 

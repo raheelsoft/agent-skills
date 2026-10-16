@@ -52,7 +52,7 @@ const OWNERSHIP = [
   { rule: 'the preflight freshness check', pattern: 'doctor.mjs fresh', owners: [REF, 'doctor/SKILL.md'] },
   { rule: 'resolving a blocker (soft-block nuance)', pattern: 'soft-blocking', owners: ['start-ticket/instructions/blocked-check.md'] },
   { rule: 'recording a blocker re-check', pattern: 'state.mjs blockers <workdir>', owners: ['start-ticket/instructions/blocked-check.md', REF] },
-  { rule: 'removing a worktree', pattern: 'worktree remove', owners: ['start-ticket/instructions/branch-and-pull.md', 'status/SKILL.md'] },
+  { rule: 'removing a worktree', pattern: 'worktree.mjs remove', owners: ['start-ticket/instructions/branch-and-pull.md', 'accept/SKILL.md'] },
   { rule: 'creating a worktree', pattern: 'worktree add', owners: ['start-ticket/instructions/branch-and-pull.md', 'review/SKILL.md'] },
   { rule: 'the review loop controller', pattern: 'model.mjs rounds', owners: [REF, 'merge/instructions/review-loop.md', 'review/SKILL.md', 'review/instructions/scope.md'] },
   { rule: 'the compaction rule', pattern: 'model.mjs compact', owners: [REF, 'implement/SKILL.md', 'retro/SKILL.md', 'accept/SKILL.md', 'workflows'] },

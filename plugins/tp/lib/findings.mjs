@@ -8,6 +8,9 @@
 //   node findings.mjs render  <review.json>   -> the PR comment, in the format /tp:review posts      (markdown on stdout)
 //   node findings.mjs row     <review.json>   -> { round, sha, verdict, open, new } — the row for pr.json's `reviews`
 //   node findings.mjs score   <review.json>   -> { open, resolved, preexisting, score } per priority P0–P4
+//   node findings.mjs next    <review.json> <workdir> [--repo r] [--rating low|medium|high] [--files n] [--lines n] [--merge auto|ask] [--standing auto|ask]
+//                                                    [--checks pass|fail|pending|none] [--mergeable true|false] [--claude <.claude>]
+//                                              -> record, then { row, quality, rounds, decision: { action: merge|ask|fix|stop|sync|wait, why } } — the loop's next step and the merge gate in one call
 //   node findings.mjs record  <review.json> <workdir> [--repo <name>]
 //                                              -> appends the pass to pr[.<repo>].json and quality.json (validated writes); { row, quality }
 // Every subcommand refuses (exit 1, the errors on stderr) a file that does not match the schema.
@@ -18,10 +21,11 @@ import { traceErrors } from './contract/trace.mjs';
 import { scoreOf } from './contract/quality.mjs';
 import { CliError } from './state/util.mjs';
 import { recordReview } from './state/review.mjs';
+import { reviewNext, reviewNextArgs } from './state/reviewnext.mjs';
 
 const [, , cmd, file, ...rest] = process.argv;
-const usage = () => { console.error('usage: findings.mjs check|verdict|render|row|score <review.json> | record <review.json> <workdir> [--repo <name>]'); process.exit(2); };
-if (!['check', 'verdict', 'render', 'row', 'score', 'record'].includes(cmd) || !file || !existsSync(file)) usage();
+const usage = () => { console.error('usage: findings.mjs check|verdict|render|row|score <review.json> | record|next <review.json> <workdir> [--repo <name>] …'); process.exit(2); };
+if (!['check', 'verdict', 'render', 'row', 'score', 'record', 'next'].includes(cmd) || !file || !existsSync(file)) usage();
 
 let review;
 try { review = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { console.error(`${file} is not valid JSON: ${e.message}`); process.exit(1); }
@@ -41,5 +45,5 @@ else if (cmd === 'row') process.stdout.write(`${JSON.stringify(rowOf(review))}\n
 else if (cmd === 'score') process.stdout.write(`${JSON.stringify(scoreOf(review))}\n`);
 else {
   const repoAt = rest.indexOf('--repo');
-  try { process.stdout.write(`${JSON.stringify(recordReview(rest[0], review, { repo: repoAt >= 0 ? rest[repoAt + 1] : '' }))}\n`); } catch (e) { if (!(e instanceof CliError)) throw e; console.error(e.message); process.exit(e.code); }
+  try { process.stdout.write(`${JSON.stringify(cmd === 'next' ? reviewNext(rest[0], review, reviewNextArgs(rest.slice(1))) : recordReview(rest[0], review, { repo: repoAt >= 0 ? rest[repoAt + 1] : '' }))}\n`); } catch (e) { if (!(e instanceof CliError)) throw e; console.error(e.message); process.exit(e.code); }
 }

@@ -45,7 +45,7 @@ message and the fix (connect the tool, log in, name the scope).
 ### 3. Report
 `node <lib>/doctor.mjs table <.claude>` prints the table — `| check | status | detail | fix |`, failures first — and the one
 line `preflight: ok | <n> warning(s) | <m> failure(s) — <at>`, including the tracker row added in step 2; exit 0 clean,
-1 warnings, 2 failures. Relay it. A failure is an error stop (§ Failures and escalation): the error form with `needs:` =
+1 warnings, 2 failures. Relay it whole: the reply ends with the printed `preflight: …` line, verbatim. A failure is an error stop (§ Failures and escalation): the error form with `needs:` =
 the fix lines, resume `/tp:doctor answers=retry`; `/tp:plan-day` and `/tp:run-ticket` relay it as theirs before any run.
 
 ## When it runs by itself

@@ -209,3 +209,16 @@ describe('put derives what it can and refuses what it cannot make consistent', (
     assert.deepEqual([w.status, w.flags, w.steps, w.openQuestions, w.complexity], ['open-questions', ['data-model'], 2, 1, 'medium']);
   });
 });
+
+describe('put derives the retro counts from the record', () => {
+  it('questions come from answers.md and manualCriteria from accept.json, whatever was typed', async (t) => {
+    const { putArtifact } = await import('../lib/state/put.mjs');
+    const root = tmp('put-retro-'); t.after(() => rm(root));
+    const wd = join(root, '.claude', 'work', 'T-1'); mkdirSync(wd, { recursive: true });
+    writeFileSync(join(wd, 'answers.md'), '# Answers\n\n## 2026-01-01T10:00Z — plan (round 1)\n\n**Q:** a?\n**A:** b\n\n## 2026-01-01T11:00Z — merge (x)\n\n**Q:** c?\n**A:** d\n');
+    writeFileSync(join(wd, 'accept.json'), JSON.stringify({ criteria: [{ n: 1, text: 'a', result: 'manual', evidence: 'x' }, { n: 2, text: 'b', result: 'pass', evidence: 'y' }] }));
+    putArtifact(wd, 'retro', { deviations: 1, reviewFindingsMissedByCheck: 0, questions: 9, manualCriteria: 9, proposals: [] });
+    const w = JSON.parse(readFileSync(join(wd, 'retro.json'), 'utf8'));
+    assert.deepEqual([w.questions, w.manualCriteria, w.deviations], [2, 1, 1]);
+  });
+});

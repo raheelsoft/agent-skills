@@ -35,7 +35,17 @@ cached per base commit, never from a fresh checkout.
   rating: `medium` (detect the toolchain, assemble the table). `/tp:verify` never writes
   to a ticket's `progress.md`; a checkpoint goes under `<.claude>/work/_scratch/`.
 
-## 0. Reuse a recorded result
+## 0. The script first
+
+`node <lib>/gatesrun.mjs '{ repo, path, base, tests, readonly, full, claudeDir }'` does steps 0–4 below for the run that
+needs no judgment: it reuses a recorded result, leaves the hooks' gates to the hooks, brings generated code up to
+date, runs every other gate concurrently with its output in a file, and — all green, nothing rewritten — renders the
+table and records the result. `status: reused | pass` → that table is the report; stop. `error` → the error form.
+`needs-agent` — a gate failed, rewrote files, or has no check-only form — continues here with its `failures` (the
+gate, command, exit code and last lines of each): the steps below are the part that takes judgment — the base
+comparison ("no new errors vs base"), reading an autofix, an environment failure. Invoked by hand, run it first.
+
+## 0a. Reuse a recorded result
 
 `node <lib>/gates.mjs result get '{ repo, head: <git rev-parse HEAD>,
 base: <git rev-parse <remote>/<base>>, checkout: <path>, claudeDir }'` — exit 0 → the

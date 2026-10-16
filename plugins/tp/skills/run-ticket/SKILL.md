@@ -91,26 +91,23 @@ it collects one line per stage and returns them with the final report or the sto
 `state.mjs agent join <.claude>/work '{ "id": "<id>:run-ticket:manager", "level":
 "manager", "role": "orchestrator", "stage": "run-ticket", "ticket": "<id>", "rating":
 "medium" }'` — the manager's desk, first of
-all (the ticket id is known before the work directory exists). No work directory for
-the normalised id → a first run: step 1, passing `answers=`
-through (a stop before the directory exists — a soft-block, a cancelled ticket, a
-`next` shortlist — is answered there). Otherwise read `state.mjs state <workdir>
---brief` — the decision fields, a tenth of the full state; the stages read the full
-form themselves — first and decide: `round=` above `ticket.json.round` → step 1 regardless of the state
-(the earlier stages re-run as stale); the ticket `closed`, or `next: null` (done),
-without such a `round=` or `force=true` → refuse — `already done|closed; round=<n+1>
-or force=true to re-run` — with no lock and nothing logged; `problems` → an error
-stop (§ Work directory, the grammar): the report, `needs:` the fix; `stopped` without
-`answers=` → `state.mjs answer <.claude>/work <id> --consume` first: exit 0 → the
-queued answer is this run's `answers=` (§ Definitions, Resume — its `answers.md` line
-says `from the office`); exit 3 → the stop is the report, with one line that a stale
-answer was set aside; otherwise the stop is the report — except a usage pause
-(`stopped "usage at …"`) whose reset time has passed, and a blocked ticket (`kind:
-blocked`) the state reports `unblocked`, which both run as if answered — a parked
-ticket whose repo rows say `discarded` first re-runs `/tp:start-ticket <id> force=true`
-(its worktrees went at parking, so this is the one case that creates them again —
-from the base that now holds the blockers' work; the stages after it re-run as
-stale). Only when a stage will run:
+all (the ticket id is known before the work directory exists). `node <lib>/state.mjs route <id> [--round <n>] [--force] [--answers "<text>"] [--owner <owner>]` decides what
+happens next and says so in `action` — read it, do not work the state out again (a queued office answer is consumed
+there; `--answers` is this run's `answers=` when it has one):
+
+- `first-run` → step 1 (no work directory yet), `answers=` passed through — a stop before the directory exists (a
+  soft-block, a cancelled ticket, a `next` shortlist) is answered there.
+- `restart` → step 1 regardless of the state (`round=` above `ticket.json.round`: the earlier stages re-run as stale).
+- `refuse` → the report is its `why` (`already done|closed; round=<n+1> or force=true to re-run`), with no lock and
+  nothing logged. `rerun` (`force=true`) → run as `next` says.
+- `error` → an error stop (§ Work directory, the grammar): the report, `needs:` the fix.
+- `stop` → the stop is the report (with its `note` line when a stale queued answer was set aside).
+- `locked` → a live lock held by another owner is the stop, without unlocking.
+- `run` → run `next`, with its `answers` (from the person or the office's queue). A `startTicketForce` first re-runs
+  `/tp:start-ticket <id> force=true` — a parked ticket whose worktrees went at parking: the one case that creates
+  them again, from the base that now holds the blockers' work; the stages after it re-run as stale.
+
+Only when a stage will run:
 `state.mjs lock <workdir> <owner>` (a live lock held by another owner → that is the
 stop, without unlocking), `state.mjs log <workdir> run-ticket started`, then run
 `next` — with `answers=` when given (`repo=` is `next`'s suffix for `/tp:implement`,

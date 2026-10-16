@@ -103,12 +103,13 @@ returned, `answers=retry` afterwards. **Harder than rated** → checkpoint and r
 `complexity: higher — <reason>` (§ Models and budget, Escalation).
 
 After the last step, the gates — **reuse, hooks, then run** (§ Verification rules owns
-all three; this stage only applies them): a result recorded for this head and base is
-the table; else, when the repo's hooks own every gate, the commits above are the gate
-run and the table is their `HOOK` rows; else `/tp:verify path=<worktree> base=<base
-branch>` (its dedicated agent under the office id `<id>:<stage>:qa:verify`, this agent
-as `parent`; `inline=true` when this agent cannot spawn — § Definitions, Depth), which
-records its result for the commit `/tp:create-pr` will find. Failures are fixed in the
+all three; this stage only applies them): `node <lib>/gatesrun.mjs '{ "repo": "<repo>", "path": "<worktree>",
+"base": "<base>", "claudeDir": "<.claude>" }'` does them on this machine — a recorded result is the table
+(`reused`), the hooks' gates are `HOOK` rows, the rest run concurrently and, all green, are recorded (`pass`).
+Only `needs-agent` (a gate failed, or rewrote files) spawns `/tp:verify path=<worktree> base=<base>` (its dedicated
+agent under the office id `<id>:<stage>:qa:verify`, this agent as `parent`; `inline=true` when this agent cannot
+spawn — § Definitions, Depth), which takes the failures from there and records its result for the commit
+`/tp:create-pr` will find; `error` is the error stop. Failures are fixed in the
 implementation, never by weakening a gate or a hook; the fix loop is bounded the way a checkpoint's is
 (`model.mjs retry`), then the error stop.
 

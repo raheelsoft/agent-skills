@@ -10,6 +10,11 @@
 //   node state.mjs all   <workroot>           -> JSON array, one entry per work directory
 //   node state.mjs table <workroot> [problems] -> the status board as a markdown table (one row per ticket), the totals line, problems, leftover worktrees and stale locks —
 //                                                what /tp:status relays; `problems` keeps only the tickets that have one
+//   node state.mjs route <workdir|id> [--round n] [--force] [--answers t] [--owner o] -> JSON { action: first-run|restart|rerun|run|stop|refuse|error|locked, why, next, answers, … } —
+//                                                what /tp:run-ticket does first with a ticket; a queued office answer is consumed here
+//   node state.mjs approve <workdir|id> [--by who] -> records a plan's go-ahead (answers.md line, the check's override, the log note); refuses a plan not waiting for one
+//   node state.mjs retro-facts <workdir|id> [--claude <.claude>] -> JSON: stops, answers asked, implementation summary, manual criteria, plan-check, review rounds, minutes, tokens, counts
+//   node state.mjs inbox <workroot> --render [--date d] [--plan "<line>"] [--dry] -> the report /tp:inbox hands the session, as text
 //   node state.mjs show <workdir|id>            -> one ticket in detail as text: stages with minutes, the stop and its resume command, blockers, queued answer, lock, PRs, worktrees,
 //                                                problems, the tail of progress.md and the next action (what /tp:status <id> relays)
 //   node state.mjs durations <workdir>        -> JSON: minutes per stage (started -> done/stopped)
@@ -55,6 +60,10 @@ import { putArtifact, payloadText } from './state/put.mjs';
 import { writeDoc, docText } from './state/doc.mjs';
 import { shape } from './state/shape.mjs';
 import { statusTable, showTicket } from './state/table.mjs';
+import { routeWorkdir } from './state/route.mjs';
+import { approvePlan } from './state/approve.mjs';
+import { retroFacts } from './state/retrofacts.mjs';
+import { inboxReport } from './state/inboxreport.mjs';
 import { agentJoin, agentLeave } from './state/agents.mjs';
 import { office } from './state/office.mjs';
 
@@ -79,7 +88,7 @@ process.stdout.on('error', () => {}); // a closed pipe must never undo a log lin
 
 const [, , cmd, rawTarget, ...rest] = process.argv;
 // the commands whose first argument is one ticket's work directory: a bare ticket id stands for it
-const PER_TICKET = new Set(['log', 'state', 'check', 'durations', 'usage', 'blockers', 'actual', 'put', 'doc', 'lock', 'unlock']);
+const PER_TICKET = new Set(['log', 'state', 'check', 'durations', 'usage', 'blockers', 'actual', 'put', 'doc', 'lock', 'unlock', 'route', 'approve', 'retro-facts']);
 const target = PER_TICKET.has(cmd) ? resolveWorkdir(rawTarget) : rawTarget;
 function dispatch() {
   switch (cmd) {
@@ -92,7 +101,10 @@ function dispatch() {
     case 'durations': emit(durations(target)); break;
     case 'usage': { const o = flags(rest); emit(usage(target, { claudeDir: o.claude, date: o.date })); break; }
     case 'totals': { const o = flags(rest); emit(totals(target, { claudeDir: o.claude, date: o.date })); break; }
-    case 'inbox': emit(inbox(target)); break;
+    case 'inbox': { const o = flags(rest); if (o.render) process.stdout.write(`${inboxReport(target, o)}\n`); else emit(inbox(target)); break; }
+    case 'route': emit(routeWorkdir(target, flags(rest))); break;
+    case 'approve': emit(approvePlan(target, { by: typeof flags(rest).by === 'string' ? flags(rest).by : null })); break;
+    case 'retro-facts': emit(retroFacts(target, { claudeDir: flags(rest).claude })); break;
     case 'answer': {
       // answer <workroot> <id> <stage> '<text>' [--by x] | answer <workroot> <id> --consume|--peek
       if (rest[1] === '--consume' || rest[1] === '--peek') emit(answerTake(target, rest[0], rest[1]));

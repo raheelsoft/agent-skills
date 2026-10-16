@@ -28,12 +28,13 @@ describe('branchfacts', () => {
   it('reports the branch, its commits, the diff size and that it is not pushed yet', (t) => {
     const { repo } = bed(t);
     writeFileSync(join(repo, 'wip.txt'), 'x\n');
+    writeFileSync(join(repo, 'b.txt'), 'edited\n');
     const f = branchfacts({ repo, base: 'main' });
     assert.equal(f.branch, 'feat/x'); assert.equal(f.onBase, false);
     assert.equal(f.base.ref, 'origin/main'); assert.equal(f.ahead, 1); assert.equal(f.behind, 0);
     assert.deepEqual(f.commits.map((c) => c.subject), ['add b']);
     assert.deepEqual(f.diff, { files: 1, additions: 2, deletions: 0 });
-    assert.deepEqual(f.dirty, [{ status: '??', path: 'wip.txt' }]);
+    assert.deepEqual(f.dirty, [{ status: 'M', path: 'b.txt' }, { status: '??', path: 'wip.txt' }]);
     assert.equal(f.remote.name, 'origin'); assert.deepEqual(f.pushed, { exists: false, sha: null, upToDate: false });
   });
 
