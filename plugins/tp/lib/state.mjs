@@ -10,6 +10,8 @@
 //   node state.mjs all   <workroot>           -> JSON array, one entry per work directory
 //   node state.mjs table <workroot> [problems] -> the status board as a markdown table (one row per ticket), the totals line, problems, leftover worktrees and stale locks —
 //                                                what /tp:status relays; `problems` keeps only the tickets that have one
+//   node state.mjs show <workdir|id>            -> one ticket in detail as text: stages with minutes, the stop and its resume command, blockers, queued answer, lock, PRs, worktrees,
+//                                                problems, the tail of progress.md and the next action (what /tp:status <id> relays)
 //   node state.mjs durations <workdir>        -> JSON: minutes per stage (started -> done/stopped)
 //   node state.mjs usage <workdir> [--claude <.claude>] [--date YYYY-MM-DD]
 //                                             -> JSON: { perStage, perTier, total, cost, unpriced, partial } from "tokens=<n> tier=<rating>"
@@ -52,7 +54,7 @@ import { recordBlockers, recordActual } from './state/records.mjs';
 import { putArtifact, payloadText } from './state/put.mjs';
 import { writeDoc, docText } from './state/doc.mjs';
 import { shape } from './state/shape.mjs';
-import { statusTable } from './state/table.mjs';
+import { statusTable, showTicket } from './state/table.mjs';
 import { agentJoin, agentLeave } from './state/agents.mjs';
 import { office } from './state/office.mjs';
 
@@ -85,6 +87,7 @@ function dispatch() {
     case 'state': { const s = computeState(target); emit(flags(rest).brief ? brief(s) : s); break; }
     case 'check': { const s = computeState(target); emit(s, s.problems.length ? 1 : 0); break; }
     case 'all': emit(all(target)); break;
+    case 'show': process.stdout.write(`${showTicket(resolveWorkdir(rawTarget))}\n`); break;
     case 'table': process.stdout.write(`${statusTable(target, { filter: rest[0] })}\n`); break;
     case 'durations': emit(durations(target)); break;
     case 'usage': { const o = flags(rest); emit(usage(target, { claudeDir: o.claude, date: o.date })); break; }

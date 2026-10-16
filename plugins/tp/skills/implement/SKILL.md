@@ -74,7 +74,7 @@ one job per § Context management, rule 9 — with the full shape (`status: read
 `flags` from `triage.json`, `steps`, `openQuestions: 0`, `complexity`): a short plan
 using the template's headings (§ Goal with the ticket's
 numbered criteria, § Steps with 2–4 steps each with files and a checkpoint,
-§ Verification incl. manual steps, § Risks and rollback and § Out of scope from
+§ Verification incl. a `Criteria checks` line per criterion and the manual steps, § Risks and rollback and § Out of scope from
 triage's flags and scope notes) — so the record and the hand-offs to `/tp:create-pr`,
 `/tp:release` and `/tp:accept` are the same as for planned work. Then, for each step:
 1. `state.mjs log <workdir> <stage> note "step <n> started"`.
@@ -89,7 +89,7 @@ triage's flags and scope notes) — so the record and the hand-offs to `/tp:crea
 4. Commit when the plan says so (§ Commits) — its output to a file, its exit code read:
    the repo's pre-commit hook runs the project's gates on this commit, so a rejected
    commit is a gate failure to fix here, never bypassed (§ Verification rules).
-5. `state.mjs log <workdir> <stage> note "step <n> done - <deviation, if any>" <commit>`.
+5. `state.mjs log <workdir> <stage> note "step <n> done - <checkpoint command> exit 0[; deviation: <one line>]" <commit>` — the evidence, not just the word.
 
 **Stop** (`state.mjs log <workdir> <stage> stopped "step <n> — <reason and question>"`,
 phrased with its choices and default — § Definitions, Asking the user) instead of
@@ -109,7 +109,13 @@ run and the table is their `HOOK` rows; else `/tp:verify path=<worktree> base=<b
 branch>` (its dedicated agent under the office id `<id>:<stage>:qa:verify`, this agent
 as `parent`; `inline=true` when this agent cannot spawn — § Definitions, Depth), which
 records its result for the commit `/tp:create-pr` will find. Failures are fixed in the
-implementation, never by weakening a gate or a hook.
+implementation, never by weakening a gate or a hook; the fix loop is bounded the way a checkpoint's is
+(`model.mjs retry`), then the error stop.
+
+Then prove the plan is whole: `node <lib>/coverage.mjs <workdir> --repo <name>` measures it from the diff and the
+recorded gates — every step's files changed, every criterion's test present, no recorded gate failing. A gap is
+fixed (the step finished, the test written) and the command run again; `complete: true` is the only way on, and
+the `tp:implementer` stop gate runs the same check. Its `--render` output goes into `report.md`.
 
 Finally append to `plan.md`:
 ```

@@ -20,7 +20,7 @@ function plan(over = {}) {
       { n: 2, files: '`src/invoices/total.spec.ts` (new)', commit: 'no, folded into step 3' },
       { n: 3, files: '`src/invoices/format.ts` (edit)', commit: 'yes — `test: VAT`' },
     ],
-    verification: '- Gates: the project\'s own.\n- Manual: 1. open an invoice.', risks: '- none → n/a', questions: 'none', scope: 'nothing else',
+    verification: '- Gates: the project\'s own.\n- Criteria checks:\n  1 → test `src/invoices/total.spec.ts` "includes VAT"\n  2 → manual 1\n- Manual:\n  1. open a zero-rated invoice.', risks: '- none → n/a', questions: 'none', scope: 'nothing else',
     ...over,
   };
   const step = (s) => `### Step ${s.n} — change ${s.n}\n- Files: ${s.files}\n- Change: do the thing\n${s.pattern ? `- Pattern: ${s.pattern}\n` : ''}- Checkpoint: \`tsc --noEmit\`\n- Commit: ${s.commit}\n`;
@@ -117,6 +117,28 @@ describe('plan-lint — steps and commits', () => {
   it('a fold into an earlier step is allowed, and a plain no (nothing to commit) is not a fold', () => {
     assert.equal(lint(plan().replace('folded into step 3', 'folded into step 1')).ok, true);
     assert.equal(lint(plan().replace('no, folded into step 3', 'no — outside any repo, nothing to commit')).ok, true);
+  });
+});
+
+describe('plan-lint — every criterion is proved by a named check', () => {
+  const V = (checks, manual = '- Manual:\n  1. open a zero-rated invoice.') => `- Gates: the project's own.\n- Criteria checks:\n${checks}\n${manual}`;
+  it('a plan whose criteria are all mapped passes, and the checks are parsed', async () => {
+    const { checksOf } = await import('../lib/contract/proof.mjs');
+    const p = parsePlan(plan());
+    assert.deepEqual(checksOf(p).checks.map((c) => [c.criterion, c.type, c.path || c.manual, c.name || null]), [[1, 'test', 'src/invoices/total.spec.ts', 'includes VAT'], [2, 'manual', 1, null]]);
+    assert.equal(checksOf(p).manualSteps, 1);
+    assert.equal(lint(plan()).findings.filter((f) => f.rule === 'criteria-checks').length, 0);
+  });
+  it('no mapping at all, a criterion without a check, and a check of a criterion that does not exist are blocking', () => {
+    says(lint(plan({ verification: '- Gates: the project\'s own.\n- Manual:\n  1. open an invoice.' })), /maps no criterion to a check/);
+    says(lint(plan({ verification: V('  1 → test `a.spec.ts` "x"') })), /criterion 2 has no check/);
+    says(lint(plan({ verification: V('  1 → test `a.spec.ts` "x"\n  2 → manual 1\n  3 → manual 1') })), /checks criterion 3, which § Goal does not number/);
+  });
+  it('a test check names its file, a manual check names a step that exists, a command check gives the command', () => {
+    says(lint(plan({ verification: V('  1 → test "no file"\n  2 → manual 1') })), /a test check names its file in backticks/);
+    says(lint(plan({ verification: V('  1 → test `a.spec.ts`\n  2 → manual 4') })), /"manual 4" names a step of the Manual list, which has 1/);
+    says(lint(plan({ verification: V('  1 → command nothing\n  2 → manual 1') })), /a command check gives the command in backticks/);
+    assert.equal(lint(plan({ verification: V('  1 → command `npm run e2e`\n  2 → test `b.spec.ts`') })).findings.filter((f) => f.rule === 'criteria-checks').length, 0);
   });
 });
 

@@ -83,13 +83,11 @@ results so far and return `continue: <path>`; with `continue=true` resume at the
 first criterion without a result.
 
 ### 3. Files
-`accept.json`:
-```
-{ where, targets: [{ repo, env: null|{ name, url }, checkout: null|path }],
-  criteria: [{ n, text, result: "pass"|"fail"|"manual", evidence }],
-  passed: n, failed: n, manual: n }
-```
-`accept.md` — the same as a table, evidence trimmed to what proves the point.
+`accept.json` — `node <lib>/state.mjs shape accept` is the form (`examples/accept-json.md` has good and bad ones). `put` computes
+`passed`, `failed` and `manual` from the criteria, refuses a set that is not exactly the ticket's
+`acceptanceCriteria` and a `pass` or `fail` with no evidence, and writes `accept.md` — the same record as a table —
+itself.
+
 
 ### 4. Decide
 - Any **fail** → `state.mjs log … stopped "<n> criteria failed: <numbers> — start

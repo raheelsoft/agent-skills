@@ -41,6 +41,11 @@ Ordered; each step is one coherent, verifiable change. Format:
 - Gates: the project's own (`/tp:verify base=<base branch>`).
 - Tests: <which existing tests cover this; which new ones the project's conventions
   expect, with file paths>.
+- Criteria checks: one line per check, every numbered criterion of § Goal at least once —
+  `<n> → test `<file>` "<test name>"` (a test the change adds or that already exists),
+  `<n> → manual <k>` (step k of the Manual list), `<n> → command `<cmd>``. `plan-lint.mjs`
+  refuses a plan with a criterion that has none; `coverage.mjs` later proves each check
+  exists in the change, and `/tp:accept` walks the same numbers.
 - Manual: numbered steps a person follows in a running instance — screen or command,
   actions, expected result. Data setup if any (on a disposable copy).
 

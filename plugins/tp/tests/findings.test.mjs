@@ -75,6 +75,12 @@ describe('renderReview', () => {
 | lint | PASS |  |
 | tests | PASS | 41 tests |
 
+### Acceptance criteria
+| # | Status | Evidence |
+|---|--------|----------|
+| 1 | covered | src/invoices/total.ts:14 adds VAT to the total; total.test.ts "includes VAT" |
+| 2 | missing | a zero-rated order still shows a blank, src/invoices/format.ts:22 |
+
 #### Fix before merging (1)
 1. \`src/invoices/total.ts:27\` — VAT is rounded per line, the contract says on the total; a 3-line order is off by 0.01.
    → Sum the net lines, then round once
@@ -159,5 +165,41 @@ describe('findings.mjs — the command', () => {
     assert.equal(run('verdict', file(t, '{ nope')).code, 1);
     assert.equal(run('verdict', '/no/such/file.json').code, 2);
     assert.equal(run('judge', file(t, '{}')).code, 2);
+  });
+});
+
+describe('trace — a review proves it judged every criterion and answered every scan hit', () => {
+  const covered = (n, evidence = 'a.ts:10') => ({ n, status: 'covered', evidence });
+  it('every criterion of the ticket needs a row; covered names its evidence', async () => {
+    const { traceErrors } = await import('../lib/contract/trace.mjs');
+    assert.deepEqual(traceErrors(pass([], { criteria: [covered(1), covered(2)] }), { criteria: 2 }), []);
+    assert.match(traceErrors(pass([], { criteria: [covered(1)] }), { criteria: 2 }).join(), /criterion 2 of the ticket has no row/);
+    assert.match(traceErrors(pass([], { criteria: [covered(1, ' ')] }), { criteria: 1 }).join(), /covered but names no evidence/);
+    assert.match(traceErrors(pass([], { criteria: [covered(1), covered(3)] }), { criteria: 2 }).join(), /row for 3, the ticket has 2/);
+    assert.deepEqual(traceErrors(pass([]), { criteria: null }), [], 'no ticket count given: nothing to compare with');
+    assert.deepEqual(traceErrors(pass([], { mode: 'resolution' }), { criteria: 2 }), [], 'a resolution pass checks the open items only');
+  });
+  it('a criterion the change does not deliver must be an open P0/P1 finding that names it', async () => {
+    const { traceErrors } = await import('../lib/contract/trace.mjs');
+    const missing = { n: 1, status: 'missing', evidence: 'no q handling' };
+    assert.match(traceErrors(pass([f(1, 'P2', { criterion: 1 })], { criteria: [missing] }), { criteria: 1 }).join(), /no open P0\/P1 finding carries "criterion": 1/);
+    assert.deepEqual(traceErrors(pass([f(1, 'P1', { criterion: 1 })], { criteria: [missing] }), { criteria: 1 }), []);
+  });
+  it('a P0/P1 scan hit is raised as a finding or dismissed with a reason; lower hints are left to the reviewer', async () => {
+    const { traceErrors } = await import('../lib/contract/trace.mjs');
+    const scan = { hits: [{ file: 'src/a.ts', line: 3, rule: 'cloud-token', hint: 'P0' }, { file: 'src/a.ts', line: 9, rule: 'debug-output', hint: 'P3' }] };
+    assert.match(traceErrors(pass([]), { scan }).join(), /cloud-token at src\/a\.ts:3 is neither a finding nor in "dismissed"/);
+    assert.deepEqual(traceErrors(pass([f(1, 'P0', { file: 'src/a.ts', line: 3 })]), { scan }), []);
+    assert.deepEqual(traceErrors(pass([], { dismissed: [{ rule: 'cloud-token', file: 'src/a.ts', line: 3, why: 'a documented example key' }] }), { scan }), []);
+  });
+  it('the command refuses an untraced review with --criteria and --scan, and the comment carries the criteria table', (t) => {
+    const run = (...args) => { const r = spawnSync(process.execPath, [script('findings.mjs'), ...args], { encoding: 'utf8' }); return { code: r.status, out: r.stdout, err: r.stderr }; };
+    const file = (t_, obj) => { const root = tmp(); t_.after(() => rm(root)); const p = join(root, 'review.json'); writeFileSync(p, JSON.stringify(obj)); return p; };
+    const review = pass([], { criteria: [covered(1)] });
+    const p = file(t, review);
+    assert.equal(run('check', p, '--criteria', '1').code, 0);
+    const bad = run('check', p, '--criteria', '2');
+    assert.equal(bad.code, 1); assert.match(bad.out, /criterion 2 of the ticket has no row/);
+    assert.match(renderReview(review), /### Acceptance criteria\n\| # \| Status \| Evidence \|\n\|---\|--------\|----------\|\n\| 1 \| covered \| a\.ts:10 \|/);
   });
 });

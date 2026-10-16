@@ -4,19 +4,17 @@ description: Shows where every ticket in the work directory stands — stage, ra
 user-invocable: true
 ---
 
-**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). Its checkpoint and any other document it writes in the work directory go through `node <lib>/state.mjs doc <.claude>/work/_scratch <name>` (the text on stdin or `--from <file>`; a draft or a command's output goes under `<.claude>/worktrees/_out/`, in a name that carries its slug or date — the one place below `.claude/` an agent may write): a hook refuses a raw write. Start every command with `node <lib>/…` or `git`, the path written out in full — a `VAR=… ;` or `cd … &&` in front of it falls outside the permission allowlist and is denied in an unattended run.
+**Paths.** `<lib>` = `${CLAUDE_PLUGIN_ROOT}/lib` (this plugin's scripts) · `<.claude>` = `${CLAUDE_PROJECT_DIR}/.claude` (this project's configuration and `work/`). It writes nothing. Start every command with `node <lib>/…` or `git`, the path written out in full — a `VAR=… ;` or `cd … &&` in front of it falls outside the permission allowlist and is denied in an unattended run.
 
-One table for all tickets, or one ticket in detail. Everything comes from
-`state.mjs` (`reference/definitions.md` § Definitions, The scripts); this skill formats, it doesn't infer.
+One table for all tickets, or one ticket in detail — both printed by `state.mjs` (`reference/definitions.md` § Definitions, The
+scripts). It runs **in the invoking context**: no agent is spawned to run one command and copy its output
+(§ Definitions, Dedicated agent).
 
 ## Input
 
 - No argument → every work directory under `<.claude>/work/`.
 - `<id>` → that ticket in detail.
 - `problems` → only tickets whose state script reports a problem.
-- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
-  rating: `low` (run the state script, format its output). Nothing is logged; a
-  checkpoint goes under `<.claude>/work/_scratch/`.
 
 ## Steps
 
@@ -28,17 +26,9 @@ with their `unlock` command. Relay it as it is; the columns and what fills them 
 `state.mjs table` in `reference/definitions.md`. Nothing is recomputed here.
 
 ### One ticket
-`state.mjs state <workdir>` and `state.mjs durations <workdir>` → the stage list with
-status and timestamp, the current complexity rating (`complexity`), minutes per stage,
-the stopped question if any with its `kind`, `resume` command and default, the
-blockers as last recorded (`blockedBy`, `checkedAt`), any answer queued for the stop
-(`state.mjs answer <workroot> <id> --peek`), the lock (owner,
-since, last refresh, stale), the PRs, the worktrees, the retro's proposal count by
-target (the script's `retro` field), the problems, and the tail of `progress.md` (last
-ten lines).
-Say what the next action is: the stage `/tp:run-ticket <id>` would run, the question
-waiting for an answer, or — for a done ticket without a retro — that `/tp:retro <id>` is
-available.
+`node <lib>/state.mjs show <id>` prints it — the stage list with status, time and minutes, the stop with its `kind`, `resume`
+command and default, the blockers as last recorded, any queued answer, the lock, the PRs, the worktrees, the problems, the last ten lines of
+`progress.md` and the next action. Relay it as it is.
 
 ### Report
 The table or the detail; nothing else. No fixes are made here — a problem is reported

@@ -8,6 +8,7 @@
 //   ctx: { ticket?, planJson?, research?, repos?: [{ name, worktree, path }], projectRoot?, fs?: true }  — without a worktree the file rules are skipped, and named in `skipped`
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { lintChecks } from './proof.mjs';
 
 export const SECTIONS = ['Goal', 'Current behaviour', 'Approach', 'Steps', 'Verification', 'Risks and rollback', 'Open questions', 'Out of scope'];
 /** What an implementer cannot work without; a missing section among the others is worth a line, not a rework. */
@@ -272,6 +273,7 @@ export function lintPlan(plan, ctx = {}) {
   if (ctx.ticket && Array.isArray(ctx.ticket.acceptanceCriteria)) {
     if (plan.criteria.length !== ctx.ticket.acceptanceCriteria.length) block('—', 'criteria', `§ Goal numbers ${plan.criteria.length} acceptance criteria, ticket.json has ${ctx.ticket.acceptanceCriteria.length}`);
   } else skipped.push('criteria');
+  lintChecks(plan, add); // 5b. each criterion is proved by a named check (contract/proof.mjs)
 
   // 6. template leftovers and "as discussed"
   const leftovers = [];

@@ -4,3 +4,4 @@ export { advance, approve, status } from './advance.mjs';
 export { show } from './files.mjs';
 export { eod } from './eod.mjs';
 export { lanesInfo } from './config.mjs';
+export { renderEod, askStop, writeEod, answerEod, parseAnswers, eodMain } from './eodreport.mjs';

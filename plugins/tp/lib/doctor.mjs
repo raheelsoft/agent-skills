@@ -8,6 +8,7 @@
 //                                                                    written to <.claude>/work/_doctor.json; exit 0 clean, 1 warnings, 2 failures
 //   node doctor.mjs fresh <.claude>                               -> { fresh, ok, ageHours, at }; exit 0 fresh and clean, 1 missing or older
 //                                                                    than tiers.json.doctor.maxAgeHours, 2 failing
+//   node doctor.mjs table <.claude>                               -> the recorded checks as a markdown table, failures first, and the `preflight: …` line; exit 0 clean, 1 warnings, 2 failures
 //   node doctor.mjs add <.claude> '{ "name", "status", "detail", "fix" }' -> add or replace one check (the skill's own tool-based check)
 //
 // tiers.json.doctor (defaults): { maxAgeHours: 24, heartbeatHours: 72, timeoutMs: 8000,
@@ -27,6 +28,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSy
 import { spawnSync } from 'node:child_process';
 import { join, dirname, resolve, basename, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { doctorTable } from './doctortable.mjs';
 import { status as skillsStatus, migrate as projectCopy, enforcement as skillEnforcement } from './setup.mjs';
 import { cover as hookCover } from './hooks.mjs';
 import { ceilingStatus } from './model.mjs';
@@ -366,8 +368,9 @@ if (process.argv[1] && isMain(import.meta.url)) {
     switch (sub) {
       case 'run': { if (!target) throw new Error('usage: doctor.mjs run <.claude> [--repos a,b] [--tests] [--session <model>]'); const o = flags(rest); const r = run(target, { repos: o.repos, tests: !!o.tests, session: typeof o.session === 'string' ? o.session : undefined }); emit(r, r.checks.some((c) => c.status === 'fail') ? 2 : r.checks.some((c) => c.status === 'warn') ? 1 : 0); break; }
       case 'fresh': { if (!target) throw new Error('usage: doctor.mjs fresh <.claude>'); const r = fresh(target); emit(r, !r.fresh ? 1 : !r.ok ? 2 : 0); break; }
+      case 'table': { if (!target) throw new Error('usage: doctor.mjs table <.claude>'); const t = doctorTable(target); process.stdout.write(`${t.text}\n`); process.exitCode = t.failures ? 2 : t.warnings ? 1 : 0; break; }
       case 'add': { if (!target || !rest[0]) throw new Error('usage: doctor.mjs add <.claude> \'<check>\''); emit(addCheck(target, rest[0])); break; }
-      default: console.error('usage: doctor.mjs run|fresh|add <.claude> …'); process.exit(2);
+      default: console.error('usage: doctor.mjs run|fresh|table|add <.claude> …'); process.exit(2);
     }
   } catch (e) { console.error(e.message); process.exit(2); }
 }

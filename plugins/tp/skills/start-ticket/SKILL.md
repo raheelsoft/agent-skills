@@ -70,7 +70,9 @@ wait? Default: wait"` (no work directory yet); continue only with `answers=conti
 **Not blocked** → continue.
 
 ### 4. Take it
-Create `<.claude>/work/<id>/` (keep an existing one) and read the state, then log
+An existing `<.claude>/work/<id>/` is kept and its state read. A new one is made by writing a stub
+`ticket.md` — `node <lib>/state.mjs doc <.claude>/work/<id> ticket.md` (the text on stdin: the title and link) —
+because that is the one command that creates the directory; step 9 overwrites it. Then log
 `state.mjs log <workdir> start-ticket started` (§ Definitions, Resume). Assign the
 ticket to yourself — most trackers have a single assignee, so this overwrites. Already
 you → no-op. Assigned to someone else → `stopped "assigned to <who> — take it over
@@ -107,8 +109,7 @@ ticket keeps for its whole run (`reference/work-directory.md` § Worktrees); a n
 re-branches it. Local only: no push, no PR.
 
 ### 9. Write the work directory
-`reference/work-directory.md` § Work directory — `ticket.md` first: the first document
-creates the directory — : `ticket.md` (title, link, description and
+`reference/work-directory.md` § Work directory — `ticket.md` first (replacing the stub): `ticket.md` (title, link, description and
 acceptance criteria verbatim, brief pointers, the repo table) and `ticket.json` —
 `acceptanceCriteria` verbatim as an array or, when the ticket has none, derived from
 its current-vs-expected description with `derived: true` (say so; `/tp:accept` proves

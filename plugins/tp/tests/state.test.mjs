@@ -1003,3 +1003,19 @@ it('table: one row per ticket, the stop and its default in the waiting column, q
   assert.equal(statusTable('/nowhere', { rows, sum: { tokens: 0, tickets: {} }, filter: 'problems' }).split('\n').filter((l) => l.startsWith('| DEMO')).length, 1);
   assert.equal(age(20), '20m'); assert.equal(age(300), '5h'); assert.equal(age(5000), '3d'); assert.equal(compact(54321), '54k');
 });
+
+it('show: one ticket in detail as text — stages, the stop with its resume command, the progress tail and the next action', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { STATE } = await import('./helpers.mjs');
+  const root = tmp();
+  try {
+    const dir = pickedUp(root, { id: 'DEMO-9' });
+    const r = spawnSync(process.execPath, [STATE, 'show', dir], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /^# DEMO-9/);
+    assert.match(r.stdout, /\| Stage \| Status \| At \| Minutes \|/);
+    assert.match(r.stdout, /\| start-ticket \| done \|/);
+    assert.match(r.stdout, /progress \(last 10\):/);
+    assert.match(r.stdout, /next: \/tp:run-ticket DEMO-9 runs triage$/m);
+  } finally { rm(root); }
+});

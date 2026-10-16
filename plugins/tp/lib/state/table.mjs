@@ -1,8 +1,9 @@
 // table.mjs — the status board as text: one row per ticket, the totals line, the problems and the worktrees nobody removed. It is what
 // `state.mjs table <workroot>` prints, so the skill relays it instead of a model formatting the JSON of `all`. The columns are described in reference/definitions.md.
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { all, totals } from './compute.mjs';
+import { basename, dirname, join } from 'node:path';
+import { all, totals, computeState, durations } from './compute.mjs';
+import { pendingAnswer } from './answers.mjs';
 
 const HEAD = ['Ticket', 'Title', 'Decision · rating', 'Estimate', 'Status', 'Next / waiting on', 'Run', 'PR · verdict · merged', 'Tokens · cost', 'Last event', 'Age'];
 
@@ -123,3 +124,30 @@ export function statusTable(workroot, { filter, rows = all(workroot), sum = tota
   if (stale.length) lines.push('', 'Stale locks', ...stale);
   return lines.join('\n');
 }
+
+/** One ticket in detail: stages with status, time and minutes, the stop, blockers, the queued answer, lock, PRs, worktrees, retro, problems, progress tail, next action. */
+export function ticketDetail(workroot, id) {
+  const wd = join(workroot, id);
+  const st = computeState(wd);
+  const dur = durations(wd);
+  const ans = pendingAnswer(workroot, id);
+  const L = [`# ${st.id}${st.title ? ` — ${st.title}` : ''}`, '', `rating: ${st.complexity || '—'} · decision: ${st.decision || '—'}${st.estimate ? ` · estimate ${st.estimate.focusedHours}h${st.estimate.source === 'pipeline' ? '*' : ''}` : ''}${st.link ? ` · ${st.link}` : ''}`, ''];
+  L.push('| Stage | Status | At | Minutes |', '|---|---|---|---|', ...(st.stages || []).map((x) => `| ${x.name} | ${x.status} | ${x.at || ''} | ${dur?.[x.name] ?? x.minutes ?? ''} |`), '');
+  if (st.stopped) L.push(`stopped (${st.stopped.kind}) at ${st.stopped.stage}: ${st.stopped.question}`, `  resume: ${st.stopped.resume || '—'}${st.stopped.default ? ` · default: ${st.stopped.default}` : ''}${st.stopped.doc ? ` · read: ${st.stopped.doc}` : ''}`);
+  if (ans) L.push(`answer queued (${ans.by || '?'}, ${ans.at || '?'}): ${ans.answer}`);
+  if (st.blockedBy?.length) L.push(`blockers: ${st.blockedBy.map((b) => `${b.id} ${b.resolved ? 'resolved' : clip(cell(b.state || 'open'), 50)}${b.checkedAt ? ` (checked ${b.checkedAt})` : ''}`).join('; ')}${st.unblocked ? ' — all resolved' : ''}`);
+  if (st.lock) L.push(`lock: ${st.lock.owner} since ${st.lock.since}, last ${st.lock.updated}${st.lock.stale ? ' — STALE' : ''}`);
+  for (const p of st.prs || []) L.push(`PR: ${p.url} · ${p.verdict || 'no verdict'} · rounds ${p.reviewRounds ?? 0}${p.merged ? ` · merged ${String(p.merged).slice(0, 8)}` : ''}`);
+  if (st.worktrees?.length) L.push(`worktrees: ${st.worktrees.join(', ')}`);
+  if (st.retro) L.push(`retro: ${JSON.stringify(st.retro)}`);
+  if (st.problems?.length) L.push('problems:', ...st.problems.map((x) => `- ${x}`));
+  let tail = [];
+  try { tail = readFileSync(join(wd, 'progress.md'), 'utf8').trim().split('\n').slice(-10); } catch { /* no progress.md */ }
+  if (tail.length) L.push('', 'progress (last 10):', ...tail);
+  const next = st.stopped ? `answer the stop: ${st.stopped.resume || ''}` : st.next ? `/tp:run-ticket ${st.id} runs ${st.next}` : st.status === 'done' && !st.retro ? `/tp:retro ${st.id} is available` : 'nothing waiting';
+  L.push('', `next: ${next}`);
+  return L.join('\n');
+}
+
+/** `state.mjs show <workdir>`: the ticket named by its work directory. */
+export const showTicket = (workdir) => ticketDetail(dirname(workdir), basename(workdir));

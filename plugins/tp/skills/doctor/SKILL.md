@@ -10,7 +10,8 @@ Catch the environment failure before the run does. Every check here is something
 stage would otherwise hit mid-task and hand up as an `error:` stop (`reference/failures-and-stops.md`
 § Failures and escalation) — a key not loaded, a CLI logged out, an allowlist rule
 missing, a stray file at the work root. The script does the checks that need no
-tool; this agent adds the one that does (the tracker) and reports the table.
+tool; this skill adds the one that does (the tracker) and relays the table. It runs **in the invoking context** — no agent is
+spawned to run a script and print its table (`reference/definitions.md` § Definitions, Dedicated agent).
 
 ## Input
 
@@ -23,14 +24,8 @@ tool; this agent adds the one that does (the tracker) and reports the table.
   above the ceiling (`reference/models-and-budget.md` § Models and budget, The ceiling). Absent → only
   the starting model is checked.
 - `answers=retry` — after fixing what an error stop named (§ Stops).
-- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
-  rating: `low` (run a script, one lookup, format a table).
 
 ## Steps
-
-### 0. Register
-`state.mjs agent join <.claude>/work '{ "id": "doctor:<date>:lead", "level": "lead",
-"role": "preflight", "stage": "doctor", "rating": "low" }'`.
 
 ### 1. The script
 `node <lib>/doctor.mjs run <.claude> [--repos …] [--tests] [--session <model>]` — exit 0
@@ -42,19 +37,16 @@ project's own commands (the hosting CLI's auth status — reference/using.md § 
 A fixture tracker (`<.claude>/tracker.json`) is answered by the script — its `tracker` row —
 and there is nothing more to do here. Otherwise it is the one check a script cannot make:
 one read through the connected tracker (§ Definitions, Tracker) in the project's scope — the scope `/tp:plan-day` uses (`plan-day/instructions/
-selection.md` § Scope) — by this agent itself (a `low` lookup; no sub-agent for one
-call). Reachable and answering → `node <lib>/doctor.mjs add <.claude>
-'{ "name": "tracker", "status": "ok", "detail": "<tool> answered for <scope>" }'`;
+selection.md` § Scope) — made here (no sub-agent for one call). Reachable and answering → `node <lib>/doctor.mjs add <.claude>
+'{ "name": "tracker", "status": "ok", "detail": "<tool> returned <n> ticket(s) for <scope>" }'` — the detail carries the evidence, not a bare ok;
 no tracker tool connected, or the read failing → `status: "fail"` with the exact
 message and the fix (connect the tool, log in, name the scope).
 
 ### 3. Report
-The table — `| check | status | detail | fix |` — with the failures first, then the
-one line `preflight: ok | <n> warning(s) | <m> failure(s) — <at>`. A failure is an
-error stop (§ Failures and escalation): the error form with `needs:` = the fix lines,
-resume `/tp:doctor answers=retry`; `/tp:plan-day` and `/tp:run-ticket` relay it as theirs
-before any run. Then `state.mjs agent leave <.claude>/work doctor:<date>:lead done`
-and the output contract lines.
+`node <lib>/doctor.mjs table <.claude>` prints the table — `| check | status | detail | fix |`, failures first — and the one
+line `preflight: ok | <n> warning(s) | <m> failure(s) — <at>`, including the tracker row added in step 2; exit 0 clean,
+1 warnings, 2 failures. Relay it. A failure is an error stop (§ Failures and escalation): the error form with `needs:` =
+the fix lines, resume `/tp:doctor answers=retry`; `/tp:plan-day` and `/tp:run-ticket` relay it as theirs before any run.
 
 ## When it runs by itself
 `/tp:plan-day` and `/tp:run-ticket` ask `node <lib>/doctor.mjs fresh

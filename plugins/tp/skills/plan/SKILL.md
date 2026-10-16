@@ -63,9 +63,8 @@ file when given; each repo's worktree, branch, base and conventions file from
 § Verification rules — the plan may only plan checks the implementer is allowed to
 run); the frontier (rule 8: the acceptance criteria and the code they name — search
 by the ticket's nouns, the hits and one level of callers and callees; the plan lists
-every file it will touch). It writes `plan.md` and `plan.json` (`{ status, flags,
-steps, openQuestions, complexity }`, the planner's own rating confirming or revising
-triage's with what the code showed). Independent investigations (each affected area,
+every file it will touch). It writes `plan.md` and `plan.json` (`put` derives `status`, `flags`, `steps` and `openQuestions` from `plan.md`; the
+planner supplies `complexity`, its own rating confirming or revising triage's with what the code showed). Independent investigations (each affected area,
 the pattern to follow, the test setup) may be parallel read-only lookups inside this
 agent, sequential at the depth that cannot spawn. A re-plan in step 2's loop (or with
 `findings=`, a change request) is this same agent revising `plan.md` — the blocking

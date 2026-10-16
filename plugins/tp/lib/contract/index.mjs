@@ -6,3 +6,4 @@ export { PRIORITIES, TIERS, tierOf, verdictOf, idsOf, rowOf, renderReview } from
 export { PRIORITY_KEYS, WEIGHTS, scoreOf, compareOpen, aggregate } from './quality.mjs';
 export { parsePlan, lintPlan, lintWorkdir } from './plan.mjs';
 export { shapeOf, catalogue } from './shape.mjs';
+export { checksOf, lintChecks } from './proof.mjs';

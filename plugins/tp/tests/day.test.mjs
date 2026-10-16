@@ -449,6 +449,73 @@ describe('day.mjs eod — the day\'s close', () => {
   });
 });
 
+describe('day plan markdown — what the person approves from', () => {
+  it('lists the skipped tickets with their reason and the ones not drawn today', async () => {
+    const { markdown } = await import('../lib/day/files.mjs');
+    const p = { date: '2026-01-02', from: 'sprint', features: [], lanes: 1, band: null, count: null, seed: 1, day: { hours: 8, focus: 0.65, perDay: 5.2, switch: 0.5, attend: 0.25 }, approved: null, tickets: [], days: [], batches: [], inFlight: [], carried: [], skipped: [{ id: 'S-1', why: 'blocked by S-9' }], undrawn: ['U-1', 'U-2'] };
+    const md = markdown(p);
+    assert.match(md, /Skipped:\n- S-1 — blocked by S-9/);
+    assert.match(md, /Not drawn today: U-1, U-2/);
+  });
+});
+
+describe('day.mjs eod --render — the report, the question and the answers, written by the script', () => {
+  const setup = () => {
+    const r = root();
+    writeJson(r, 'tiers.json', { low: 'a', medium: 'b', high: 'c', prices: { low: 1, medium: 4, high: 20 } });
+    const a = reached(r, 'A-1', 'accept');
+    writeJson(a, 'ticket.json', { ...JSON.parse(readFileSync(join(a, 'ticket.json'), 'utf8')), complexity: 'medium', estimate: { source: 'pipeline', focusedHours: 8, days: 1.5, points: 2, basis: { rating: 'medium' } } });
+    append(a, [['2026-01-02T09:00Z', 'accept', 'started'], ['2026-01-02T09:30Z', 'accept', 'done', 'all pass tokens=1000000 tier=medium']]);
+    const c = reached(r, 'C-3', 'triage', 'triage');
+    append(c, [['2026-01-02T11:00Z', 'triage', 'started'], ['2026-01-02T11:05Z', 'triage', 'stopped', 'which env? Default: stage']]);
+    return { r, w: join(r, 'work'), a };
+  };
+  const input = (r) => JSON.stringify({ claudeDir: r, now: '2026-01-02T18:00:00Z' });
+
+  it('writes the .md in the fixed format and the stop that asks for the missing hours', () => {
+    const { r, w } = setup();
+    const out = spawnSync(process.execPath, [join(STATE, '..', 'day.mjs'), 'eod', w, '2026-01-02', input(r), '--render'], { encoding: 'utf8' });
+    assert.equal(out.status, 0, out.stderr);
+    const res = JSON.parse(out.stdout);
+    assert.match(res.asks, /^1\. A-1 .* hours you spent\? \(estimate 8h\) Default: 8$/);
+    const md = readFileSync(join(w, '_day', '2026-01-02.eod.md'), 'utf8');
+    assert.match(md, /^# End of day — 2026-01-02\n\ndone: 1 — A-1 /);
+    assert.match(md, /stopped: C-3 · triage · question · waiting 6h55m — which env\? Default: stage/);
+    assert.match(md, /\| A-1 \| medium \| 8h\* \| — \| .* \| 1,000,000 · \$4 \|/);
+    assert.match(md, /today: 1,000,000 tokens · \$4/);
+    const stop = JSON.parse(readFileSync(join(w, '_scratch', 'eod-2026-01-02.stop.json'), 'utf8'));
+    assert.deepEqual([stop.id, stop.kind, stop.tickets], ['eod:2026-01-02', 'question', [{ id: 'A-1', estimate: 8 }]]);
+    rm(r);
+  });
+
+  it('--dry asks nothing; --answers records the hours, removes the stop and writes the report again with the drift', () => {
+    const { r, w, a } = setup();
+    const run = (...args) => JSON.parse(spawnSync(process.execPath, [join(STATE, '..', 'day.mjs'), 'eod', w, '2026-01-02', ...args], { encoding: 'utf8' }).stdout);
+    assert.equal(run(input(r), '--render', '--dry').asks, null);
+    assert.ok(!existsSync(join(w, '_scratch', 'eod-2026-01-02.stop.json')));
+    run(input(r), '--render');
+    const res = run(input(r), '--answers', '1: 12');
+    assert.deepEqual(res.recorded, [{ id: 'A-1', hours: 12 }]);
+    assert.equal(JSON.parse(readFileSync(join(a, 'ticket.json'), 'utf8')).actual.focusedHours, 12);
+    assert.ok(!existsSync(join(w, '_scratch', 'eod-2026-01-02.stop.json')));
+    assert.match(readFileSync(join(w, '_day', '2026-01-02.eod.md'), 'utf8'), /medium: 1 sample, actual\/estimate 1.5×/);
+    rm(r);
+  });
+
+  it('parseAnswers reads numbered answers; a blank takes the estimate and skip records nothing', async () => {
+    const { parseAnswers } = await import('../lib/day/eodreport.mjs');
+    assert.deepEqual(parseAnswers('1: 5 | 2: skip | 3: '), { 1: '5', 2: 'skip', 3: '' });
+    const { r, w, a } = setup();
+    const res = JSON.parse(spawnSync(process.execPath, [join(STATE, '..', 'day.mjs'), 'eod', w, '2026-01-02', input(r), '--render'], { encoding: 'utf8' }).stdout);
+    assert.ok(res.asks);
+    const blank = JSON.parse(spawnSync(process.execPath, [join(STATE, '..', 'day.mjs'), 'eod', w, '2026-01-02', input(r), '--answers', '1: '], { encoding: 'utf8' }).stdout);
+    assert.deepEqual(blank.recorded, [{ id: 'A-1', hours: 8 }]);
+    assert.equal(spawnSync(process.execPath, [join(STATE, '..', 'day.mjs'), 'eod', w, '2026-01-02', input(r), '--answers', '1: 3'], { encoding: 'utf8' }).status, 2, 'no stop left to answer');
+    void a;
+    rm(r);
+  });
+});
+
 describe('day.mjs — the plan as a proposal the person approves or adjusts', () => {
   const tickets = () => [T('T-1'), T('T-2'), T('T-3', { after: ['T-1'] }), T('T-4', { after: ['T-2'] })];
 

@@ -39,7 +39,7 @@ export function markdown(p) {
     `\nBatches: ${p.batches.map((b) => b.join(' + ')).join(' → ') || 'none'}\n` +
     list('In flight (already in the pipeline):', p.inFlight.map((i) => `${i.id} — ${i.status}${i.stage ? ` (${i.stage})` : ''}${i.question ? ` — ${i.question}` : ''}${i.attention ? ` — ${i.attention}h of attention today` : ''}`)) +
     (p.carried && p.carried.length ? `\nCarried over from the previous plan: ${p.carried.join(', ')}\n` : '') +
-    (p.tickets.some((t) => t.hoursSource === 'model') ? '\n\\* hours estimated by the model (no tracker estimate)\n' : '')
+    (p.tickets.some((t) => t.hoursSource === 'model') ? '\n\\* hours estimated by the model (no tracker estimate)\n' : '') +
     list('Skipped:', p.skipped.map((s) => `${s.id} — ${s.why}`)) +
     (p.undrawn.length ? `\nNot drawn today: ${p.undrawn.join(', ')}\n` : '');
 }

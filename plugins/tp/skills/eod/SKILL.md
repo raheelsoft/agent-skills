@@ -17,66 +17,45 @@ prose, asks the one question, and sends the line.
 - `date=<YYYY-MM-DD>` — the day (default: today, local time).
 - `answers=<text>` — the actual hours, numbered as the report asked them
   (`answers="1: 5 | 2: skip | 3: "` — blank takes the estimate, `skip` records
-  nothing), or `retry` for an error stop.
+  nothing), or `retry` for an error stop (`retry` is not hours: go to step 2).
 - `dry=true` — write the report, ask nothing, send nothing.
-- `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
-  rating: `medium` (a bounded summary of the day's record).
 
 ## Where it runs
 
-The dedicated agent writes the report and returns it; **the session** puts the
-actuals question to the person with the interactive question tool (one item per
-finished ticket, the estimate as the default, `skip` as a choice) and re-invokes
-`/tp:eod date=<date> answers="…"`, which records them and finishes. Where nobody can be
-interviewed (a scheduled run), the report is printed as it is and the question waits
-in the office inbox (a `_scratch/eod-<date>.stop.json` stop, answerable there).
+**In the invoking context** — no agent is spawned to run one script and relay its report (`reference/definitions.md`
+§ Definitions, Dedicated agent). This context runs the steps below and puts the actuals question to the person with
+the interactive question tool (one item per finished ticket, the estimate as the default, `skip` as a choice), then
+runs step 1 with the answers. Where nobody can be interviewed (a scheduled run), the report is printed as it is and the
+question waits in the office inbox (a `_scratch/eod-<date>.stop.json` stop, answerable there).
 
-## Steps (inside the dedicated agent)
-
-### 0. Register
-`state.mjs agent join <.claude>/work '{ "id": "eod:<date>:lead", "level": "lead",
-"role": "end of day", "stage": "eod", "rating": "medium" }'`.
+## Steps
 
 ### 1. With `answers=` — record and finish
-`_scratch/eod-<date>.stop.json` holds the numbered tickets the report asked about.
-For each answered number: a positive number of hours → `state.mjs actual
-<.claude>/work/<id> '{ "focusedHours": <n>, "source": "person", "by": "eod" }'`;
-blank → the estimate's hours the same way; `skip` → nothing. Remove the stop file,
-re-run step 2 so the report and the drift reflect them, then step 4.
+`node <lib>/day.mjs eod <.claude>/work <date> --answers "<the answers text>"` records them from
+`_scratch/eod-<date>.stop.json` (a positive number of hours → `state.mjs actual … source: "person"`; blank → the
+estimate's hours; `skip` → nothing), removes the stop, and writes the report again so it and the drift reflect
+them. Then step 4.
 
-### 2. The day's numbers
-`node <lib>/day.mjs eod <.claude>/work <date> '{ claudeDir }'` →
-`_day/<date>.eod.json`: `done` (merged, released or accepted today), `inProgress`,
-`stopped` (kind, waiting time, question, resume), `parked`, `errors`, `perTicket`
-(rating, estimate, actual, the pipeline's minutes, tokens, cost), `missingActuals`,
-`totals` (today's tokens and cost), `budget`, `plan` and `carryOver`, `calibrate`
-(the drift line). A ticket in the tracker with a time-tracking field the person
-filled: one `low` lookup (`eod:<date>:qa:1`) reads it and it is recorded with
-`source: "tracker"` before anything is asked.
+### 2. The day's numbers and the report
+`node <lib>/day.mjs eod <.claude>/work <date> --render` (add `--dry` for `dry=true`) writes
+`_day/<date>.eod.json` (`done`, `inProgress`, `stopped`, `parked`, `errors`, `perTicket`, `missingActuals`,
+`totals`, `budget`, `plan`, `carryOver`, `calibrate`) and **the report `_day/<date>.eod.md` itself** — done,
+in progress, stopped, parked, errors, the per-ticket table (estimate `*` when the pipeline made it), today's
+tokens and cost, tomorrow's carry-over, the drift line — and, unless dry, the stop that asks for the missing
+hours (`_scratch/eod-<date>.stop.json`). The report is the script's: relay it, do not rewrite it.
 
-### 3. The report — `_day/<date>.eod.md`
-```
-# End of day — <date>
-done: <n> — <id> <title> (<stage> <time>) …
-in progress: <id> at <stage> … | stopped: <id> · <stage> · <kind> · waiting <t> — <question> …
-parked: <id> blocked by <ids and states> … | errors: <id> — needs <…> …
-| Ticket | Rating | Estimate | Actual | Pipeline | Tokens · cost |   ← perTicket; estimate `*` when the pipeline made it
-today: <tokens> tokens · $<cost> (<unpriced> unpriced) · budget <band> <pct>% at <time>
-tomorrow: <carryOver> — <the plan's why>
-estimates: <calibrate.drift>
-```
-Then, when `missingActuals` is non-empty and not `dry=true`: write
-`_scratch/eod-<date>.stop.json` (`{ id: "eod:<date>", skill: "eod", slug: "<date>",
-kind: "question", question: "1. <id> <title> — hours you spent? (estimate <h>h)
-Default: <h> | 2. …", at, resume: "/tp:eod date=<date> answers=\"…\"" }`) and return
-the report with that question as its first line — the stop (§ Definitions, Asking
-the user).
+When the project's tracker has a time-tracking field the person fills: first run the same command without
+`--render` for `missingActuals`, read those tickets' field in this agent (a tracker call — no sub-agent, rule 9),
+record each with `node <lib>/state.mjs actual <.claude>/work/<id> '{ "focusedHours": <n>, "source": "tracker", "by": "eod" }'`,
+and only then `--render`, so the question leaves them out.
+
+### 3. Return
+The script's JSON names the report's path and, when hours are missing, the question (`asks`): return the path and
+the `asks` line as the first line — the stop (§ Definitions, Asking the user) — not the report's text.
 
 ### 4. Send and report
-`/tp:notify "<date> · end of day · <done> done · <stopped> stopped · <tokens> tokens ·
-$<cost>" level=info` (muted unless the project's `levels` include `info`; its one-line
-result goes in the report). `state.mjs agent leave <.claude>/work eod:<date>:lead
-done`, then the report's path and its first lines, and the output contract lines.
+`/tp:notify "<the script's notify line>" level=info` (muted unless the project's `levels` include `info`; its one-line
+result goes in the report). then the report's path and its first lines.
 
 ## Stops
 The actuals question (`answers="1: <h> | 2: skip | …"`; derived from

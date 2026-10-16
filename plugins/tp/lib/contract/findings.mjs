@@ -62,6 +62,10 @@ export function renderReview(review) {
     out.push('', '### Gates', '| Gate  | Status | Notes |', '|-------|--------|-------|');
     for (const g of review.gates) out.push(`| ${g.gate} | ${g.status} | ${g.notes || ''} |`);
   }
+  if ((review.criteria || []).length) {
+    out.push('', '### Acceptance criteria', '| # | Status | Evidence |', '|---|--------|----------|');
+    for (const c of [...review.criteria].sort((a, b) => a.n - b.n)) out.push(`| ${c.n} | ${c.status} | ${c.evidence || ''} |`);
+  }
   for (const tier of TIERS) {
     if (!tier.passes.includes(review.mode)) continue;
     const items = (review.findings || []).filter((f) => tierOf(f) === tier.key).sort((a, b) => a.id - b.id);

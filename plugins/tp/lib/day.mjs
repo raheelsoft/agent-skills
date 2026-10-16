@@ -16,9 +16,10 @@
 //                                                       (`resumable`: a usage pause past its reset, a parked ticket whose blockers
 //                                                       are resolved) and, given `recheck`, re-queues skipped-blocked candidates
 //                                                       whose blockers are now resolved (`unblocked`)
-//   node day.mjs eod <workroot> <date> ['<json>']     -> the day's end: what finished, what stands where, estimate vs actual vs the
+//   node day.mjs eod <workroot> <date> ['<json>'] [--render [--dry]] [--answers "1: 5 | 2: skip"]     -> the day's end: what finished, what stands where, estimate vs actual vs the
 //                                                       pipeline's minutes, tokens and cost, tomorrow's carry-over, the calibration
-//                                                       drift — written to <workroot>/_day/<date>.eod.json (/tp:eod writes the .md)
+//                                                       drift — written to <workroot>/_day/<date>.eod.json; `--render` also writes the .md report and, unless
+//                                                       `--dry`, the stop asking for the missing actual hours; `--answers` records them (/tp:eod relays this)
 //   node day.mjs show <workroot> <date>              -> the plan as stored
 //   node day.mjs status <workroot> [<date>]          -> the plan (the date's, else the latest) with live statuses — a dry
 //                                                       advance that writes nothing; `stale` when the plan is older than today
@@ -63,7 +64,7 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { plan, advance, approve, show, status, eod, lanesInfo } from './day/index.mjs';
+import { plan, advance, approve, show, status, eodMain, lanesInfo } from './day/index.mjs';
 
 // the library, for whoever imports this file (the state script's office, the tests): everything but the command line lives in day/
 export * from './day/index.mjs';
@@ -89,7 +90,7 @@ if (process.argv[1] && isMain(import.meta.url)) {
       case 'approve': emit(approve(target, rest[0], readArg(rest[1]))); break;
       case 'show': emit(show(target, rest[0])); break;
       case 'status': { const r = status(target, rest[0] || null, readArg(rest[1])); if (!r) { console.error(`no plan under ${join(target, '_day')}`); process.exit(2); } emit(r); break; }
-      case 'eod': emit(eod(target, rest[0] || null, readArg(rest[1]))); break;
+      case 'eod': emit(eodMain(target, rest, readArg)); break; // numbers; --render also writes the report and the question; --answers records them
       case 'lanes': emit(lanesInfo(target, rest[0])); break;
       default: console.error('usage: day.mjs plan|approve|advance|show|status|eod|lanes …'); process.exit(2);
     }

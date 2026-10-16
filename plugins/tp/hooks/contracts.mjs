@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { basename, isAbsolute, join } from 'node:path';
 import { checkArtifact } from '../lib/contract/registry.mjs';
 import { recordAt } from '../lib/gates.mjs';
+import { coverage } from '../lib/coverage.mjs';
 
 const lines = (text) => String(text || '').split('\n').map((l) => l.trim()).filter(Boolean);
 
@@ -70,6 +71,8 @@ function implementProblems(ctx, { workdir, since, prompt }) {
   if (!head) return [];
   const dirty = git(wt, ['status', '--porcelain']);
   if (dirty) return [`the worktree has uncommitted changes (${dirty.split('\n').slice(0, 3).map((l) => l.trim()).join(', ')}) — commit them, a PR is made from commits`];
+  const cov = coverage({ workdir, repo: row.name, claudeDir: ctx.claudeDir });
+  if (cov.plan && cov.complete === false) return [`the plan is not fully implemented — ${cov.gaps.slice(0, 3).join('; ').slice(0, 180)} (node <lib>/coverage.mjs ${workdir} --repo ${row.name})`];
   const rec = recordAt({ repo: row.path || wt, head, claudeDir: ctx.claudeDir });
   if (rec && !green(rec)) return [`the gate result recorded for ${head.slice(0, 7)} says FAIL — fix it in the change, run /tp:verify again`];
   const reported = impl.gates && typeof impl.gates === 'object' && !Array.isArray(impl.gates) ? Object.values(impl.gates) : [];

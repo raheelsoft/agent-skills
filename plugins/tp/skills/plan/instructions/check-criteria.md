@@ -8,7 +8,7 @@ everything else is `advisory`.
 `node <lib>/plan-lint.mjs` has already run (SKILL.md step 2) and passed with no blocking
 finding: the template's sections and header, that a step's files exist or are declared
 `(new)`, that every cited `path:line` names a real file with that many lines, that
-`plan.json` agrees with `plan.md`, that the criteria in § Goal number the ticket's, and
+`plan.json` agrees with `plan.md`, that the criteria in § Goal number the ticket's, that each has a well-formed check in § Verification, and
 the commit folds. Do not re-check those; the table's rows below are the judgment that
 remains — whether the code says what the plan claims, not whether the file is there.
 
@@ -16,7 +16,7 @@ remains — whether the code says what the plan claims, not whether the file is 
 |---|---|
 | **Evidence is real** | a `path:line` in § Current behaviour doesn't say what the plan claims (that it exists is the script's) |
 | **Files exist or are declared new** | a step lists a file in the wrong form for what it does: a rename written as an edit, a generated file written as new, a file the script could not see (outside the worktrees) |
-| **Coverage** | an acceptance criterion in § Goal has no step that produces it, or no verification that proves it |
+| **Coverage** | an acceptance criterion in § Goal has no step that produces it, or its named check (§ Verification, `Criteria checks`) would not really prove it — a test that cannot fail for the criterion's reason (that every criterion has a check is the script's) |
 | **Convention conflicts** | a step contradicts the conventions file (layering, naming, the access-control mechanism, test expectations, forbidden patterns) |
 | **Pattern fidelity** | § Approach says "follow `path:line`" but the steps diverge from what that pattern actually does |
 | **Risk flags** | the steps touch shared state, access control, a public contract, a second repo or something irreversible and the header's `risk flags` doesn't say so |

@@ -339,3 +339,16 @@ describe('doctor.mjs — the ceiling', () => {
     assert.equal(byName(doctor('run', c).json, 'session model'), undefined, 'no session named, none checked');
   });
 });
+
+describe('doctortable — the recorded checks as text', () => {
+  it('failures first, then warnings, then the rest, with the one summary line', async () => {
+    const { renderDoctor } = await import('../lib/doctortable.mjs');
+    const r = renderDoctor({ at: '2026-10-16T08:00Z', checks: [{ name: 'node', status: 'ok', detail: 'v24', fix: '' }, { name: 'tracker', status: 'fail', detail: 'a | b', fix: 'connect it' }, { name: 'heartbeat', status: 'warn', detail: 'old', fix: 'restart' }] });
+    const rows = r.text.split('\n').filter((l) => /^\| (node|tracker|heartbeat) /.test(l)).map((l) => l.split(' | ')[0].slice(2));
+    assert.deepEqual(rows, ['tracker', 'heartbeat', 'node']);
+    assert.match(r.text, /\| tracker \| fail \| a \\\| b \| connect it \|/);
+    assert.match(r.text, /preflight: 1 warning\(s\) \| 1 failure\(s\) — 2026-10-16T08:00Z$/);
+    assert.deepEqual([r.failures, r.warnings], [1, 1]);
+    assert.match(renderDoctor({ at: 'x', checks: [{ name: 'a', status: 'ok' }] }).text, /preflight: ok — x$/);
+  });
+});

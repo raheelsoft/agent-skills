@@ -202,7 +202,7 @@ if it has one. Never done (§ Tickets).
 
 ### 10. Record and report
 `pr[.repo].json`: `{ repo, url, number, round, reviewRounds: 0, reviews: [], verdict:
-null, merged: null }` on a creation round (an update round bumps `round` and keeps the
+null, merged: null }` on a creation round (`round` is the ticket's round — `ticket.json.round` — an update round keeps it and the
 rest). With a work directory: create or append to `report.md` the gate results, the
 PR URL, this round's summary and the manual steps from `plan.md`, then `state.mjs log
 … done "PR <url> round <n>" <PR url>`. Report gate results, the PR URL and the ticket

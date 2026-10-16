@@ -57,7 +57,13 @@ Move the PDF's VAT rule into `total.ts` and use it from both places, so the page
 ## Verification
 - Gates: the project's own (`/tp:verify base=main`).
 - Tests: `total.test.ts` and `page.test.tsx` as above.
-- Manual: 1. Open an invoice of a three-line order: the total includes VAT. 2. Open a zero-rated one: `0%`.
+- Criteria checks (every numbered criterion of § Goal, each proved by a test, a manual step or a command):
+  1 → test `src/invoices/total.test.ts` "includes VAT"
+  2 → test `src/invoices/page.test.tsx` "zero-rated shows 0%"
+  2 → manual 2
+- Manual:
+  1. Open an invoice of a three-line order: the total includes VAT.
+  2. Open a zero-rated one: `0%`.
 
 ## Risks and rollback
 - The PDF and the page now share one rule → a mistake shows in both; rollback: revert the PR.

@@ -133,9 +133,11 @@ The vocabulary every skill shares: entry points, resume, the output contract, th
   sub-agents (a checker, a fixer, a describer, a validator, an operator, a lookup that
   must read descriptions) are rated for their tasks, and the skills it invokes get
   dedicated agents of their own — except `/tp:notify`, whose whole job is one tool call
-  (its `setup` one question), and `/tp:setup`, whose whole job is the interview: both run
+  (its `setup` one question), `/tp:setup`, whose whole job is the interview, and `/tp:status`,
+  `/tp:doctor` and `/tp:eod`, whose whole job is one script call and a relay of its output
+  (a stage agent's floor is 75–130k tokens, § Context management, rule 9): all run
   in the invoking context, and no agent is spawned to send a line, to ask a question,
-  or to do nothing where no chat tool is configured. Its sub-agents
+  to print a table or to do nothing where no chat tool is configured. Its sub-agents
   get every rule they need as text in their prompts and never read this file
   (§ Context management, rule 3). When the runtime reports a finished
   agent's token usage, the spawner logs it: `state.mjs log <workdir> <stage> note

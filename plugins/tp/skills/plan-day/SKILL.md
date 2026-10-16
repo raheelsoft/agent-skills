@@ -221,12 +221,12 @@ start), records the re-check, re-queues and schedules a candidate whose blockers
 all resolved (`unblocked`), frees the lanes, and returns what starts now — every
 dependent whose prerequisites just landed, in parallel — what waits and on what,
 `resumable` and `finished`. Every `resumable` ticket — a usage pause
-whose reset has passed, a parked ticket the state now reports `unblocked` — is
-re-invoked (`/tp:run-ticket <id>`) and counts as running (§ Work directory, the grammar;
-§ Definitions, Resume). The re-check is the one tracker read of an advance; the
+whose reset has passed, a parked ticket the state now reports `unblocked` — goes on the report's
+`start:` line and counts as running; the session re-invokes `/tp:run-ticket <id>` for it (§ Where it
+runs; § Work directory, the grammar; § Definitions, Resume). The re-check is the one tracker read of an advance; the
 selection itself is never re-fetched — `replan=true` is the way to change it. A
-ticket with a queued answer (the row's `answer`, from the office) is re-invoked the
-same way; `/tp:run-ticket` takes the answer (§ Definitions, Resume).
+ticket with a queued answer (the row's `answer`, from the office) goes on the same
+line; `/tp:run-ticket` takes the answer (§ Definitions, Resume).
 
 ### 8. Report
 Mode and iteration; the day (`8h at 65% = 5.2h`); features; candidates → planned /

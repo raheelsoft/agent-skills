@@ -269,6 +269,15 @@ describe('the gate — the implementer', () => {
     assert.match(out.reason, /the worktree has uncommitted changes \(\?\? wip\.txt\) — commit them, a PR is made from commits/);
   });
 
+  it('sends it back when the plan is not fully implemented: a step\'s file untouched, a criterion\'s test absent', async (t) => {
+    const b = implBed(t);
+    const plan = `# Plan — T-1: t\n\nstatus: ready\nrisk flags: none\nrepos: \`shop\`\n\n## Goal\nx\n\n1. a works\n\n## Current behaviour\nx\n\n## Approach\nx\n\n## Steps\n\n### Step 1 — change\n- Files: \`src/never.js\` (edit)\n- Change: x\n- Checkpoint: x\n- Commit: yes — \`x\`\n\n## Verification\n- Criteria checks:\n  1 → test \`test/never.test.js\` "a works"\n\n## Risks and rollback\nnone\n\n## Open questions\nnone\n\n## Out of scope\nnone\n`;
+    writeFileSync(join(b.wd, 'plan.md'), plan);
+    const out = await b.stop();
+    assert.match(out.reason, /the plan is not fully implemented — step 1 \(change\): src\/never\.js not changed; criterion 1: test\/never\.test\.js is not in the worktree/);
+    assert.ok(out.reason.length < 400);
+  });
+
   it('sends it back when the gate result recorded for HEAD says FAIL, by its table or by its verdict', async (t) => {
     assert.match((await implBed(t, { record: { verdict: 'FAILED', gates: { lint: 'FAIL', types: 'PASS' } } }).stop()).reason, /the gate result recorded for [0-9a-f]{7} says FAIL/);
     assert.match((await implBed(t, { record: { verdict: '2 GATES FAILED' } }).stop()).reason, /says FAIL/);

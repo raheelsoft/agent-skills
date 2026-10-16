@@ -56,8 +56,8 @@ describe('put — the library', () => {
 
   it('refuses a cross-field mistake the schema cannot see', (t) => {
     const dir = workdir(t);
-    const e = refusal(() => putArtifact(dir, 'accept', { ...example('accept'), failed: 1 }));
-    assert.match(e.message, /\$\.failed: 1 but 0 criteria have result "fail"/);
+    const e = refusal(() => putArtifact(dir, 'plan', { ...example('plan'), status: 'ready', openQuestions: 2 }));
+    assert.match(e.message, /\$\.status: "ready" but openQuestions is 2/);
   });
 
   it('caps a long list of errors and says how many more there are', (t) => {
@@ -166,5 +166,46 @@ describe('put — the command', () => {
   it('is in the usage line', () => {
     const r = spawnSync(process.execPath, [STATE, 'nonsense'], { encoding: 'utf8' });
     assert.match(r.stderr, /\bput\b/);
+  });
+});
+
+describe('put derives what it can and refuses what it cannot make consistent', () => {
+  const setup = (t, ticket = { id: 'T-1', acceptanceCriteria: ['a', 'b'] }) => {
+    const root = tmp('put-derive-'); t.after(() => rm(root));
+    const wd = join(root, '.claude', 'work', 'T-1'); mkdirSync(wd, { recursive: true });
+    if (ticket) writeFileSync(join(wd, 'ticket.json'), JSON.stringify(ticket));
+    return wd;
+  };
+  const accept = (criteria, extra = {}) => ({ where: 'checkout', targets: [{ repo: 'r', env: null, checkout: '/x' }], criteria, ...extra });
+  const crit = (n, result, evidence = 'ran it') => ({ n, text: `c${n}`, result, evidence });
+
+  it('accept: the tallies are computed from the criteria, whatever was typed', async (t) => {
+    const { putArtifact } = await import('../lib/state/put.mjs');
+    const wd = setup(t);
+    putArtifact(wd, 'accept', accept([crit(1, 'pass'), crit(2, 'manual')], { passed: 9, failed: 9, manual: 9 }));
+    const written = JSON.parse(readFileSync(join(wd, 'accept.json'), 'utf8'));
+    assert.deepEqual([written.passed, written.failed, written.manual], [1, 0, 1]);
+    const md = readFileSync(join(wd, 'accept.md'), 'utf8');
+    assert.match(md, /^# Acceptance\n\ncheckout: r — 1 pass · 0 fail · 1 manual\n/);
+    assert.match(md, /\| 1 \| c1 \| pass \| ran it \|/);
+  });
+
+  it('accept: a criterion left out or added, and pass or fail without evidence, are refused', async (t) => {
+    const { putArtifact } = await import('../lib/state/put.mjs');
+    const wd = setup(t);
+    assert.throws(() => putArtifact(wd, 'accept', accept([crit(1, 'pass')])), /leaves out criterion 2/);
+    assert.throws(() => putArtifact(wd, 'accept', accept([crit(1, 'pass'), crit(2, 'pass'), crit(3, 'pass')])), /has criterion 3, which ticket\.json\.acceptanceCriteria \(2\) does not have/);
+    assert.throws(() => putArtifact(wd, 'accept', accept([crit(1, 'pass', ' '), crit(2, 'fail')])), /criterion 1 is recorded pass or fail with no evidence/);
+    assert.ok(!existsSync(join(wd, 'accept.json')), 'nothing written');
+    putArtifact(wd, 'accept', accept([crit(1, 'manual', ''), crit(2, 'pass')]));
+  });
+
+  it('plan: status, flags, steps and open questions come from plan.md; complexity stays the model\'s', async (t) => {
+    const { putArtifact } = await import('../lib/state/put.mjs');
+    const wd = setup(t, null);
+    writeFileSync(join(wd, 'plan.md'), '# Plan — T-1: x\n\nstatus: open-questions\nrisk flags: data-model\nrepos: `r`\n\n## Goal\ng\n\n1. a\n\n## Steps\n\n### Step 1 — a\n- Files: `a.ts` (edit)\n\n### Step 2 — b\n- Files: `b.ts` (edit)\n\n## Open questions\n1. Which? Default: this.\n');
+    putArtifact(wd, 'plan', { status: 'ready', flags: [], steps: 7, openQuestions: 0, complexity: 'medium' });
+    const w = JSON.parse(readFileSync(join(wd, 'plan.json'), 'utf8'));
+    assert.deepEqual([w.status, w.flags, w.steps, w.openQuestions, w.complexity], ['open-questions', ['data-model'], 2, 1, 'medium']);
   });
 });

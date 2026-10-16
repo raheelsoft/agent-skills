@@ -63,7 +63,7 @@ target project's conventions file first — project-specific rules live there.
 ## Steps
 
 Each numbered step is a checkpoint boundary (rule 7): on `checkpoint` the agent
-writes `<.claude>/work/_scratch/review-<slug>.md` through `state.mjs doc` (`<slug>` = `<repo-name>--<PR
+writes `<.claude>/work/_scratch/review-<slug>.checkpoint.md` through `state.mjs doc` (`<slug>` = `<repo-name>--<PR
 number, or the branch with / as ->`, the same for the summary below) — the gate table, the
 findings so far, the next step — and returns `continue: <path>`; with `continue=true`
 it resumes there. `/tp:review` never writes to a ticket's `progress.md`.
@@ -132,9 +132,16 @@ First the scan, on this machine and for no tokens: `node <lib>/diffscan.mjs '{ "
 "<the range step 1 reads>" }'` lists every added line that matches a known bad pattern — a secret, a conflict
 marker, a focused or skipped test, a leftover debugger or debug output, a TODO — and every file that should
 not be committed (an env file, a key, a vendored folder), each with `file:line` and a priority `hint`. Each
-hit is a candidate: confirm it in its hunk and raise it with that priority, or dismiss it in a clause (a
-`console.log` in a CLI is the product). Do not search the hunks for these patterns by reading; no hits means
-none of them is there.
+hit is a candidate: confirm it in its hunk and raise it with that priority, or put it under `dismissed` with
+the reason (a `console.log` in a CLI is the product). Keep the scan's output (`> _out/review-<slug>.scan.json`):
+the check in step 5 holds every P0/P1 hit to being raised or dismissed. Do not search the hunks for these
+patterns by reading; no hits means none of them is there.
+
+Then the ticket's acceptance criteria — read from the ticket link (the ticket's own list, not the author's
+framing; in local mode `ticket.json.acceptanceCriteria` when a work directory exists). Judge each against the
+diff: `covered` with the evidence (`file:line`, the test or request that shows it), `missing` (the change does
+not deliver it — also a P1 finding that carries `"criterion": <n>`) or `unclear` (say what could not be
+established). A review that skips a criterion is refused in step 5.
 
 Read the hunks and the lines around them, widening to the enclosing function or
 declaration when a hunk cannot be judged without it — never a file end to end, and
@@ -173,6 +180,8 @@ The review is data, and the comment is derived from it. Write
 - `round`, `sha` (the head reviewed), `mode` (`full`, `delta`, `resolution`), `confidence`
   (1–5);
 - `gates` — the Gates table's rows (`gate`, `status`, `notes`);
+- `criteria` — one row per acceptance criterion (`n`, `status`, `evidence`), and `dismissed` — the scan hits
+  looked at and not raised (`rule`, `file`, `line`, `why`);
 - `findings` — one per item: `id` (stable: an item keeps the number it was first given),
   `priority` (`instructions/checklist.md` § Priorities), `file`, `line`, `text`, `fix`;
   `scope: "pre-existing"` with `ticket` (its id, or null when one is needed) for a defect in code
@@ -180,7 +189,9 @@ The review is data, and the comment is derived from it. Write
   for a previous item the change fixed, `"noted"` for something seen that does not gate
   (`resolution` only), and `new: true` on each item this pass raised.
 
-Then `node <lib>/findings.mjs check <file>` and `node <lib>/findings.mjs render <file> |
+Then `node <lib>/findings.mjs check <file> --criteria <the ticket's number of criteria> --scan <the scan's file>` (it refuses a criterion
+without a row, a missing criterion without a P0/P1 finding that names it, and a P0/P1 scan hit that is neither raised nor
+dismissed — fix the data and run it again) and `node <lib>/findings.mjs render <file> |
 node <lib>/state.mjs doc <.claude>/work/_scratch review-<slug>.md`. The verdict (`BLOCK` when a gate failed or a *fix before
 merging* item — P0 or P1 — is open, `PASS WITH WARNINGS` when anything else of the diff is open,
 `PASS` otherwise), the sections (only those with items; no *should fix* or *could improve* in a
@@ -219,5 +230,5 @@ None for a question — the review is posted or returned whole; `apply=` is an
 instruction, not an answer. `error: …` only: the PR or its checkout unreachable past
 the fallback, gates that cannot run at all, a fixer that returned nothing twice
 (`reference/failures-and-stops.md` § Failures and escalation; the state in
-`_scratch/review-<slug>.md`): `answers=retry` once the person has done what
+`_scratch/review-<slug>.checkpoint.md`): `answers=retry` once the person has done what
 `needs` names.

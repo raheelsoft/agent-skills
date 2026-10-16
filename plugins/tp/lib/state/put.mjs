@@ -1,10 +1,11 @@
 // put.mjs — the one writer of a work directory's JSON artifacts. The JSON is checked against the artifact's schema before anything touches the disk
 // (schemas/README.md); a document that does not conform is refused with the errors, so the stage that wrote it fixes it while it still has the
 // facts in hand, and the next stage never reads a malformed one. Stamps `schemaVersion`; writes atomically.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { CliError, isDir, writeAtomic } from './util.mjs';
 import { ARTIFACTS, SCHEMA_VERSION, artifactOf, checkArtifact } from '../contract/index.mjs';
+import { derive, renderAccept } from './derive.mjs';
 
 const usageLine = 'usage: put <workdir> <artifact> \'<json>\' | put <workdir> <artifact> --from <file> | … <<EOF (JSON on stdin) [--merge]';
 const MAX_LINES = 15;
@@ -41,7 +42,7 @@ export function putArtifact(workdir, name, payload, { merge = false } = {}) {
     try { existing = JSON.parse(readFileSync(target, 'utf8')); } catch { throw new CliError(`${usageLine}\n--merge needs ${file} to exist and be valid JSON; put it whole first`, 2); }
     doc = { ...existing, ...doc };
   }
-  doc = { schemaVersion: SCHEMA_VERSION, ...doc };
+  doc = derive(kind.artifact, { schemaVersion: SCHEMA_VERSION, ...doc }, workdir); // counts computed, criteria the ticket's (derive.mjs)
 
   const r = checkArtifact(kind.artifact, doc, { mode: 'write' });
   if (!r.ok) {
@@ -50,5 +51,6 @@ export function putArtifact(workdir, name, payload, { merge = false } = {}) {
     throw new CliError(`refused ${file}: it does not match schemas/${kind.artifact}.schema.json\n${shown.join('\n')}\nnothing was written — correct the JSON and put it again (\`state.mjs shape ${kind.artifact}\` prints the form)`, 2);
   }
   writeAtomic(target, doc);
+  if (kind.artifact === 'accept') writeFileSync(join(workdir, 'accept.md'), renderAccept(doc));
   return { file, artifact: kind.artifact };
 }
