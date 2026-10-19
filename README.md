@@ -31,7 +31,7 @@ Plugins are installed from this repository as a Claude Code marketplace, not thr
 
 ```
 /plugin marketplace add raheelsoft/agent-skills
-/plugin install tp@agent-skills
+/plugin install tp@raheelsoft
 ```
 
 | Plugin | What it does |

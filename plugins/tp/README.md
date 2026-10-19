@@ -9,7 +9,7 @@ project, never written into the skills.
 
 ```
 /plugin marketplace add raheelsoft/agent-skills
-/plugin install tp@agent-skills
+/plugin install tp@raheelsoft
 ```
 
 Then, in the project: `/tp:setup` (the interview: which skills the project uses, the largest model the pipeline may

@@ -12,7 +12,7 @@ Install, run, resume, schedule, simulate: how a person uses the pipeline.
    hooks belong to this project and travel with it:
    ```
    /plugin marketplace add raheelsoft/agent-skills
-   /plugin install tp@agent-skills
+   /plugin install tp@raheelsoft
    ```
    (To try it without installing: `claude --plugin-dir <agent-skills>/plugins/tp`.) The
    plugin carries everything that is the same for every project — the skills, the

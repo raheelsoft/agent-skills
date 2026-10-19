@@ -300,12 +300,12 @@ describe('setup — the deny rules generated from pipeline.json', () => {
     const root = tmp(); t.after(() => rm(root));
     const claude = project(root);
     assert.equal(denyRule('merge'), 'Skill(skill:tp:merge)');
-    writeJson(claude, 'settings.json', { enabledPlugins: { 'tp@agent-skills': true }, permissions: { allow: ['Bash(git status*)'], deny: ['Bash(rm -rf *)', 'Skill(skill:other:merge)'] } });
+    writeJson(claude, 'settings.json', { enabledPlugins: { 'tp@raheelsoft': true }, permissions: { allow: ['Bash(git status*)'], deny: ['Bash(rm -rf *)', 'Skill(skill:other:merge)'] } });
     const r = setup('apply', claude, { skills: ['run-ticket', 'merge', 'status', 'doctor'] });
     assert.equal(r.code, 0, r.err);
     assert.deepEqual(r.json.settings.added.sort(), r.json.off.map(denyRule).sort());
     const s = JSON.parse(readFileSync(join(claude, 'settings.json'), 'utf8'));
-    assert.deepEqual(s.enabledPlugins, { 'tp@agent-skills': true }, 'the project\'s own keys stay');
+    assert.deepEqual(s.enabledPlugins, { 'tp@raheelsoft': true }, 'the project\'s own keys stay');
     assert.deepEqual(s.permissions.allow, ['Bash(git status*)']);
     assert.ok(s.permissions.deny.includes('Bash(rm -rf *)') && s.permissions.deny.includes('Skill(skill:other:merge)'), 'foreign rules, even another plugin\'s merge, stay');
     assert.ok(s.permissions.deny.includes('Skill(skill:tp:release)') && !s.permissions.deny.includes('Skill(skill:tp:merge)'));
