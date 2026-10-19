@@ -341,6 +341,21 @@ describe('agent-ceiling — a spawned agent never runs above the project\'s mode
     assert.equal((await spawn(p, { model: 'fable' })).hookSpecificOutput.updatedInput.model, 'opus');
   });
 
+  it('a spawn made by a sub-agent runs in the foreground; the session\'s own background spawn is left alone', async (t) => {
+    const p = project(t);
+    const bySubagent = (input) => run('agent-ceiling', JSON.stringify(envelope('PreToolUse', p, { ...AGENT, tool_name: 'Agent', tool_input: { description: 'check', prompt: 'do it', subagent_type: 'tp:plan-checker', ...input } })), p.env);
+    const out = await bySubagent({ run_in_background: true });
+    assert.equal(verdict(out), 'allow');
+    assert.equal(out.hookSpecificOutput.updatedInput.run_in_background, false);
+    assert.equal(out.hookSpecificOutput.updatedInput.subagent_type, 'tp:plan-checker', 'every other field is kept');
+    assert.match(reason(out), /runs in the foreground — only the session spawns in the background/);
+    const both = await bySubagent({ run_in_background: true, model: 'opus' });
+    assert.deepEqual([both.hookSpecificOutput.updatedInput.model, both.hookSpecificOutput.updatedInput.run_in_background], ['sonnet', false]);
+    assert.equal(await bySubagent({ run_in_background: false }), null);
+    assert.equal(await bySubagent({}), null);
+    assert.equal(await spawn(p, { run_in_background: true }), null, 'the session (no agent_id) keeps its background spawns');
+  });
+
   it('is also the Task tool of an older runtime, and ignores any other tool', async (t) => {
     const p = project(t);
     const out = await run('agent-ceiling', JSON.stringify(envelope('PreToolUse', p, { tool_name: 'Task', tool_input: { prompt: 'x', model: 'opus' } })), p.env);

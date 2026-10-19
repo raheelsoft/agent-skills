@@ -133,4 +133,32 @@ describe('coverage', () => {
     assert.match(renderCoverage({ plan: false }), /No plan\.md/);
     assert.equal(spawnSync(process.execPath, [script('coverage.mjs')], { encoding: 'utf8' }).status, 2);
   });
+  it('in a plan that spans repos a path starts with its repo folder: it is measured in that repo, and a criterion proved in the other repo is not a gap here', (t) => {
+    const prefixed = PLAN.replace(/`src\/list\.js`/, '`shop/src/list.js`').replace(/`test\/list\.test\.js` \(new\)/, '`shop/test/list.test.js` (new)')
+      .replace('test `test/list.test.js` "filters by q"', 'test `shop/test/list.test.js` "filters by q"')
+      .replace('test `test/list.test.js` "returns all without q"', 'test `web/test/chips.test.js` "shows chips"')
+      .replace('### Step 2', '### Step 3 — Chips\n- Files: `web/src/chips.js` (new)\n- Change: chips\n- Checkpoint: `node --test`\n- Commit: yes — `feat: chips`\n\n### Step 2');
+    const { root, repo, workdir } = bed(t, FULL, prefixed);
+    const web = join(root, 'web'); mkdirSync(web); git(web, 'init', '-q', '-b', 'main'); put(web, 'README.md'); git(web, 'add', '.'); git(web, 'commit', '-q', '-m', 'base');
+    writeJson(workdir, 'ticket.json', { id: 'T-1', repos: [
+      { name: 'shop', path: repo, worktree: repo, branch: 'feat', base: 'main' }, { name: 'web', path: web, worktree: web, branch: 'main', base: 'main' }] });
+    const r = coverage({ workdir, repo: 'shop' });
+    assert.deepEqual(r.steps.map((s) => [s.n, s.status, s.files.length]), [[1, 'done', 1], [3, 'done', 0], [2, 'done', 1]]);
+    assert.equal(r.criteria[0].checks[0].state, 'ok');
+    assert.equal(r.criteria[1].status, 'elsewhere');
+    assert.equal(r.complete, true, JSON.stringify(r.gaps));
+    // a prefixed path is still held to the diff: an untouched file is a missing step, not a skipped one
+    const untouched = coverage({ workdir: bed(t, (x) => put(x, 'test/list.test.js'), prefixed).workdir, repo: undefined });
+    assert.deepEqual(untouched.steps[0].status, 'missing');
+  });
+
+  it('a branch already merged into its base has nothing to measure: not measured, not missing', (t) => {
+    const { repo, workdir } = bed(t, FULL);
+    git(repo, 'checkout', '-q', 'main'); git(repo, 'merge', '-q', '--ff-only', 'feat'); git(repo, 'checkout', '-q', 'feat');
+    assert.equal(coverage({ workdir }).complete, false, 'an empty branch looks merged: without the PR record it is measured, and the steps are missing');
+    writeJson(workdir, 'pr.shop.json', { repo: 'shop', merged: 'abc1234' });
+    const r = coverage({ workdir });
+    assert.equal(r.complete, null); assert.match(r.gaps[0], /already merged into main/);
+    assert.match(renderCoverage(r), /Coverage not measured/);
+  });
 });

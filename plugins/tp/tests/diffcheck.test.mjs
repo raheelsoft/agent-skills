@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { tmp, rm, script } from './helpers.mjs';
 import { classify, diffcheck, renderDiff } from '../lib/diffcheck.mjs';
 
@@ -166,7 +166,7 @@ describe('diffcheck.mjs — the table and the command', () => {
     assert.equal(j.status, 0, j.stderr);
     assert.equal(JSON.parse(j.stdout).counts.expected, 1);
     const md = spawnSync(process.execPath, [script('diffcheck.mjs'), input, '--render'], { encoding: 'utf8' });
-    assert.match(md.stdout, /^## Diff validation — main\.\.\.HEAD/);
+    assert.ok(md.stdout.startsWith(`## Diff validation — ${basename(b.repo)} main...HEAD`), 'the heading names the repo: a cross-repo ticket keeps one file, a section per repo');
     const bad = spawnSync(process.execPath, [script('diffcheck.mjs'), '{}'], { encoding: 'utf8' });
     assert.equal(bad.status, 2);
     assert.match(bad.stderr, /usage: diffcheck\.mjs/);

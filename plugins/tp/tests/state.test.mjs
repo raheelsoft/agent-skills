@@ -982,7 +982,7 @@ it('resolveWorkdir: a bare ticket id stands for the work directory of this proje
   assert.equal(resolveWorkdir('PIK-12', { env: { CLAUDE_PROJECT_DIR: proj }, cwd: '/' }), join(proj, '.claude', 'work', 'PIK-12'));
   assert.equal(resolveWorkdir('PIK-99', { env: {}, cwd: join(proj, '.claude', 'worktrees', 'PIK-12', 'api') }), join(proj, '.claude', 'work', 'PIK-99'));
   assert.equal(resolveWorkdir('/abs/work/PIK-12', { env: { CLAUDE_PROJECT_DIR: proj } }), '/abs/work/PIK-12');
-  assert.equal(resolveWorkdir('PIK-12', { env: {}, cwd: '/' }), 'PIK-12');
+  assert.throws(() => resolveWorkdir('PIK-12', { env: {}, cwd: '/' }), /no project's \.claude\/work is above/);
 });
 
 it('table: one row per ticket, the stop and its default in the waiting column, quality and problems below', async () => {

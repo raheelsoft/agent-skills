@@ -35,23 +35,39 @@ export function installCommand(dir, claudeDir) {
   return hit ? hit[1] : null;
 }
 
+// A code generator that reads a setting it does not use (Prisma's `generate` wants DATABASE_URL, and the install runs it as a postinstall step) stops with
+// "Cannot resolve environment variable: NAME". It connects to nothing, so one retry with a placeholder in that variable gets the same result the
+// developer's own shell gets; the retry is reported, never silent.
+const PLACEHOLDER = 'postgresql://placeholder:placeholder@localhost:5432/placeholder';
+const missingEnv = (log) => { const m = /Cannot resolve environment variable:\s*([A-Z][A-Z0-9_]*)/.exec(tailOf(log, 60)); return m && !process.env[m[1]] ? m[1] : null; };
+
+/** Runs `cmd` into `log`; a failure that names an unset variable is run once more with a placeholder in it. -> { exit, retry? } */
+function runInto(cmd, dir, log) {
+  const run = (extra) => spawnSync(`${cmd} > "${log}" 2>&1`, { cwd: dir, shell: true, env: { ...toolEnv(), ...extra } });
+  let r = run({});
+  const name = r.status !== 0 ? missingEnv(log) : null;
+  if (!name) return { exit: r.status };
+  r = run({ [name]: PLACEHOLDER });
+  return { exit: r.status, retry: { env: name, why: `${name} was not set; the command only generates code, so it ran again with a placeholder value` } };
+}
+
 function prepare(dir, repoName, id, claudeDir, doInstall) {
   const out = { install: null, codegen: null };
   const cmd = doInstall === false ? null : installCommand(dir, claudeDir);
   if (cmd) {
     const outDir = join(claudeDir, 'worktrees', '_out', id); mkdirSync(outDir, { recursive: true });
     const log = join(outDir, `install-${repoName}.log`);
-    const r = spawnSync(`${cmd} > "${log}" 2>&1`, { cwd: dir, shell: true, env: toolEnv() });
-    out.install = { command: cmd, exit: r.status, log, ...(r.status === 0 ? {} : { tail: tailOf(log, 8) }) };
-    if (r.status !== 0) return { ...out, error: `install failed (${cmd}, exit ${r.status}): ${tailOf(log, 3)}` };
+    const r = runInto(cmd, dir, log);
+    out.install = { command: cmd, exit: r.exit, log, ...(r.retry ? { retry: r.retry } : {}), ...(r.exit === 0 ? {} : { tail: tailOf(log, 8) }) };
+    if (r.exit !== 0) return { ...out, error: `install failed (${cmd}, exit ${r.exit}): ${tailOf(log, 3)}` };
   }
   const cg = codegenStatus({ repo: dir, claudeDir });
   if (cg.command && cg.stale) {
     const outDir = join(claudeDir, 'worktrees', '_out', id); mkdirSync(outDir, { recursive: true });
     const log = join(outDir, `codegen-${repoName}.log`);
-    const r = spawnSync(`${cg.command} > "${log}" 2>&1`, { cwd: dir, shell: true, env: toolEnv() });
-    out.codegen = { command: cg.command, exit: r.status };
-    if (r.status !== 0) return { ...out, error: `generating code failed (${cg.command}, exit ${r.status}): ${tailOf(log, 3)}` };
+    const r = runInto(cg.command, dir, log);
+    out.codegen = { command: cg.command, exit: r.exit, ...(r.retry ? { retry: r.retry } : {}) };
+    if (r.exit !== 0) return { ...out, error: `generating code failed (${cg.command}, exit ${r.exit}): ${tailOf(log, 3)}` };
     codegenMark({ repo: dir, claudeDir });
   }
   return out;

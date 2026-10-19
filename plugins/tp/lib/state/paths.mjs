@@ -10,7 +10,7 @@
 // every stage still finds it, and the listing below reads both.
 import { readdirSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { isDir } from './util.mjs';
+import { CliError, isDir } from './util.mjs';
 
 export const WORKTREES = 'worktrees';
 export const OUT = '_out';
@@ -45,9 +45,14 @@ function projectClaude(env, cwd) {
   }
 }
 
-/** A ticket's work directory from what an agent typed: a path stays as it is; a bare ticket id (`PIK-12`) that is no folder here becomes `<.claude>/work/<id>`. */
+/**
+ * A ticket's work directory from what an agent typed: a path stays as it is; a bare ticket id (`PIK-12`) that is no folder here becomes `<.claude>/work/<id>`.
+ * A bare id from a folder outside any project (the plugin's own folder, say) is an error and not a path to a directory that is not there: `route` would
+ * answer `first-run` for a ticket that is half done.
+ */
 export function resolveWorkdir(arg, { env = process.env, cwd = process.cwd() } = {}) {
   if (typeof arg !== 'string' || !TICKET_ID.test(arg) || isDir(arg)) return arg;
   const claude = projectClaude(env, cwd);
-  return claude ? join(claude, 'work', arg) : arg;
+  if (!claude) throw new CliError(`${arg} is a ticket id, and no project's .claude/work is above ${resolve(cwd)} (nor in CLAUDE_PROJECT_DIR): run this from inside the project, or name the work directory — <.claude>/work/${arg}`, 2);
+  return join(claude, 'work', arg);
 }

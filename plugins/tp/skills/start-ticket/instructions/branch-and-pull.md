@@ -48,7 +48,7 @@ the error form, `needs:` what the person must fix, `answers=retry` afterwards.
 turns it off, or reuse of the main checkout's install where the project's docs allow it — `reference/procedures.md`
 § Toolchain) and regenerates generated code (`codegen.mjs status`, then its `command`, then `mark`: a fresh worktree always
 needs it, the output lives outside git). Both write their output to files, read by exit code and last lines (§ Context
-management, rule 11). Nothing is copied from the user's checkout: untracked config the app needs (env files) is provided
+management, rule 11). A step that stops on "Cannot resolve environment variable: NAME" (a generator that reads a setting it does not use) is run once more by the script with a placeholder in that variable and the row says so (`install.retry`). Nothing is copied from the user's checkout: untracked config the app needs (env files) is provided
 the way the project's docs say, on a disposable copy of any data store.
 
 Local from here — no push, no PR. `/tp:create-pr` does both once there is real work to show. A ticket spanning repos does

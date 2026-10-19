@@ -68,6 +68,20 @@ describe('worktree add', () => {
     assert.equal(r.install.exit, 4);
   });
 
+  it('an install that stops on an unset variable it does not use runs once more with a placeholder, and says so', (t) => {
+    // the stand-in for `prisma generate`: fails with Prisma's message unless the variable is set
+    const script = `if(!process.env.TP_TEST_DB){console.error('Cannot resolve environment variable: TP_TEST_DB.');process.exit(1)}`;
+    const c = bed(t, { worktree: { install: `node -e "${script}"` } });
+    delete process.env.TP_TEST_DB;
+    const r = add(c.base);
+    assert.equal(r.status, 'ok', JSON.stringify(r));
+    assert.equal(r.install.exit, 0); assert.equal(r.install.retry.env, 'TP_TEST_DB');
+    assert.equal(process.env.TP_TEST_DB, undefined, 'the placeholder never leaks into this process');
+    const d = bed(t, { worktree: { install: `node -e "console.error('Cannot resolve environment variable: TP_TEST_DB.');process.exit(1)"` } });
+    const bad = add(d.base);
+    assert.equal(bad.status, 'error', 'a failure the placeholder does not cure is still an error'); assert.equal(bad.install.retry.env, 'TP_TEST_DB');
+  });
+
   it('installCommand follows the lockfile unless tiers.json says otherwise', (t) => {
     const b = bed(t, {});
     assert.equal(installCommand(b.repo, b.claudeDir), null);

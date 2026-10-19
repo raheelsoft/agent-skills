@@ -7,7 +7,7 @@
 //
 //   node coverage.mjs <workdir> [--repo <name>] [--claude <.claude>] [--render]
 //   { plan: true, repo, head, base, complete, percent: { steps, criteria }, steps: [{ n, name, status: done|partial|missing, files: [{ path, kind, state }] }],
-//     criteria: [{ n, text, status: covered|manual|missing, checks: [{ type, ref, state, evidence? }] }], gates: { <gate>: "PASS"|"FAIL"… } | null,
+//     criteria: [{ n, text, status: covered|manual|elsewhere|missing, checks: [{ type, ref, state, evidence? }] }], gates: { <gate>: "PASS"|"FAIL"… } | null,
 //     testsGreen: true|false|null, gaps: ["…"] }
 // `complete` is true when every step is done, no criterion is missing and no recorded gate failed. A ticket without a plan.md (direct work) reports
 // `{ plan: false }`: there is nothing to measure it against. `--render` prints the proof matrix as the markdown a report or a review carries.
@@ -48,6 +48,18 @@ function baseRef(wt, base) {
   return git(wt, ['rev-parse', '--verify', '--quiet', `origin/${bare}`]) ? `origin/${bare}` : git(wt, ['rev-parse', '--verify', '--quiet', bare]) ? bare : null;
 }
 
+/**
+ * A plan's paths are relative to the repo, or — in a plan that spans repos — to the folder that holds them, so `<repo>/src/x.ts`. Returns the repo-relative
+ * path when the path is this repo's, and null when it names another repo of the ticket.
+ */
+function repoPath(raw, own, names) {
+  const p = clean(raw);
+  const [head, ...rest] = p.split('/');
+  if (head === own && rest.length) return rest.join('/') + (raw.endsWith('/') && !rest.join('/').endsWith('/') ? '/' : '');
+  if (head !== own && names.includes(head) && rest.length) return null;
+  return p;
+}
+
 function stepState(file, changed, wt, several) {
   const p = clean(file.path);
   if (file.path.endsWith('/')) return [...changed.keys()].some((c) => c.startsWith(p)) ? 'done' : 'missing';
@@ -58,8 +70,8 @@ function stepState(file, changed, wt, several) {
 }
 
 /** One test check against the worktree: the file exists and, when a name is given, the name appears in it. */
-function testState(wt, check, changed) {
-  const p = clean(check.path);
+function testState(wt, check, changed, path = clean(check.path)) {
+  const p = path;
   const abs = [join(wt, p), ...(isAbsolute(check.path) ? [check.path] : [])].find(isFile);
   if (!abs) return { state: 'missing', why: `${check.path} is not in the worktree` };
   if (check.name) {
@@ -82,11 +94,19 @@ export function coverage({ workdir, repo, claudeDir }) {
   const ref = baseRef(wt, row.base);
   const changed = changedFiles(wt, ref);
   const head = git(wt, ['rev-parse', 'HEAD']);
+  // once the pull request is merged there is no diff left to measure the plan against: that is not a missing change (an empty branch looks the same, so
+  // only the PR record says it — never the branch alone)
+  let pr = {}; try { pr = JSON.parse(readFileSync(join(workdir, `pr.${row.name}.json`), 'utf8')); } catch { /* no PR record yet */ }
+  if (pr.merged && ref && !changed.size) return { plan: true, repo: row.name, complete: null, gaps: [`the pull request is already merged into ${ref}: coverage is measured before the merge`] };
 
   // the plan is one list of steps for every repo; a step whose files all live in another repo is not this repo's
+  const names = rows.map((r) => r.name);
   const mine = (f) => !f.path.startsWith('/') || f.path.startsWith(wt);
   const steps = plan.steps.map((s) => {
-    const files = (s.files || []).filter(mine).map((f) => ({ path: f.path, kind: f.kind, state: stepState(f, changed, wt, rows.length > 1) })).filter((f) => f.state !== 'other-repo');
+    const files = (s.files || []).filter(mine).flatMap((f) => {
+      const rel = repoPath(f.path, row.name, names);
+      return rel === null ? [] : [{ path: f.path, kind: f.kind, state: stepState({ ...f, path: rel }, changed, wt, rows.length > 1) }];
+    }).filter((f) => f.state !== 'other-repo');
     const missing = files.filter((f) => f.state === 'missing').length;
     return { n: s.n, name: s.name, status: !files.length ? 'done' : missing === 0 ? 'done' : missing === files.length ? 'missing' : 'partial', files, ...(s.commit?.folded ? { foldedInto: s.commit.folded } : {}) };
   });
@@ -95,12 +115,19 @@ export function coverage({ workdir, repo, claudeDir }) {
   const mapped = checks.length > 0; // a plan from before § Verification mapped criteria to checks has nothing to measure them by
   const criteria = plan.criteria.map((c) => {
     const mine_ = checks.filter((k) => k.criterion === c.n).map((k) => {
-      if (k.type === 'test') return { type: 'test', ref: `${k.path}${k.name ? ` "${k.name}"` : ''}`, ...(k.path ? testState(wt, k, changed) : { state: 'missing', why: 'no file named' }) };
+      if (k.type === 'test') {
+        const rel = k.path ? repoPath(k.path, row.name, names) : null;
+        const ref = `${k.path}${k.name ? ` "${k.name}"` : ''}`;
+        if (!k.path) return { type: 'test', ref, state: 'missing', why: 'no file named' };
+        if (rel === null) return { type: 'test', ref, state: 'other-repo', why: `${k.path} belongs to another repo` };
+        return { type: 'test', ref, ...testState(wt, k, changed, rel) };
+      }
       if (k.type === 'manual') return { type: 'manual', ref: `manual ${k.manual}`, state: 'manual' };
       return { type: 'command', ref: k.command || '', state: 'command' };
     });
     const automated = mine_.some((k) => k.state === 'ok' || k.state === 'command');
-    const status = !mapped ? 'unmapped' : automated ? 'covered' : mine_.some((k) => k.state === 'manual') ? 'manual' : 'missing';
+    const elsewhere = mine_.length > 0 && mine_.every((k) => k.state === 'other-repo');
+    const status = !mapped ? 'unmapped' : elsewhere ? 'elsewhere' : automated ? 'covered' : mine_.some((k) => k.state === 'manual') ? 'manual' : 'missing';
     return { n: c.n, text: c.text, status, checks: mine_ };
   });
 

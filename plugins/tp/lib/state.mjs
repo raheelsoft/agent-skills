@@ -89,8 +89,8 @@ process.stdout.on('error', () => {}); // a closed pipe must never undo a log lin
 const [, , cmd, rawTarget, ...rest] = process.argv;
 // the commands whose first argument is one ticket's work directory: a bare ticket id stands for it
 const PER_TICKET = new Set(['log', 'state', 'check', 'durations', 'usage', 'blockers', 'actual', 'put', 'doc', 'lock', 'unlock', 'route', 'approve', 'retro-facts']);
-const target = PER_TICKET.has(cmd) ? resolveWorkdir(rawTarget) : rawTarget;
 function dispatch() {
+  const target = PER_TICKET.has(cmd) ? resolveWorkdir(rawTarget) : rawTarget;
   switch (cmd) {
     case 'log': process.stdout.write(log(target, rest[0], rest[1], rest[2], rest[3])); break;
     case 'state': { const s = computeState(target); emit(flags(rest).brief ? brief(s) : s); break; }

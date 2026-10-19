@@ -111,7 +111,8 @@ that apply:
   source, generated output) and names the warning signs that need no reading. `verdict: clean`
   → **no agent**: the table is the script's, written with `node <lib>/diffcheck.mjs '<the same
   input>' --render | node <lib>/state.mjs doc <workdir> diff-validation.md` (`--append` on an
-  update round, whose rows join the earlier ones). `verdict: review` → what needs a reading is
+  update round, whose rows join the earlier ones, and for the second repo of a cross-repo ticket: one file, one
+  section per repo, each titled with its repo and ending in its own `Validated through` sha — never a file per repo). `verdict: review` → what needs a reading is
   the Unexpected files and the warnings, nothing else, and that reading is the one this agent
   keeps out of its own context (rule 9): an agent of type `tp:diff-validator` (git reads, read
   and search, its one file — the type's hooks hold it to that), rated as this agent, catching

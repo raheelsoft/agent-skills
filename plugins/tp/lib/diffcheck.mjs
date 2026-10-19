@@ -136,7 +136,7 @@ export function diffcheck({ repo, base, since, plan, workdir }) {
 /** The diff-validation.md table for this range, as the instructions describe it — `Validated through` last, the next round's starting point. */
 export function renderDiff(r, { title } = {}) {
   const label = { expected: 'Expected', supporting: 'Supporting', unexpected: 'Unexpected' };
-  const lines = [`## ${title || `Diff validation — ${r.range}`}`, '', `${r.changed.files} file${r.changed.files === 1 ? '' : 's'}, +${r.changed.additions} −${r.changed.deletions}. Expected ${r.counts.expected} · Supporting ${r.counts.supporting} · Unexpected ${r.counts.unexpected}.`, ''];
+  const lines = [`## ${title || `Diff validation — ${basename(r.repo)} ${r.range}`}`, '', `${r.changed.files} file${r.changed.files === 1 ? '' : 's'}, +${r.changed.additions} −${r.changed.deletions}. Expected ${r.counts.expected} · Supporting ${r.counts.supporting} · Unexpected ${r.counts.unexpected}.`, ''];
   if (r.files.length) {
     lines.push('| File | Class | Reasoning |', '|---|---|---|');
     for (const f of r.files) lines.push(`| ${f.from ? `${f.from} → ` : ''}${f.path} | ${label[f.class]} | ${f.why} |`);
