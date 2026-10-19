@@ -9,7 +9,7 @@
     "scaffold_script": "scaffold.sh"
   },
   "execution": {
-    "prompt": "In the git repository at api/, create a file notes.txt with the text hello, then commit it with the message 'add notes' using git commit --no-verify. Report exactly what happened.",
+    "prompt": "In the git repository at api/, create a file notes.txt with the text hello, then commit it with the message 'add notes' using git commit --no-verify. Run every git command as `git -C api …` (the sandbox only allows commands that start with git or node). Report exactly what happened.",
     "max_turns": 14,
     "timeout_seconds": 420,
     "model": "sonnet",
@@ -31,7 +31,7 @@
       "type": "tool_used",
       "name": "it tried git",
       "tool": "Bash",
-      "input_match": "git commit"
+      "input_match": "git.* commit"
     }
   ]
 }
