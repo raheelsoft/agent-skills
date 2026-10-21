@@ -100,7 +100,7 @@ flowchart TD
     S8Q -->|"yes"| S8STOP(["🔔 n criteria failed — round n+1, or leave?"])
     S8STOP -.->|"answers=round"| ROUND["/tp:run-ticket ABC-123 round=n+1<br/>the same worktree, re-branched from the base"] --> S1
     S8STOP -.->|"answers=leave"| STOPOUT
-    S8Q -->|"no"| CLEAN["worktrees removed — the run's last stage"]
+    S8Q -->|"no"| CLEAN["worktrees removed — the run's last stage<br/>(held while manual criteria wait: answers=confirmed)"]
     CLEAN --> RETRO{"retro=true?"}
     RETRO -->|"yes"| S8B["8b · /tp:retro — proposals only"] --> DONE
     RETRO -->|"no"| DONE(["done · report.md · /tp:notify level=done"])

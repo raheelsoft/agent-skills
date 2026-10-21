@@ -58,7 +58,9 @@ this once per repo, each its own worktree and branch.
 
 Used once per ticket, when its run ends (`reference/work-directory.md` § Worktrees): by `/tp:accept`'s `done` — the last
 stage — and by `/tp:run-ticket`'s close-out of a ticket that ends before it (closed by triage, parked as blocked); never by
-a stage in between, and never by a new round, which re-branches instead (§ 2). `node <lib>/worktree.mjs remove '{ "repo",
+a stage in between, and never by a new round, which re-branches instead (§ 2). `node <lib>/worktree.mjs finish '{ "workdir": "<workdir>" }'`
+does it for every repo of the ticket and answers `held` instead while acceptance left manual criteria for the person; per repo,
+`node <lib>/worktree.mjs remove '{ "repo",
 "id", "branch", "base", "claudeDir" }'` (add `"dry": true` to see the plan) removes the worktree, then the branch only when it
 was never pushed or is merged, then the ticket's empty `worktrees/<id>/` folder; a worktree another ticket's `ticket.json`
 still names (a stacked sibling) stays, and the result says so. The ticket's `<.claude>/worktrees/_out/<id>/` folder goes with

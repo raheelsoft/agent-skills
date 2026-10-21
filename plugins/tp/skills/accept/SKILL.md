@@ -1,6 +1,6 @@
 ---
 name: accept
-description: Proves a ticket is delivered by walking every acceptance criterion against the released environment or the merged revision and recording pass, fail or manual with evidence. Use as the run's last stage, which removes the worktrees.
+description: Proves a ticket is delivered by walking every acceptance criterion against the released environment or the merged revision and recording pass, fail or manual with evidence. Use as the run's last stage, which removes the worktrees once no manual criterion is left for the person.
 user-invocable: true
 ---
 
@@ -10,7 +10,7 @@ Stage 8 of the workflow (`reference/README.md`): the closing check. "Delivered" 
 check proved it — this stage is that check, run by an agent that did not write the code
 (this skill's dedicated agent: fresh, holding nothing but its arguments), against the
 criteria the ticket set before the work started. It is the run's last stage, so a
-clean pass also ends the ticket's worktrees (§ Worktrees). Conventions and the state
+clean pass also ends the ticket's worktrees (§ Worktrees) — held while manual criteria wait for the person. Conventions and the state
 script: `reference/definitions.md` (§ Definitions: Resume, Output contract, Asking the
 user, The scripts).
 
@@ -39,7 +39,9 @@ user, The scripts).
   <name> is not documented — walk <recorded env> (keep), or name another? Default:
   keep"`.
 - `answers=<text>` (optional) — the answer to this stage's last stop (§ Stops;
-  `reference/definitions.md` § Definitions, Resume). `continue=true` — resume from
+  `reference/definitions.md` § Definitions, Resume). `answers=confirmed` or `round` after a done acceptance that left manual
+  criteria (`state.mjs state` → `manualOpen`) is the person's verdict on them, handled at § 4 before anything else: the
+  ticket is past this stage, so no earlier stage is run. `continue=true` — resume from
   `checkpoint.accept.md`. `force=true` — re-run a done acceptance.
 - `inline=true` — `reference/definitions.md` § Definitions (Dedicated agent); this agent's
   rating: from the criteria (count, live-environment reads, derived criteria), with
@@ -95,12 +97,17 @@ itself.
   evidence are the report. `answers=round` → the invoking context starts the new
   round (`/tp:run-ticket <id> round=<n+1>`, § Worktrees); `answers=leave` → the ticket
   stays stopped for the person.
-- No fails → `state.mjs log … done "<passed> pass - <manual> manual"`, then the
-  run's cleanup — this is the last stage (§ Worktrees): per repo `node <lib>/worktree.mjs remove '{ "repo", "id", "branch",
-  "base", "claudeDir" }'` takes the worktree and its merged local branch (`skills/start-ticket/instructions/branch-and-pull.md`
-  § 4; a worktree another ticket's `ticket.json` still names stays, and the result says so); log `note "worktrees removed"`. The `manual` criteria go to the person as numbered steps;
-  the ticket's status is theirs. A fail keeps the worktrees: the next round
-  re-branches them.
+- No fails → `state.mjs log … done "<passed> pass - <manual> manual"`, then the run's cleanup, which is this last
+  stage's (§ Worktrees): `node <lib>/worktree.mjs finish '{ "workdir": "<workdir>" }'` takes every repo's worktree and its
+  merged local branch (a worktree another ticket's `ticket.json` still names stays, and the result says so) and answers
+  `held` — removing nothing, exit 1 — while criteria are left `manual`: a manual step that fails is a new round, and that
+  round re-branches these checkouts (`state.mjs state` shows the count as `manualOpen`; accept.json's `manual` until a
+  `note "manual confirmed"` follows). `ok` → log `note "worktrees removed"`; `held` → log `note "worktrees kept: <n> manual criteria
+  open"`. The `manual` criteria go to the person as numbered steps; the ticket's status is theirs.
+- `answers=confirmed` — the person has done the manual steps and they hold: only on a done acceptance with
+  `manualOpen` above 0. `state.mjs log … accept note "manual confirmed"`, then `worktree.mjs finish` as above (nothing else is re-run, no
+  environment is read; `answers=confirmed` with nothing open is a no-op that says so). A step that failed is `answers=round` instead: the invoking context starts
+  `/tp:run-ticket <id> round=<n+1>`, which re-branches the kept worktrees. A fail keeps the worktrees likewise.
 
 ### 5. Report
 Comment the table on the ticket (evidence summarised, no personal data), append it to
@@ -111,7 +118,7 @@ the manual steps.
 No acceptance criteria (`answers=<the criteria, one per line>` — recorded in
 `ticket.json`); a missing environment fact (`answers=<the URL / CLI / how credentials
 are supplied>`); an undocumented `env=` (`answers=keep|<name>`); `<n> criteria
-failed` (`answers=round|leave`); `hand-off budget
+failed` (`answers=round|leave`); the open manual steps (`answers=confirmed|round`, from the person — never a stop); `hand-off budget
 spent` (`answers=continue`); `error: …` — an environment unreachable or a checkout
 that cannot be made usable past its fallback (`reference/failures-and-stops.md` § Failures and
 escalation): `answers=retry` once the person has done what `needs` names.

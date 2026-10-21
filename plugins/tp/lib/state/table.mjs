@@ -96,7 +96,7 @@ const rowCells = (r) => [
 function leftovers(rows, workroot) {
   const out = [];
   for (const r of rows) {
-    if (!['done', 'closed'].includes(r.status) || !r.worktrees?.length) continue;
+    if (!['done', 'closed'].includes(r.status) || !r.worktrees?.length || r.manualOpen) continue; // a ticket waiting on the person's manual steps holds them on purpose
     let repos = [];
     try { repos = JSON.parse(readFileSync(join(workroot, r.id, 'ticket.json'), 'utf8')).repos || []; } catch { /* no ticket.json: no commands */ }
     for (const name of r.worktrees) {
@@ -120,6 +120,8 @@ export function statusTable(workroot, { filter, rows = all(workroot), sum = tota
   if (problems.length) lines.push('', 'Problems', ...problems);
   const left = leftovers(rows, workroot);
   if (left.length) lines.push('', 'Worktrees still held by finished tickets', ...left);
+  const held = rows.filter((r) => r.manualOpen && r.worktrees?.length).map((r) => `- ${r.id}: ${r.manualOpen} manual criteri${r.manualOpen === 1 ? 'on' : 'a'} open — /tp:accept ${r.id} answers=confirmed removes ${r.worktrees.join(', ')}, or a failed step starts a new round`);
+  if (held.length) lines.push('', 'Worktrees held for manual acceptance', ...held);
   const stale = rows.filter((r) => r.lock?.stale).map((r) => `- ${r.id}: node state.mjs unlock ${r.id} ${r.lock.owner}`);
   if (stale.length) lines.push('', 'Stale locks', ...stale);
   return lines.join('\n');

@@ -176,6 +176,12 @@ export function computeState(workdir) {
     }
   }
 
+  // acceptance with manual criteria left to the person: its checkouts stay until they confirm (`/tp:accept <id> answers=confirmed`) or a step fails and
+  // a new round re-branches them — accept's `done` does not end the ticket's worktrees while this is above 0
+  const acceptDoc = readJson(join(workdir, 'accept.json'), []);
+  const confirmed = entries.some((e) => e.stage === 'accept' && e.event === 'note' && /^manual confirmed/i.test(e.summary));
+  const manualOpen = out.some((s) => s.name === 'accept' && s.status === 'done') && !confirmed && Number(acceptDoc?.manual) > 0 ? Number(acceptDoc.manual) : 0;
+
   const prFiles = repos.length > 1 ? repos.map((r) => `pr.${r}.json`) : ['pr.json'];
   const prs = prFiles.map((f) => readJson(join(workdir, f), problems)).filter(Boolean);
   const qualityDoc = readJson(join(workdir, 'quality.json'), []); // what the review passes left open per priority (findings.mjs record)
@@ -199,6 +205,7 @@ export function computeState(workdir) {
     prs,
     quality: qualityDoc && qualityDoc.open ? { verdict: qualityDoc.verdict ?? null, open: qualityDoc.open, score: qualityDoc.score ?? 0 } : null,
     worktrees: worktreesOnDisk,
+    manualOpen,
     lock: readLock(workdir),
     retro: readRetro(workdir, problems),
     lastEvent: entries[entries.length - 1] || null,
@@ -252,6 +259,7 @@ export function rowOf(d) {
       prs: s.prs.map((p) => ({ url: p.url, verdict: p.verdict, reviewRounds: p.reviewRounds ?? null, merged: p.merged })),
       quality: s.quality,
       worktrees: s.worktrees,
+      manualOpen: s.manualOpen,
       lock: s.lock ? { owner: s.lock.owner, since: s.lock.since, stale: s.lock.stale } : null,
       retro: s.retro,
       problems: s.problems,
@@ -280,6 +288,6 @@ export function all(workroot) {
 
 // the fields a spawner routes on (reference/definitions.md § Definitions, Dedicated agent; the runner's rows) — never the stage list or the PRs
 export function brief(s) {
-  const { id, complexity, next, stopped, closed, unblocked, lock, worktrees, problems } = s;
-  return { id, complexity, next, stopped, closed, unblocked, lock, worktrees, problems };
+  const { id, complexity, next, stopped, closed, unblocked, lock, worktrees, manualOpen, problems } = s;
+  return { id, complexity, next, stopped, closed, unblocked, lock, worktrees, ...(manualOpen ? { manualOpen } : {}), problems };
 }

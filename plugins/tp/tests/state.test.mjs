@@ -1019,3 +1019,28 @@ it('show: one ticket in detail as text — stages, the stop with its resume comm
     assert.match(r.stdout, /next: \/tp:run-ticket DEMO-9 runs triage$/m);
   } finally { rm(root); }
 });
+
+it('table: a finished ticket waiting on manual steps holds its worktrees on purpose and says how that ends; other finished tickets still list theirs for removal', async () => {
+  const { statusTable } = await import('../lib/state/table.mjs');
+  const row = (id, extra) => ({ id, title: 't', status: 'done', stages: [], prs: [], worktrees: ['api'], problems: [], ageMin: 5, ...extra });
+  const rows = [row('DEMO-1', { manualOpen: 2 }), row('DEMO-2', {})];
+  const text = statusTable('/nowhere', { rows, sum: { tokens: 0, cost: null, unpriced: 0, partial: false, tickets: { active: 0, stopped: 0, done: 2, closed: 0 } } });
+  assert.match(text, /Worktrees held for manual acceptance\n- DEMO-1: 2 manual criteria open — \/tp:accept DEMO-1 answers=confirmed removes api/);
+  assert.match(text, /Worktrees still held by finished tickets\n- DEMO-2 api/);
+  assert.ok(!/Worktrees still held by finished tickets[\s\S]*DEMO-1 api/.test(text), 'the held one is not offered for removal');
+});
+
+it('state: manualOpen counts accept.json\'s manual criteria until a "manual confirmed" note follows the done acceptance', async () => {
+  const { computeState } = await import('../lib/state/compute.mjs');
+  const { mkdtempSync, mkdirSync, writeFileSync, appendFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const wd = join(mkdtempSync(join(tmpdir(), 'mo-')), '.claude', 'work', 'T-1'); mkdirSync(wd, { recursive: true });
+  writeFileSync(join(wd, 'progress.md'), '- 2026-10-19T09:00Z · start-ticket · done · x · y\n- 2026-10-19T10:00Z · accept · done · 1 pass - 3 manual\n');
+  writeFileSync(join(wd, 'accept.json'), JSON.stringify({ passed: 1, failed: 0, manual: 3 }));
+  assert.equal(computeState(wd).manualOpen, 3);
+  appendFileSync(join(wd, 'progress.md'), '- 2026-10-19T11:00Z · accept · note · manual confirmed\n');
+  assert.equal(computeState(wd).manualOpen, 0);
+  writeFileSync(join(wd, 'accept.json'), JSON.stringify({ passed: 4, failed: 0, manual: 0 }));
+  assert.equal(computeState(wd).manualOpen, 0);
+});

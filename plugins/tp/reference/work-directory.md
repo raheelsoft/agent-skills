@@ -47,7 +47,7 @@ inbox lists it; `/tp:status` and the state script's `all` ignore every `_`-prefi
 | `report.md` | create-pr creates or appends; merge, release, accept, run-ticket append | what shipped, PR, verdict, merge, deploy, acceptance, deviations, follow-ups, manual steps |
 | `checkpoint.<stage>[.<repo>].md` | any agent that hands off | done / decisions / remaining / open questions — the next agent starts here |
 | `lock.json` | run-ticket via the state script | `{ owner, since, updated }` (§ Concurrency) |
-| `<.claude>/worktrees/<id>/<repo-name>/` — not in the work directory | start-ticket; accept moves it to the merge commit; a new round re-branches it | the ticket's one worktree per repo, from pickup to the end of the run (§ Worktrees: removed by `/tp:accept`'s `done`, or by `/tp:run-ticket`'s close-out of a closed or parked ticket). A ticket picked up before this layout has it at `wt/<repo-name>/` here; `ticket.json` records either |
+| `<.claude>/worktrees/<id>/<repo-name>/` — not in the work directory | start-ticket; accept moves it to the merge commit; a new round re-branches it | the ticket's one worktree per repo, from pickup to the end of the run (§ Worktrees: removed by `/tp:accept`'s `done` once no manual criterion is open, or by `/tp:run-ticket`'s close-out of a closed or parked ticket). A ticket picked up before this layout has it at `wt/<repo-name>/` here; `ticket.json` records either |
 
 The `.md` is for people; the `.json` is the contract the next stage and the state
 script read. Every filesystem path a record holds — a repo's `path`, its `worktree` — is
@@ -131,7 +131,8 @@ the generated code, the warm caches — so nothing removes and re-creates one be
 stages, and a new **round** after a failed acceptance (`round=<n>`) re-branches the
 same worktree (`<branch>-r<n>` from the base, which now holds the merged work; the
 earlier stages re-run as stale) and re-installs only when a lockfile changed. It is
-removed **once**, when the run ends: by `/tp:accept`'s `done` — the last stage — or by
+removed **once**, when the run ends: by `/tp:accept`'s `done` — the last stage, through `worktree.mjs finish`, which holds them
+while acceptance left `manual` criteria (the person's `answers=confirmed` ends the hold; a failed step is a new round that re-branches them) — or by
 `/tp:run-ticket`'s close-out of a ticket that ends before it (closed by triage, parked as
 blocked); a stopped or abandoned ticket keeps it until the person cleans up (`/tp:status`
 lists them with the commands). The only other checkouts are the pipeline's own under

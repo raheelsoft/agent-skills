@@ -10,6 +10,9 @@
 //                                                                         | { status: "error", error }            exit 0 ok, 1 blocked, 2 error
 //   node worktree.mjs rebranch '{ worktree, base, branch, claudeDir, remote? }'   -> a new round: the same worktree on a new branch off the base
 //   node worktree.mjs remove '{ repo, id, branch?, claudeDir, dry? }'              -> { removed, kept, plan } — never a worktree another ticket's ticket.json names
+//   node worktree.mjs finish '{ workdir, dry? }'                                    -> the end of a ticket: `remove` for every repo row of its ticket.json, with the branch and base it records.
+//        { status: "held", manualOpen } and nothing removed while acceptance left manual criteria to the person (`/tp:accept <id> answers=confirmed` ends the
+//        hold; a failed step is a new round, which re-branches these checkouts) | { status: "ok", repos: [{ repo, removed, kept, plan }] }
 // `row` is { name, path, worktree, branch, base } with absolute paths: what ticket.json's repos[] keeps. The install is the project's lockfile tool (tiers.json
 // worktree.install overrides), its output in <.claude>/worktrees/_out/<id>/install-<repo>.log, read by exit code and tail; generated code follows codegen.mjs.
 import { spawnSync } from 'node:child_process';
@@ -17,6 +20,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmdirSy
 import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { status as codegenStatus, mark as codegenMark } from './codegen.mjs';
+import { computeState } from './state/compute.mjs';
 
 // where node is, npm and npx are: the folder of the node running this script goes first on the PATH of the install and the code generation
 const toolEnv = () => ({ ...process.env, PATH: `${dirname(process.execPath)}${delimiter}${process.env.PATH || ''}` });
@@ -150,13 +154,26 @@ export function remove(input) {
   return { status: 'ok', removed, kept, plan };
 }
 
+/** The end of a ticket's worktrees, decided here and not by the model: every repo row's checkout and merged branch go — unless the person still has manual steps to do. */
+export function finish(input) {
+  const workdir = resolve(String(input?.workdir || ''));
+  if (!input?.workdir) return { status: 'error', error: 'usage: worktree.mjs finish \'{ "workdir": "<.claude>/work/<id>", "dry"? }\'' };
+  const ticket = readJson(join(workdir, 'ticket.json'));
+  if (!ticket) return { status: 'error', error: `${join(workdir, 'ticket.json')} is missing or unreadable` };
+  const manualOpen = computeState(workdir).manualOpen || 0;
+  if (manualOpen) return { status: 'held', manualOpen, why: `${manualOpen} manual criteri${manualOpen === 1 ? 'on is' : 'a are'} open: the worktrees stay until the person confirms (/tp:accept ${ticket.id} answers=confirmed) or a failed step starts a new round` };
+  const claudeDir = resolve(workdir, '..', '..');
+  const repos = (ticket.repos || []).filter((r) => r && r.path && !r.discarded).map((r) => ({ repo: r.name || basename(r.path), ...remove({ repo: r.path, id: ticket.id, branch: r.branch, base: r.base, claudeDir, remote: input.remote, dry: input.dry }) }));
+  return { status: 'ok', repos };
+}
+
 function isMain(url) { try { return realpathSync(process.argv[1]) === fileURLToPath(url); } catch { return false; } }
 if (process.argv[1] && isMain(import.meta.url)) {
   const [, , cmd, arg] = process.argv;
-  const fn = { add, rebranch, remove }[cmd];
+  const fn = { add, rebranch, remove, finish }[cmd];
   let input; try { input = JSON.parse(arg || '{}'); } catch (e) { console.error(`the argument is not JSON: ${e.message}`); process.exit(2); }
   if (!fn) { console.error('usage: worktree.mjs add|rebranch|remove \'<json>\''); process.exit(2); }
   const r = fn(input);
   console.log(JSON.stringify(r, null, 2));
-  process.exit(r.status === 'error' ? 2 : r.status === 'blocked' ? 1 : 0);
+  process.exit(r.status === 'error' ? 2 : r.status === 'blocked' || r.status === 'held' ? 1 : 0);
 }

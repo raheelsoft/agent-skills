@@ -160,8 +160,9 @@ round=<n+1>`.
 
 ### 9. Close out
 The run's one cleanup moment (§ Worktrees): a **finished** ticket's worktrees went
-with `/tp:accept`'s `done`; any still under `<.claude>/worktrees/<id>/` (or an earlier pickup's
-`wt/`; a stage run before that rule, a `done` that stopped short) go now (`/tp:start-ticket`'s `branch-and-pull.md` § 4).
+with `/tp:accept`'s `done` — except while acceptance left `manual` criteria, when `worktree.mjs finish` holds them for the person's
+`/tp:accept <id> answers=confirmed`; any still under `<.claude>/worktrees/<id>/` (or an earlier pickup's
+`wt/`; a stage run before that rule, a `done` that stopped short) go now through the same `worktree.mjs finish` (`/tp:start-ticket`'s `branch-and-pull.md` § 4).
 A **closed** ticket (the state's `closed`, from triage's `close`): remove its
 worktrees and delete the never-pushed branches (§ 4; a stacked ticket's shared
 worktree stays), comment on the ticket with the `why` and what to close it as — the

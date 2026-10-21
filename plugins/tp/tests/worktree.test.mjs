@@ -5,7 +5,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmp, rm, script, writeJson } from './helpers.mjs';
-import { add, rebranch, remove, installCommand } from '../lib/worktree.mjs';
+import { add, rebranch, remove, finish, installCommand } from '../lib/worktree.mjs';
 
 const ID = { GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', env: { ...process.env, ...ID }, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -125,5 +125,46 @@ describe('worktree rebranch and remove', () => {
     assert.equal(run('add', '{}').status, 2);
     assert.equal(run('nonsense', '{}').status, 2);
     void readFileSync;
+  });
+});
+
+describe('worktree finish — the end of a ticket, held while the person has manual steps', () => {
+  const ticketWith = (b, manual) => {
+    const r = add(b.base); assert.equal(r.status, 'ok', JSON.stringify(r));
+    const workdir = join(b.claudeDir, 'work', 'T-1'); mkdirSync(workdir, { recursive: true });
+    writeJson(workdir, 'ticket.json', { id: 'T-1', repos: [r.row] });
+    writeFileSync(join(workdir, 'progress.md'), '- 2026-10-19T09:00Z · start-ticket · done · picked up · x\n- 2026-10-19T10:00Z · accept · done · 1 pass - ' + manual + ' manual\n');
+    writeJson(workdir, 'accept.json', { passed: 1, failed: 0, manual });
+    return { workdir, row: r.row };
+  };
+
+  it('keeps every worktree and branch while acceptance left manual criteria; a recorded confirmation ends the hold', (t) => {
+    const b = bed(t);
+    const { workdir, row } = ticketWith(b, 2);
+    const held = finish({ workdir });
+    assert.equal(held.status, 'held'); assert.equal(held.manualOpen, 2); assert.match(held.why, /answers=confirmed/);
+    assert.ok(existsSync(row.worktree), 'nothing removed');
+    writeFileSync(join(workdir, 'progress.md'), readFileSync(join(workdir, 'progress.md'), 'utf8') + '- 2026-10-19T11:00Z · accept · note · manual confirmed\n');
+    const done = finish({ workdir });
+    assert.equal(done.status, 'ok', JSON.stringify(done));
+    assert.ok(!existsSync(row.worktree), 'the checkout is gone once confirmed');
+    assert.ok(done.repos[0].removed.some((x) => x.startsWith('branch ')), 'and the merged branch with it');
+  });
+
+  it('with no manual criteria it removes at once; dry lists the plan only; a missing ticket.json is an error', (t) => {
+    const b = bed(t);
+    const { workdir, row } = ticketWith(b, 0);
+    const dry = finish({ workdir, dry: true });
+    assert.equal(dry.status, 'ok'); assert.ok(existsSync(row.worktree)); assert.match(dry.repos[0].plan.join('\n'), /worktree remove/);
+    assert.equal(finish({ workdir }).status, 'ok'); assert.ok(!existsSync(row.worktree));
+    assert.equal(finish({ workdir: join(b.claudeDir, 'work', 'none') }).status, 'error');
+    assert.equal(finish({}).status, 'error');
+  });
+
+  it('is a command: exit 1 while held', (t) => {
+    const b = bed(t);
+    const { workdir } = ticketWith(b, 1);
+    const r = spawnSync(process.execPath, [script('worktree.mjs'), 'finish', JSON.stringify({ workdir })], { encoding: 'utf8' });
+    assert.equal(r.status, 1); assert.equal(JSON.parse(r.stdout).status, 'held');
   });
 });

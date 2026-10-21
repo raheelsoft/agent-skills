@@ -298,7 +298,8 @@ estimates (§ Models and budget, Estimates).
 ### After acceptance
 
 All pass → close the ticket yourself; the worktrees are gone (`/tp:accept`'s `done`
-removes them — the run's last stage, § Worktrees). A criterion fails →
+removes them — the run's last stage, § Worktrees). Manual criteria left → they stay until you have done the steps: `/tp:accept ABC-123
+answers=confirmed` removes them, `answers=round` starts the new round when one fails. A criterion fails →
 `/tp:run-ticket ABC-123 round=2` (the same worktree, re-branched from the base, which now
 holds the merged work). `/tp:retro ABC-123` proposes changes to the conventions file, the
 ticket template or your instructions. `/tp:status` lists anything still checked out by a
