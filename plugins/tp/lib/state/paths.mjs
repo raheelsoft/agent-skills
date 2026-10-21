@@ -46,7 +46,7 @@ function projectClaude(env, cwd) {
 }
 
 /**
- * A ticket's work directory from what an agent typed: a path stays as it is; a bare ticket id (`PIK-12`) that is no folder here becomes `<.claude>/work/<id>`.
+ * A ticket's work directory from what an agent typed: a path stays as it is; a bare ticket id (`ABC-12`) that is no folder here becomes `<.claude>/work/<id>`.
  * A bare id from a folder outside any project (the plugin's own folder, say) is an error and not a path to a directory that is not there: `route` would
  * answer `first-run` for a ticket that is half done.
  */

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Deterministic state for the ticket workflow (see reference/README.md).
 //
-// <workdir> may be a bare ticket id (PIK-12): it stands for <.claude>/work/PIK-12 of this project.
+// <workdir> may be a bare ticket id (ABC-12): it stands for <.claude>/work/ABC-12 of this project.
 //   node state.mjs log   <workdir> <stage> <started|done|stopped|note> <summary> [links]
 //   node state.mjs state <workdir>            -> JSON: id, title, link, decision, complexity, estimate, stages, next, stopped, closed, prs, worktrees, lock, retro, lastEvent, problems
 //   node state.mjs state <workdir> --brief    -> the decision fields only: id, complexity, next, stopped, closed, unblocked, lock, worktrees, problems
