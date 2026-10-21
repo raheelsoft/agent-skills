@@ -528,3 +528,46 @@ describe('the registration of the guard hooks', () => {
     assert.deepEqual(handlers('UserPromptExpansion'), [['^tp:', 'off-skill']]);
   });
 });
+
+describe('bash guard — in don\'t-ask mode a command no allow rule can match is refused with its rewrite, not a bare denial', () => {
+  const dont = (p, command, mode = 'dontAsk') => run('bash', JSON.stringify(envelope('PreToolUse', p, { tool_name: 'Bash', tool_input: { command }, tool_use_id: 'toolu_1', permission_mode: mode })), p.env);
+
+  it('a leading assignment, in either of its forms, names the rewrite', async (t) => {
+    const p = project(t);
+    for (const c of ['W=/x/work/T-1; node /x/lib/state.mjs state $W', 'WT=/x/api node /x/lib/state.mjs state /x', 'N=/n/node; $N /x/lib/state.mjs state /x']) {
+      const out = await dont(p, c);
+      assert.equal(verdict(out), 'deny', c);
+      assert.match(reason(out), /starts with a variable assignment[\s\S]*Write the value out in full[\s\S]*its own call/, c);
+    }
+  });
+
+  it('cd, pushd and popd name `git -C` and absolute paths', async (t) => {
+    const p = project(t);
+    for (const c of ['cd api && git status --short', 'git status; cd /tmp', 'pushd /x']) {
+      const out = await dont(p, c);
+      assert.equal(verdict(out), 'deny', c);
+      assert.match(reason(out), /does not match an allow rule[\s\S]*git -C <dir>/, c);
+    }
+  });
+
+  it('a shell filler in a chain is dropped; the same filler alone, and chains of real commands, are left to the allowlist', async (t) => {
+    const p = project(t);
+    const out = await dont(p, 'git -C api rev-parse --show-toplevel; echo "exit=$?"');
+    assert.equal(verdict(out), 'deny'); assert.match(reason(out), /`echo exit=\$\?` in a chain[\s\S]*Drop it/);
+    assert.equal(await dont(p, 'echo hello'), null, 'a lone echo is the allowlist\'s call');
+    assert.equal(await dont(p, 'git add -A && git commit -m x'), null);
+    assert.equal(await dont(p, 'git -C api status --short'), null);
+  });
+
+  it('only in don\'t-ask mode, where nobody can approve; a person at the prompt, and a bash -c string, are not judged', async (t) => {
+    const p = project(t);
+    for (const mode of ['default', 'acceptEdits', 'plan']) assert.equal(await dont(p, 'cd api && git status', mode), null, mode);
+    assert.equal(await dont(p, "bash -c 'cd /x && ls'"), null, 'the nested command is not the command line');
+  });
+
+  it('in a run the existing refusals come first', async (t) => {
+    const p = project(t);
+    const inRun = await run('bash', JSON.stringify(envelope('PreToolUse', p, { ...AGENT, tool_name: 'Bash', tool_input: { command: 'cd api && git commit --no-verify -m x' }, permission_mode: 'dontAsk' })), p.env);
+    assert.match(reason(inRun), /--no-verify/, 'in a run the guard rail names itself, not the shape');
+  });
+});

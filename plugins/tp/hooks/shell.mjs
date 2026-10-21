@@ -123,7 +123,7 @@ export function parseShell(src, depth = 0) {
       const k = programIndex(c.words);
       if (k >= 0 && SHELLS.has(base(c.words[k]))) {
         const flag = c.words.findIndex((w, j) => j > k && /^-[a-z]*c[a-z]*$/.test(w));
-        if (flag >= 0 && c.words[flag + 1] !== undefined) result.push(...parseShell(c.words[flag + 1], depth + 1));
+        if (flag >= 0 && c.words[flag + 1] !== undefined) result.push(...parseShell(c.words[flag + 1], depth + 1).map((n) => ({ ...n, nested: true })));
       }
     }
   }

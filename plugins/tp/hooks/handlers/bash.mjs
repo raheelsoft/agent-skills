@@ -8,6 +8,7 @@ import { resolve, join, sep } from 'node:path';
 import { parseShell, programOf, gitOf, writeTargets } from '../shell.mjs';
 import { tpProject, inRun, legacyCopy, protectedReason, real, workRoot, allow, deny } from '../shared.mjs';
 import { ROLES, roleBashReason } from '../roles.mjs';
+import { unattendedReason } from '../unattended.mjs';
 
 const VERIFY_SUBS = new Set(['commit', 'push', 'merge', 'rebase', 'cherry-pick', 'am', 'revert', 'pull']);
 const READ_FLAGS = new Set(['--get', '--get-all', '--get-regexp', '--list', '-l', '--show-origin', '--show-scope']);
@@ -94,6 +95,7 @@ export default function bash(payload, ctx) {
       if (why) return deny(why);
     }
   }
+  if (payload.permission_mode === 'dontAsk') { const why = unattendedReason(commands); if (why) return deny(why); } // nobody can approve: say how to word it, not just "denied"
   if (pluginScript(commands, ctx)) return allow('tp: a call of the plugin\'s own script');
   return null;
 }
