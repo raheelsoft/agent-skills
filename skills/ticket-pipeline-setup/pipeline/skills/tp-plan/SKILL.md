@@ -134,6 +134,17 @@ Step 3's presentation is the report; after an approval, one line: `approved — 
 
 ## Stops
 
+**The approval is always a stop, and no agent may answer it.** Not the planner, not the
+orchestrator, not a stage lead — however obvious the plan looks, however small the
+change, and *even when the person's own instruction for the run already dictates exactly
+what the plan says*. "The plan adds nothing beyond what I was told" is precisely the
+judgement this stop exists to keep out of an agent's hands: the person asked for the
+plan, not only the outcome, and a plan that merely restates an instruction is the
+cheapest one for them to approve. Return the stop and let the session interview. Writing
+a go-ahead into `answers.md` on the person's behalf — even with its provenance honestly
+logged — is a breach of this rule, not a shortcut through it. (Standing instruction,
+2026-09-25, after a run self-approved a one-line seed change.)
+
 Derived by the script (logged `done`): open questions (`answers=1: … | 2: …`); the
 approval — every plan, with any finding the check still holds open named
 (`answers=go-ahead`, or `answers=<the change>`).

@@ -18,7 +18,7 @@ export const meta = {
 // args: { claudeDir: "/abs/path/.claude", tickets: ["ABC-123", ...],
 //         options?: { mode, promote, where, env, round, until, retro, merge: "auto"|"ask", tier: "low"|"medium"|"high"|"strong" },
 //         answers?: { "ABC-123": { "<stage>": "<text>" } }, owner?: "workflow",
-//         tiers: { low: "<model>", medium: "<model>", high: "<model>" }   — the contents of <.claude>/tiers.json }
+//         tiers: { low: "<model>", medium: "<model>", high: "<model>", ceiling?: "<model>", ladder?: ["<model>", …] }   — the contents of <.claude>/tiers.json }
 // Every planned ticket's first run ends as a needs_input row at "plan" — the person's approval of the checked
 // plan — resumed with args.answers[<id>].plan = "go-ahead" (skills/README.md § Using it, When it stops).
 // The same chain as the /tp-run-ticket skill (skills/README.md § Unattended runs). Every stage is one
@@ -57,7 +57,12 @@ const EFFORT = ['low', 'medium', 'high', 'max']
 // the model behind each rating comes from the environment's tiers.json (skills/README.md § Models and budget), passed in args
 const tiers = args?.tiers && typeof args.tiers === 'object' ? args.tiers : null
 if (!tiers || RATINGS.some((r) => typeof tiers[r] !== 'string')) throw new Error('args.tiers must map low, medium and high to model names — the contents of <.claude>/tiers.json')
-const TIER = Object.fromEntries(RATINGS.map((r) => [r, [tiers[r], r]]))
+// the ceiling the person set at setup (tiers.ceiling, one of tiers.ladder — the runtime's models, smallest first): no agent runs on a model above it,
+// whatever a tier names — the rule model.mjs pick applies (skills/README.md § Models and budget, The ceiling); a model off the ladder cannot be compared and passes
+const ladder = Array.isArray(tiers.ladder) ? tiers.ladder.map(String) : []
+const top = typeof tiers.ceiling === 'string' ? ladder.indexOf(tiers.ceiling) : -1
+const underCeiling = (model) => (top >= 0 && ladder.indexOf(model) > top ? ladder[top] : model)
+const TIER = Object.fromEntries(RATINGS.map((r) => [r, [underCeiling(tiers[r]), r]]))
 const minTier = opt.tier === 'strong' ? 'high' : (RATINGS.includes(opt.tier) ? opt.tier : null)
 if (opt.tier && !minTier) throw new Error('options.tier must be low, medium, high or strong')
 const bump = (rating) => RATINGS[Math.min(RATINGS.indexOf(rating) + 1, RATINGS.length - 1)]

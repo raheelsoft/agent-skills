@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "ACME-42",
+  "title": "Show the order total with VAT on the invoice page",
+  "link": "https://tracker.example.com/ACME/issue/ACME-42",
+  "round": 1,
+  "stackedOn": null,
+  "dependsOn": null,
+  "acceptanceCriteria": [
+    "The invoice page shows the total including VAT",
+    "A zero-rated order shows 0% VAT, not a blank"
+  ],
+  "derived": false,
+  "complexity": "medium",
+  "estimate": { "source": "pipeline", "focusedHours": 3.5, "days": 0.5, "points": 3, "basis": "two files, one rule, one screen" },
+  "actual": null,
+  "blockedBy": [],
+  "repos": [
+    {
+      "name": "shop-web",
+      "path": "/work/projects/shop-web",
+      "worktree": "/work/projects/shop/.claude/worktrees/ACME-42/shop-web",
+      "branch": "feat/acme-42-invoice-vat",
+      "base": "main",
+      "conventions": "/work/projects/shop-web/CLAUDE.md"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/pr",
+  "title": "pr.json / pr.<repo>.json",
+  "description": "The pull request of one repo: where it is, how many times it was updated, each review pass, the current verdict, and the merge commit once merged.",
+  "type": "object",
+  "required": ["repo", "url", "number", "round", "reviewRounds", "reviews", "verdict", "merged"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "repo": { "type": "string", "minLength": 1 },
+    "url": { "type": "string", "minLength": 1 },
+    "number": { "type": "integer", "minimum": 1 },
+    "round": { "type": "integer", "minimum": 1, "description": "The ticket's round this PR belongs to." },
+    "reviewRounds": { "type": "integer", "minimum": 0 },
+    "reviews": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["round", "sha", "verdict", "open", "new"],
+        "properties": {
+          "round": { "type": "integer", "minimum": 1 },
+          "sha": { "type": "string", "minLength": 1 },
+          "verdict": { "$ref": "common.schema.json#/$defs/verdict" },
+          "open": { "type": "array", "items": { "type": ["integer", "string"] }, "description": "Ids of the fix-before-merging items still open." },
+          "new": { "type": "array", "items": { "type": ["integer", "string"] }, "description": "Ids this pass raised." }
+        }
+      }
+    },
+    "verdict": { "anyOf": [ { "type": "null" }, { "$ref": "common.schema.json#/$defs/verdict" } ] },
+    "merged": { "type": ["string", "null"], "description": "The merge commit's sha, or null until merged." }
+  }
+}

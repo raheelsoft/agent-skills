@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "where": "live",
+  "targets": [{ "repo": "shop-web", "env": { "name": "staging", "url": "https://staging.shop.example.com" }, "checkout": null }],
+  "criteria": [
+    { "n": 1, "text": "The invoice page shows the total including VAT", "result": "pass", "evidence": "GET /invoices/1: total 120.00, VAT 20.00" },
+    { "n": 2, "text": "A zero-rated order shows 0% VAT, not a blank", "result": "manual", "evidence": "needs an order with a zero-rated item; none on staging" }
+  ],
+  "passed": 1,
+  "failed": 0,
+  "manual": 1
+}

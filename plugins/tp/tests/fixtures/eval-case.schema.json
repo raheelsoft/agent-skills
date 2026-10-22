@@ -1,0 +1,430 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/test/eval-case",
+  "title": "An eval case (case.yaml)",
+  "description": "What `claude plugin eval` accepts of a case.yaml, as far as this plugin's suite uses it \u2014 copied from the runtime's own validation (strict objects, the six grader types). The suite's case files are JSON, which is YAML, so the tests can read them without a YAML parser.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "execution",
+    "graders"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scaffold_script": {
+          "type": "string"
+        },
+        "history_file": {
+          "type": "string"
+        },
+        "add_dirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prompt"
+      ],
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "model": {
+          "type": "string"
+        },
+        "allowed_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "append_system_prompt": {
+          "type": "string"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "runs": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50
+    },
+    "expected_outcome": {
+      "type": "string"
+    },
+    "graders": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "name",
+              "pattern"
+            ],
+            "properties": {
+              "type": {
+                "const": "regex"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0
+              },
+              "arm": {
+                "enum": [
+                  "with-only",
+                  "both"
+                ]
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "trace",
+                      "last_message",
+                      "files",
+                      "mock_calls"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "source",
+                      "path"
+                    ],
+                    "properties": {
+                      "source": {
+                        "const": "file"
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              "pattern": {
+                "type": "string",
+                "minLength": 1
+              },
+              "flags": {
+                "type": "string",
+                "pattern": "^[dgimsuvy]*$"
+              },
+              "match": {
+                "type": "string",
+                "pattern": "^(contains|not_contains|count:\\d+)$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "name",
+              "before",
+              "after"
+            ],
+            "properties": {
+              "type": {
+                "const": "tool_order"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0
+              },
+              "arm": {
+                "enum": [
+                  "with-only",
+                  "both"
+                ]
+              },
+              "before": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "tool"
+                    ],
+                    "properties": {
+                      "tool": {
+                        "type": "string"
+                      },
+                      "input_match": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              },
+              "after": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "tool"
+                    ],
+                    "properties": {
+                      "tool": {
+                        "type": "string"
+                      },
+                      "input_match": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "name",
+              "tool"
+            ],
+            "properties": {
+              "type": {
+                "const": "tool_used"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0
+              },
+              "arm": {
+                "enum": [
+                  "with-only",
+                  "both"
+                ]
+              },
+              "tool": {
+                "type": "string",
+                "minLength": 1
+              },
+              "input_match": {
+                "type": "string"
+              },
+              "min": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "name",
+              "path"
+            ],
+            "properties": {
+              "type": {
+                "const": "file_exists"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0
+              },
+              "arm": {
+                "enum": [
+                  "with-only",
+                  "both"
+                ]
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "name",
+              "criteria"
+            ],
+            "properties": {
+              "type": {
+                "const": "llm"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0
+              },
+              "arm": {
+                "enum": [
+                  "with-only",
+                  "both"
+                ]
+              },
+              "criteria": {
+                "type": "string",
+                "minLength": 1
+              },
+              "focus": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "trace",
+                      "last_message",
+                      "files",
+                      "mock_calls"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "source",
+                      "path"
+                    ],
+                    "properties": {
+                      "source": {
+                        "const": "file"
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "name",
+              "baseline_file",
+              "criteria"
+            ],
+            "properties": {
+              "type": {
+                "const": "baseline"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0
+              },
+              "arm": {
+                "enum": [
+                  "with-only",
+                  "both"
+                ]
+              },
+              "baseline_file": {
+                "type": "string"
+              },
+              "criteria": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

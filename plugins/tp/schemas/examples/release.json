@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "repo": "shop-web",
+  "sameAs": null,
+  "run": { "id": "run-1842", "status": "Succeeded", "revision": "c0ffee1" },
+  "env": { "name": "staging", "url": "https://staging.shop.example.com" },
+  "followUps": [{ "name": "invalidate CDN cache", "status": "done", "note": "ran the purge job", "authority": "ticket" }],
+  "smoke": [{ "check": "GET /invoices/1 returns 200", "result": "pass" }],
+  "promoted": null
+}

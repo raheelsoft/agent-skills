@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "verdict": "revise",
+  "round": 1,
+  "override": null,
+  "findings": [
+    { "severity": "blocking", "step": 2, "text": "Step 2 edits src/invoice/total.ts, which does not exist; the file is src/invoices/total.ts.", "source": "lint", "rule": "files-exist" },
+    { "severity": "advisory", "step": "—", "text": "The rounding rule is stated in Approach but no step tests a 3-line order.", "source": "checker" }
+  ]
+}

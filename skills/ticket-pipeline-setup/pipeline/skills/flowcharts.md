@@ -250,7 +250,7 @@ flowchart TD
     I2 --> I3["one question per group:<br/>which skills does this project use?"]
     I3 --> I4{"a selected skill needs one left out?"}
     I4 -->|"yes"| I5["it is added, and the report says for whom"] --> I6
-    I4 -->|"no"| I6["the models for the three tiers → tiers.json"]
+    I4 -->|"no"| I6["the largest model the pipeline may use (the ceiling)<br/>→ tiers.json: ladder + the three tiers;<br/>offer: start this project's sessions on it"]
     I6 --> I7{"the repo's gates in its own hooks?"}
     I7 -->|"yes"| I8["hooks.mjs install → .husky/pre-commit, pre-push"]
     I7 -->|"a command rewrites files<br/>with no check-only form"| I9(["nothing written: use a staged runner,<br/>or move the gate to pre-push"])
@@ -264,6 +264,7 @@ flowchart TD
 |---|---|
 | the catalogue, the groups, the dependencies | `skills/_lib/setup.mjs` (`GROUPS`) · `tp-setup/SKILL.md` |
 | what an off skill changes downstream | `README.md` § Definitions, Active skills |
+| the ceiling, the ladder, the three tiers, the session's starting model | `README.md` § Models and budget, The ceiling · `model.mjs` (`tiers`, `ceiling`, `pin`) |
 | the hooks, and when they are refused | `README.md` § Verification rules · `hooks.mjs` header |
 | what the allowlist must cover | `README.md` § Using it, Install |
 

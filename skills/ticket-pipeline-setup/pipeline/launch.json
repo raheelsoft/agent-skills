@@ -2,39 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "sandseeker-fe",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev",
-        "--",
-        "-p",
-        "3005"
-      ],
-      "cwd": "/Users/raheelbutt/raheel-butt/projects/ps-upwork/sandseekers/new/sandseeker-fe",
-      "port": 3005,
-      "autoPort": false
-    },
-    {
-      "name": "sandseeker-be",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "start:dev"
-      ],
-      "cwd": "/Users/raheelbutt/raheel-butt/projects/ps-upwork/sandseekers/new/sandseeker-be",
-      "port": 3001,
-      "autoPort": false
-    },
-    {
       "name": "office",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "office/serve.mjs",
+        ".claude/office/serve.mjs",
         "--port",
         "4820"
       ],
-      "cwd": "/Users/raheelbutt/raheel-butt/projects/ps-upwork/sandseekers/new/.claude",
       "port": 4820,
       "autoPort": false
     },
@@ -42,12 +16,11 @@
       "name": "office-sim",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "office/serve.mjs",
+        ".claude/office/serve.mjs",
         "--port",
         "4821",
         "--sim"
       ],
-      "cwd": "/Users/raheelbutt/raheel-butt/projects/ps-upwork/sandseekers/new/.claude",
       "port": 4821,
       "autoPort": false
     }

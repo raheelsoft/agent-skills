@@ -14,7 +14,15 @@
 //   node model.mjs calibrate '{ workroot, claudeDir, minSamples? }' [--apply] -> { samples, ratings: { <rating>: { samples, current, medianRatio,
 //                                                proposed, pipelineMedianMin, ids } }, drift, applied } — the base hours proposed from the
 //                                                person's recorded actuals (README § Models and budget, Estimates); --apply writes them
-//   node model.mjs tiers  <.claude> low=<model> medium=<model> high=<model>   -> writes <.claude>/tiers.json
+//   node model.mjs tiers  <.claude> ceiling=<model> [ladder=<smallest>,…,<largest>] [low=<model> medium=<model> high=<model>]
+//                                                             -> writes <.claude>/tiers.json: the ceiling, the ladder and the three tiers derived from
+//                                                                them (low = the smallest model, high = the ceiling, medium = the first step up); a tier
+//                                                                named by hand must sit on the ladder at or below the ceiling
+//   node model.mjs tiers  <.claude> low=<model> medium=<model> high=<model>   -> the three tiers by hand (checked against the ceiling when there is one)
+//   node model.mjs ceiling '{ claudeDir, session? }'          -> { ceiling, ladder, allowed, tiers, problems, startup, session } — what the pipeline may use,
+//                                                                and where the project's starting model and a named session model sit against it
+//   node model.mjs pin    <.claude>                           -> writes the ceiling as the runtime's `model` setting in <.claude>/settings.local.json when
+//                                                                that is unset or above it — the session's starting model, which is not a cap
 //
 // signals: { steps, flags: [] | n, files, lines, repos, criteria, round, retries, unclear, mechanical, claudeDir? }
 // Every command takes claudeDir (or tiers) so tiers.json's mapping and overrides apply; without it the
@@ -31,7 +39,9 @@
 // review:  { rating, files, lines, history: [{ round, open: [ids], new: [ids] }, …] } — one entry per pass posted so far
 // context: { rating, used (tokens the agent estimates it holds) | percentUsed, window?, stepsLeft, stepsTotal?,
 //            nextStep?: { bytes } (what the next step must read), handoffs? (hand-offs so far), perStep? }
-// tiers.json: { low, medium, high, budget?: { economy: 70, stop: 90 }, thresholds?: { medium: 2, high: 4 },
+// ceiling, ladder: the largest model the pipeline may use, and the runtime's models smallest first (README § Models and budget, The
+//          ceiling) — both are data, no script names a model; every tier sits on the ladder at or below the ceiling, and pick clamps one that does not
+// tiers.json: { ceiling?, ladder?, low, medium, high, budget?: { economy: 70, stop: 90 }, thresholds?: { medium: 2, high: 4 },
 //               review?: { low: 2, medium: 3, high: 4, max: 5 },
 //               compact?: { window: 200000, reserve: 0.08, perStep: { low: 0.04, medium: 0.08, high: 0.12 },
 //                           safety: { low: 1.2, medium: 1.5, high: 2 }, handoffs: { low: 2, medium: 4, high: 6 } },
@@ -100,6 +110,99 @@ function readTiers(task) {
 const at = (r) => RATINGS.indexOf(r);
 export const higherOf = (a, b) => (at(a) >= at(b) ? a : b);
 
+// ---- the ceiling ---------------------------------------------------------------------------------------------------
+// The person's answer to "what is the largest model this pipeline may use?" (/tp-setup): `ladder` is the runtime's models,
+// smallest first, as its spawn argument names them; `ceiling` is one of them. Nothing here names a model — both are data.
+
+const ladderOf = (tiers) => (Array.isArray(tiers.ladder) ? tiers.ladder.map((m) => String(m).trim()).filter(Boolean) : []);
+const ceilingIdx = (tiers) => (typeof tiers.ceiling === 'string' ? ladderOf(tiers).indexOf(tiers.ceiling) : -1);
+
+/** The three tiers a ceiling gives: low is the smallest model, high the ceiling, medium the first step up from the smallest —
+ *  so a ceiling of one model puts it on every tier, and one of two puts the larger on medium and high (the rating still sets the
+ *  effort, the review rounds, the retries and the estimate). `allowed` is every model up to and including the ceiling. */
+export function tiersFor(ladder, ceiling) {
+  const list = (Array.isArray(ladder) ? ladder : []).map((m) => String(m).trim()).filter(Boolean);
+  if (!list.length) throw new Error('no ladder: name the runtime\'s models, smallest first — ladder=<smallest>,…,<largest>');
+  if (new Set(list).size !== list.length) throw new Error(`the ladder names a model twice: ${list.join(', ')}`);
+  const top = list.indexOf(String(ceiling));
+  if (top < 0) throw new Error(`the ceiling "${ceiling}" is not on the ladder (${list.join(' < ')})`);
+  const allowed = list.slice(0, top + 1);
+  return { allowed, tiers: { low: allowed[0], medium: allowed[Math.min(1, top)], high: allowed[top] } };
+}
+
+/** A model above the ceiling runs on the ceiling instead; one that is not on the ladder cannot be compared and passes (the doctor says so). */
+export function withinCeiling(model, tiers = {}) {
+  const top = ceilingIdx(tiers);
+  const i = ladderOf(tiers).indexOf(String(model));
+  return top >= 0 && i > top ? { model: ladderOf(tiers)[top], clamped: true } : { model, clamped: false };
+}
+
+/** Where a model the runtime names sits against the ceiling — the ladder entry its name contains ("claude-<entry>-5" → <entry>; the longest entry wins). */
+function standing(name, list, top) {
+  const lower = String(name || '').toLowerCase();
+  let hit = -1;
+  list.forEach((m, i) => { if (lower.includes(m.toLowerCase()) && (hit < 0 || m.length > list[hit].length)) hit = i; });
+  return { model: String(name), rung: hit >= 0 ? list[hit] : null, within: hit < 0 || top < 0 ? null : hit <= top };
+}
+
+/** The model the project's settings start a session on (`model`; settings.local.json over settings.json), or null. */
+function startupModel(claudeDir) {
+  for (const name of ['settings.local.json', 'settings.json']) {
+    try {
+      const j = JSON.parse(readFileSync(join(claudeDir, name), 'utf8'));
+      if (typeof j.model === 'string' && j.model) return { file: name, model: j.model };
+    } catch { /* absent or not JSON: the next one */ }
+  }
+  return null;
+}
+
+/**
+ * What the pipeline may use, and whether the files agree with it: the ceiling, the ladder, every model up to the ceiling, the
+ * three tiers, what is inconsistent (`problems`), and where the project's starting model (`startup`) and a model the caller
+ * names (`session` — the one its own context runs on) sit against the ceiling: `within` is true, false, or null when the name is
+ * not on the ladder and cannot be compared.
+ */
+export function ceilingStatus(input = {}) {
+  const tiers = readTiers(input);
+  const ladder = ladderOf(tiers);
+  const top = ceilingIdx(tiers);
+  const ceiling = typeof tiers.ceiling === 'string' && tiers.ceiling ? tiers.ceiling : null;
+  const mapped = Object.fromEntries(RATINGS.map((r) => [r, typeof tiers[r] === 'string' && tiers[r] ? tiers[r] : null]));
+  const problems = [];
+  if (!ceiling) problems.push('no ceiling is set: every model the tiers name is allowed');
+  else if (!ladder.length) problems.push(`the ceiling ${ceiling} has no ladder to be checked against`);
+  else if (top < 0) problems.push(`the ceiling ${ceiling} is not on the ladder (${ladder.join(' < ')})`);
+  else {
+    for (const r of RATINGS) {
+      if (!mapped[r]) continue;
+      const i = ladder.indexOf(mapped[r]);
+      if (i < 0) problems.push(`${r}=${mapped[r]} is not on the ladder, so the ceiling cannot be checked for it`);
+      else if (i > top) problems.push(`${r}=${mapped[r]} is above the ceiling ${ceiling}: it runs on ${ceiling}`);
+    }
+  }
+  const where = (name) => (top >= 0 ? standing(name, ladder, top) : { model: String(name), rung: null, within: null });
+  const startup = input.claudeDir ? startupModel(input.claudeDir) : null;
+  return {
+    ceiling, ladder, allowed: top >= 0 ? ladder.slice(0, top + 1) : null, tiers: mapped, problems,
+    startup: startup ? { ...startup, ...where(startup.model) } : null,
+    session: input.session ? where(input.session) : null,
+  };
+}
+
+/** The ceiling as the runtime's `model` setting for this project — the model a session starts on. Written only when the setting is unset,
+ *  above the ceiling or not comparable; one already within the ceiling is the person's choice and stays. It is an initial selection, not a cap. */
+export function pinSession(claudeDir) {
+  const st = ceilingStatus({ claudeDir });
+  if (!st.allowed) throw new Error(`nothing to pin: ${st.problems[0]} — set it first: node model.mjs tiers ${claudeDir} ceiling=<model> ladder=<smallest>,…,<largest>`);
+  const file = join(claudeDir, 'settings.local.json');
+  let prev = {};
+  if (existsSync(file)) { try { prev = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Error(`${file} is not valid JSON — fix it first; nothing was changed`); } }
+  const was = typeof prev.model === 'string' && prev.model ? prev.model : null;
+  if (was && standing(was, st.ladder, st.ladder.indexOf(st.ceiling)).within === true) return { file, model: was, was, written: false };
+  writeAtomic(file, { ...prev, model: st.ceiling });
+  return { file, model: st.ceiling, was, written: true };
+}
+
 /** A count a caller may have written either as the number or as the list itself (a plan's `steps`, a diff's `files`,
  *  a ticket's `criteria`): the list's length, else the number, else 0. An array must never reach a `>=` below — it
  *  coerces to NaN there and silently fails every threshold, under-rating the work. */
@@ -150,15 +253,18 @@ export function budget(usage = {}, tiers = {}, opts = {}) {
     const band = w.percentUsed >= limits.stop ? 'stop'
       : (w.percentUsed >= limits.economy || (projected != null && projected >= 100 && w.percentUsed >= 50)) ? 'economy' : 'ample';
     const label = String(w.label || '');
-    const tier = Object.entries(names).find(([, name]) => name && label.toLowerCase().includes(name))?.[0] || null;
-    return { label, percentUsed: w.percentUsed, hoursLeft: hoursLeft == null ? null : Math.round(hoursLeft * 10) / 10, projected, band, tier, resetsAt: w.resetsAt || null };
+    const onTiers = RATINGS.filter((r) => names[r] && label.toLowerCase().includes(names[r])); // every tier that runs on this window's model
+    const tier = onTiers[0] || null;
+    return { label, percentUsed: w.percentUsed, hoursLeft: hoursLeft == null ? null : Math.round(hoursLeft * 10) / 10, projected, band, tier, tiers: onTiers, resetsAt: w.resetsAt || null };
   });
   const rank = { ample: 0, economy: 1, stop: 2 };
   const general = windows.filter((w) => !w.tier).sort((a, b) => rank[b.band] - rank[a.band] || b.percentUsed - a.percentUsed);
   const binding = general[0] || null;
-  const perTier = Object.fromEntries(windows.filter((w) => w.tier).map((w) => [w.tier, w.band]));
+  const perTier = {};
+  for (const w of windows) for (const r of w.tiers) perTier[r] = rank[w.band] >= rank[perTier[r] || 'ample'] ? w.band : perTier[r]; // the worst window of the model
   const band = windows.length ? (binding ? binding.band : 'ample') : 'unknown';
   const why = !windows.length ? 'no usage reading: the rating alone decides'
+    : !binding ? `only per-model windows (${windows.map((w) => `${w.label} at ${w.percentUsed}%`).join(', ')}): the rating alone decides, the model's own window stops what runs on it`
     : `${binding.label} at ${binding.percentUsed}%${binding.projected != null ? ` (${binding.projected}% by reset at this pace)` : ''}${binding.resetsAt ? `, resets ${binding.resetsAt}` : ''}`;
   return { band, binding, windows, tiers: perTier, why };
 }
@@ -185,11 +291,14 @@ export function pick(task = {}) {
   }
   let effort = at(rating);
   if (task.catching) effort = Math.min(EFFORT.length - 1, effort + 1);
+  const named = typeof tiers[rating] === 'string' ? tiers[rating] : null;
+  const capped = named ? withinCeiling(named, tiers) : { model: null, clamped: false };
+  if (capped.clamped) why.push(`${named} is above the ceiling ${capped.model}: the agent runs on the ceiling`);
   return {
-    action, rating, model: typeof tiers[rating] === 'string' ? tiers[rating] : null, effort: EFFORT[effort],
+    action, rating, model: capped.model, effort: EFFORT[effort],
     budget: { band: b.band, why: b.why, tiers: b.tiers },
     why: why.join('; ') || 'the rating alone decides',
-    ...(RATINGS.some((r) => typeof tiers[r] === 'string') ? {} : { note: 'no tiers.json — map the ratings to this environment\'s models: node model.mjs tiers <.claude> low=… medium=… high=…' }),
+    ...(RATINGS.some((r) => typeof tiers[r] === 'string') ? {} : { note: 'no tiers.json — choose the largest model the pipeline may use: node model.mjs tiers <.claude> ceiling=<model> ladder=<smallest>,…,<largest>' }),
   };
 }
 
@@ -396,17 +505,43 @@ export function calibrate(input = {}) {
   return { minSamples, samples, ratings, drift, applied };
 }
 
+/**
+ * `ceiling=<model> [ladder=<smallest>,…,<largest>]` derives the three tiers (tiersFor) and records the ceiling and the ladder with them;
+ * `low=` `medium=` `high=` after it name a tier by hand. Without `ceiling=` all three tiers are named, as before — and when the file
+ * already holds a ceiling, each must sit on its ladder at or below it. Everything else in the file is kept.
+ */
 function writeTiers(claudeDir, pairs) {
-  const t = {};
+  const given = {};
   for (const p of pairs) {
-    const m = /^(low|medium|high)=(.+)$/.exec(p);
-    if (!m) { console.error(`bad tier "${p}" — use low=<model> medium=<model> high=<model>`); process.exit(2); }
-    t[m[1]] = m[2];
+    const m = /^(ceiling|ladder|low|medium|high)=(.+)$/.exec(p);
+    if (!m) throw new Error(`bad tier "${p}" — use ceiling=<model> [ladder=<smallest>,…,<largest>], or low=<model> medium=<model> high=<model>`);
+    given[m[1]] = m[2].trim();
   }
-  for (const k of RATINGS) if (!t[k]) { console.error(`missing ${k}=<model>`); process.exit(2); }
+  if (!existsSync(claudeDir)) throw new Error(`${claudeDir} does not exist`);
+  if (given.ladder && !given.ceiling) throw new Error('ladder= goes with ceiling=<model>: name the largest model the pipeline may use');
   const file = join(claudeDir, 'tiers.json');
   const prev = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
-  const out = { ...prev, ...t };
+  let ceiling = typeof prev.ceiling === 'string' && prev.ceiling ? prev.ceiling : null;
+  let ladder = ladderOf(prev);
+  const tiers = {};
+  if (given.ceiling) {
+    ceiling = given.ceiling;
+    if (given.ladder) ladder = given.ladder.split(',').map((m) => m.trim()).filter(Boolean);
+    Object.assign(tiers, tiersFor(ladder, ceiling).tiers);
+  }
+  for (const r of RATINGS) if (given[r]) tiers[r] = given[r];
+  for (const r of RATINGS) if (!tiers[r]) throw new Error(`missing ${r}=<model>`);
+  if (ceiling) {
+    const top = ladder.indexOf(ceiling);
+    if (top < 0) throw new Error(`the ceiling "${ceiling}" is not on the ladder (${ladder.join(' < ') || 'none recorded'}) — pass ceiling= with ladder=`);
+    for (const r of RATINGS) {
+      const i = ladder.indexOf(tiers[r]);
+      if (i < 0) throw new Error(`${r}=${tiers[r]} is not on the ladder (${ladder.join(' < ')}) — name a model from it, or extend the ladder: ceiling=${ceiling} ladder=…`);
+      if (i > top) throw new Error(`${r}=${tiers[r]} is above the ceiling ${ceiling} (the pipeline may use ${ladder.slice(0, top + 1).join(', ')}) — raise the ceiling first: ceiling=${tiers[r]}`);
+    }
+  }
+  const { ceiling: _c, ladder: _l, low: _lo, medium: _me, high: _hi, ...rest } = prev;
+  const out = { ...(ceiling ? { ceiling, ladder } : {}), ...tiers, ...rest };
   writeFileSync(file, JSON.stringify(out, null, 2) + '\n');
   return out;
 }
@@ -429,8 +564,10 @@ if (process.argv[1] && isMain(import.meta.url)) {
       case 'retry': emit(retry(readArg(a))); break;
       case 'estimate': emit(estimate(readArg(a))); break;
       case 'calibrate': emit(calibrate({ ...readArg(a), apply: rest.includes('--apply') })); break;
-      case 'tiers': { if (!a) throw new Error('usage: tiers <.claude> low=… medium=… high=…'); emit(writeTiers(a, rest)); break; }
-      default: console.error('usage: model.mjs rate|budget|pick|rounds|compact|retry|estimate|calibrate|tiers …'); process.exit(2);
+      case 'tiers': { if (!a) throw new Error('usage: tiers <.claude> ceiling=<model> [ladder=<smallest>,…,<largest>] | low=… medium=… high=…'); emit(writeTiers(a, rest)); break; }
+      case 'ceiling': emit(ceilingStatus(readArg(a))); break;
+      case 'pin': { if (!a) throw new Error('usage: pin <.claude>'); emit(pinSession(a)); break; }
+      default: console.error('usage: model.mjs rate|budget|pick|rounds|compact|retry|estimate|calibrate|tiers|ceiling|pin …'); process.exit(2);
     }
   } catch (e) { console.error(e.message); process.exit(2); }
 }

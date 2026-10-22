@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/review-findings",
+  "title": "A review pass as data",
+  "description": "What a reviewer reports, as JSON; lib/contract/findings.mjs renders the PR comment and computes the verdict from it. Priority decides the tier: P0 correctness, security, data loss · P1 contract break, regression, missing test · P2 design (SOLID, duplication, layering) · P3 clean code · P4 style. P0 and P1 are \"fix before merging\", P2 \"should fix\", P3 and P4 \"could improve\".",
+  "type": "object",
+  "required": [
+    "round",
+    "sha",
+    "mode",
+    "confidence",
+    "findings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sha": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The head revision reviewed."
+    },
+    "mode": {
+      "enum": [
+        "full",
+        "delta",
+        "resolution"
+      ]
+    },
+    "confidence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "gate",
+          "status"
+        ],
+        "properties": {
+          "gate": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "priority",
+          "file",
+          "text"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Stable across passes: an item keeps the number it was first given."
+          },
+          "priority": {
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "P3",
+              "P4"
+            ]
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fix": {
+            "type": "string",
+            "description": "What should change and why."
+          },
+          "scope": {
+            "enum": [
+              "diff",
+              "pre-existing"
+            ],
+            "description": "pre-existing: a defect in code the diff touches, not introduced by it."
+          },
+          "status": {
+            "enum": [
+              "open",
+              "resolved",
+              "noted"
+            ],
+            "description": "open when absent. resolved: a previous item the change fixed. noted: seen in a resolution pass, not gating."
+          },
+          "new": {
+            "type": "boolean",
+            "description": "Raised by this pass. Absent means new in a full pass and carried over in a delta or resolution pass."
+          },
+          "ticket": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "pre-existing: the ticket tracking it, or null when one is needed."
+          },
+          "criterion": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The acceptance criterion this finding is about, when it is."
+          }
+        }
+      }
+    },
+    "criteria": {
+      "type": "array",
+      "description": "The ticket's acceptance criteria, each judged against the diff: covered (evidence names where), missing (the change does not deliver it — a P1 finding must carry it), or unclear (say what could not be established).",
+      "items": {
+        "type": "object",
+        "required": [
+          "n",
+          "status"
+        ],
+        "properties": {
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The criterion's number in the ticket."
+          },
+          "status": {
+            "enum": [
+              "covered",
+              "missing",
+              "unclear"
+            ]
+          },
+          "evidence": {
+            "type": "string",
+            "description": "file:line, test or request that shows it."
+          }
+        }
+      }
+    },
+    "dismissed": {
+      "type": "array",
+      "description": "Hits of `diffscan.mjs` the review looked at and did not raise, each with the reason.",
+      "items": {
+        "type": "object",
+        "required": [
+          "rule",
+          "file",
+          "why"
+        ],
+        "properties": {
+          "rule": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "line": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "why": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

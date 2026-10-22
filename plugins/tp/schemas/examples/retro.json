@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "deviations": 1,
+  "reviewFindingsMissedByCheck": 1,
+  "questions": 2,
+  "manualCriteria": 1,
+  "proposals": [
+    { "target": "conventions", "text": "State that money is formatted by src/invoices/format.ts only.", "evidence": "step 2 deviated to fix a hard-coded two-decimal formatter" }
+  ]
+}

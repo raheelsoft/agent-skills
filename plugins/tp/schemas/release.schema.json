@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/release",
+  "title": "release.json / release.<repo>.json",
+  "description": "What the deploy of one repo did: the pipeline run watched, the environment, the follow-ups it ran, the smoke checks, and the promotion.",
+  "type": "object",
+  "required": ["repo", "sameAs", "run", "env", "followUps", "smoke", "promoted"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "repo": { "type": "string", "minLength": 1 },
+    "sameAs": { "type": ["string", "null"], "description": "The ticket whose deploy already shipped this change, or null." },
+    "run": {
+      "description": "The deploy pipeline run that was watched, or null when nothing deployed.",
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["id", "status", "revision"],
+          "properties": { "id": { "type": "string", "minLength": 1 }, "status": { "type": "string", "minLength": 1 }, "revision": { "type": ["string", "null"] } }
+        }
+      ]
+    },
+    "env": { "anyOf": [ { "type": "null" }, { "$ref": "common.schema.json#/$defs/environment" } ] },
+    "followUps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status"],
+        "properties": { "name": { "type": "string", "minLength": 1 }, "status": { "type": "string", "minLength": 1 }, "note": { "type": "string" }, "authority": { "type": "string" } }
+      }
+    },
+    "smoke": {
+      "type": "array",
+      "items": { "type": "object", "required": ["check", "result"], "properties": { "check": { "type": "string", "minLength": 1 }, "result": { "type": "string", "minLength": 1 } } }
+    },
+    "promoted": { "type": ["object", "null"], "description": "{ branch, sha, run } once promoted to the next environment, else null." }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "status": "stopped",
+  "summary": "triage: plan needed, two questions for the person",
+  "question": "Should a zero-rated order show 0% or hide the VAT line?",
+  "data": { "id": "ACME-42", "complexity": "medium", "next": "triage", "stopped": { "stage": "triage", "kind": "question" }, "closed": null, "unblocked": false, "lock": null, "worktrees": [], "problems": [] }
+}

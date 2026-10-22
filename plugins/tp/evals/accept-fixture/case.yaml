@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "name": "accept-fixture",
+  "description": "/tp:accept walks DEMO-4's acceptance criteria against the merged revision in the ticket's worktree, records each with evidence, and \u2014 as the run's last stage \u2014 removes the worktree.",
+  "tags": [
+    "smoke",
+    "stage"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "/tp:accept DEMO-4 inline=true",
+    "max_turns": 40,
+    "timeout_seconds": 900,
+    "model": "sonnet",
+    "allowed_tools": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Skill"
+    ]
+  },
+  "runs": 1,
+  "graders": [
+    {
+      "type": "file_exists",
+      "name": "accept.json is there",
+      "path": ".claude/work/DEMO-4/accept.json"
+    },
+    {
+      "type": "regex",
+      "name": "no criterion failed",
+      "pattern": "\"failed\": 0",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/accept.json"
+      }
+    },
+    {
+      "type": "regex",
+      "name": "each with a result",
+      "pattern": "\"result\": \"pass\"",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/accept.json"
+      }
+    },
+    {
+      "type": "file_exists",
+      "name": "accept.md is there",
+      "path": ".claude/work/DEMO-4/accept.md"
+    },
+    {
+      "type": "regex",
+      "name": "and the stage is logged done",
+      "pattern": "accept \u00b7 done",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/progress.md"
+      }
+    },
+    {
+      "type": "file_exists",
+      "name": "and the worktree is gone",
+      "path": ".claude/worktrees/DEMO-4/api",
+      "exists": false
+    }
+  ]
+}

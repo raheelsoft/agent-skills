@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "repo": "shop-web",
+  "url": "https://git.example.com/acme/shop-web/pull/218",
+  "number": 218,
+  "round": 1,
+  "reviewRounds": 2,
+  "reviews": [
+    { "round": 1, "sha": "3f9c2ab", "verdict": "BLOCK", "open": [1], "new": [1, 2] },
+    { "round": 2, "sha": "a81d0e4", "verdict": "PASS WITH WARNINGS", "open": [], "new": [] }
+  ],
+  "verdict": "PASS WITH WARNINGS",
+  "merged": "c0ffee1"
+}

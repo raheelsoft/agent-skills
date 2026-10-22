@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tp/quality",
+  "title": "quality.json",
+  "description": "How the ticket's code stood at each review pass: what was left open per priority (P0 correctness, security, data loss … P4 style), what the pass fixed, and where the ticket stands now. Written by findings.mjs record — never by hand.",
+  "type": "object",
+  "required": ["rounds", "open", "score", "verdict"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "rounds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["repo", "round", "sha", "mode", "verdict", "open", "resolved", "preexisting", "score"],
+        "properties": {
+          "repo": { "type": "string", "minLength": 1 },
+          "round": { "type": "integer", "minimum": 1 },
+          "sha": { "type": "string", "minLength": 1 },
+          "mode": { "enum": ["full", "delta", "resolution"] },
+          "verdict": { "$ref": "common.schema.json#/$defs/verdict" },
+          "open": { "$ref": "common.schema.json#/$defs/priorityCounts" },
+          "resolved": { "$ref": "common.schema.json#/$defs/priorityCounts" },
+          "preexisting": { "type": "integer", "minimum": 0 },
+          "score": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "open": { "$ref": "common.schema.json#/$defs/priorityCounts", "description": "Summed over the latest pass of every repo." },
+    "score": { "type": "integer", "minimum": 0, "description": "1000 per open P0, 100 per P1, 10 per P2, 3 per P3, 1 per P4 — for a status line; the gate compares the counts, P0 first." },
+    "verdict": { "anyOf": [ { "type": "null" }, { "$ref": "common.schema.json#/$defs/verdict" } ], "description": "The worst verdict among the repos' latest passes." }
+  }
+}

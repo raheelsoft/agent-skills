@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0",
+  "name": "retro-fixture",
+  "description": "/tp:retro compares DEMO-4's plan with what happened and writes retro.md and retro.json \u2014 proposals only, nothing changed.",
+  "tags": [
+    "smoke",
+    "stage"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "/tp:retro DEMO-4 inline=true",
+    "max_turns": 30,
+    "timeout_seconds": 600,
+    "model": "sonnet",
+    "allowed_tools": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Skill"
+    ]
+  },
+  "runs": 1,
+  "graders": [
+    {
+      "type": "file_exists",
+      "name": "retro.md is there",
+      "path": ".claude/work/DEMO-4/retro.md"
+    },
+    {
+      "type": "file_exists",
+      "name": "retro.json is there",
+      "path": ".claude/work/DEMO-4/retro.json"
+    },
+    {
+      "type": "regex",
+      "name": "through put",
+      "pattern": "\"schemaVersion\": 1",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/retro.json"
+      }
+    },
+    {
+      "type": "regex",
+      "name": "and the stage is logged done",
+      "pattern": "retro \u00b7 done",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/progress.md"
+      }
+    }
+  ]
+}

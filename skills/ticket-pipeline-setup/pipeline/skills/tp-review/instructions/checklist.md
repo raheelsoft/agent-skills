@@ -46,6 +46,9 @@ code. Skip sections that don't apply to this project or this change.
 - [ ] No dead or commented-out code; no unused imports
 - [ ] Units stay focused on one responsibility
 - [ ] New behavior is covered by tests where the project's conventions expect it
+- [ ] Comments and PR text assert nothing about code outside the diff that the change
+      does not prove — no counts, no "the only caller", no specificity or precedence
+      arithmetic, unless verified in this pass (README § Verification rules)
 
 ## Skepticism pass
 When the first pass found nothing, assume something was missed and re-read for:
@@ -67,3 +70,9 @@ When the first pass found nothing, assume something was missed and re-read for:
 - A constant re-declared locally instead of imported from where it is defined
 - UI that diverges from the project's design reference or duplicates an existing
   component, or a loading state that can flash a wrong result before data resolves
+- A comment or description asserting something about the wider codebase — a count, "the
+  only", "every", a specificity or precedence calculation — that is stale or was never
+  true; verify it or have it cut, and re-derive rather than trusting a prior round's
+  figure
+- A selector, override or lookup whose precedence is assumed rather than computed, where
+  a type selector, `!important`, layer or source order decides it

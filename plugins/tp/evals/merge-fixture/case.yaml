@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "name": "merge-fixture",
+  "description": "/tp:merge runs the review loop on DEMO-4's open pull request \u2014 an unbiased review in its own agent, its findings recorded as data \u2014 and, when the review passes, merges it into the base on the fixture platform.",
+  "tags": [
+    "full",
+    "stage"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "/tp:merge DEMO-4 inline=true merge=auto",
+    "max_turns": 60,
+    "timeout_seconds": 900,
+    "model": "sonnet",
+    "allowed_tools": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Grep",
+      "Glob",
+      "Skill",
+      "Agent"
+    ]
+  },
+  "runs": 1,
+  "graders": [
+    {
+      "type": "regex",
+      "name": "pr.json records the merge commit",
+      "pattern": "\"merged\": \"[0-9a-f]{40}\"",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/pr.json"
+      }
+    },
+    {
+      "type": "regex",
+      "name": "after a passing review",
+      "pattern": "\"verdict\": \"PASS",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/pr.json"
+      }
+    },
+    {
+      "type": "regex",
+      "name": "and the platform holds the pull request merged",
+      "pattern": "\"state\": \"merged\"",
+      "target": {
+        "source": "file",
+        "path": ".claude/hosting.fixture.json"
+      }
+    },
+    {
+      "type": "file_exists",
+      "name": "the review's findings were recorded as data",
+      "path": ".claude/work/DEMO-4/quality.json"
+    },
+    {
+      "type": "regex",
+      "name": "and the stage is logged done",
+      "pattern": "merge \u00b7 done",
+      "target": {
+        "source": "file",
+        "path": ".claude/work/DEMO-4/progress.md"
+      }
+    },
+    {
+      "type": "tool_used",
+      "name": "the review ran in its own typed agent",
+      "tool": "Agent",
+      "input_match": "tp:reviewer"
+    }
+  ]
+}

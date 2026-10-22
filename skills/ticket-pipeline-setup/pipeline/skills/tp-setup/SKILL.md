@@ -1,6 +1,6 @@
 ---
 name: tp-setup
-description: Integrate the pipeline into a project — an interview that picks which skills to activate (by group, dependencies pulled in), maps the runtime's models to the three tiers, offers to put the project's gates in its git hooks, writes pipeline.json and tiers.json, prints the allowlist, and ends with the preflight; run it again to change the selection.
+description: Integrate the pipeline into a project — an interview that picks which skills to activate (by group, dependencies pulled in), asks for the largest model the pipeline may use and derives the three tiers from it, offers to put the project's gates in its git hooks, writes pipeline.json and tiers.json, prints the allowlist, and ends with the preflight; run it again to change the selection or the ceiling.
 user_invocable: true
 ---
 
@@ -9,7 +9,8 @@ project's `.claude/`, and the way to change the selection later. It runs **where
 is invoked** (`skills/README.md` § Definitions, Dedicated agent: its whole job is to
 ask the person and run one script, so no agent is spawned for it). Nothing here
 touches a ticket, a repo or the tracker: it writes `<.claude>/pipeline.json` and
-`<.claude>/tiers.json`, and moves the folders of skills that are off to
+`<.claude>/tiers.json` (and, when the person accepts step 3's offer, the `model` line of
+`<.claude>/settings.local.json`), and moves the folders of skills that are off to
 `<.claude>/skills/_off/` (kept, restorable). The catalogue — every skill, its group,
 what it needs, whether the interview preselects it — is one place,
 `<.claude>/skills/_lib/setup.mjs`; the README's table describes the same skills.
@@ -19,7 +20,9 @@ what it needs, whether the interview preselects it — is one place,
 - No argument → the interview (steps 1–4).
 - `all=true` → every skill, no question (an install that wants everything).
 - `skills=<a,b,c>` → exactly these, plus what they need, no question.
-- `models=<low>,<medium>,<high>` → `tiers.json` without asking.
+- `ceiling=<model>` → the largest model the pipeline may use, without asking (step 3).
+- `models=<low>,<medium>,<high>` → the three tiers named by hand, without asking (step 3).
+- `session=<yes|no>` → answer step 3's second question without asking.
 - `hooks=<yes|no|dry>` → answer step 3b's question without asking (`dry` prints the
   hooks it would write and writes nothing).
 - `status` → what is on, what is off, and any problem (an active skill whose folder
@@ -48,13 +51,41 @@ the pipeline without a way to run a ticket (`tp-run-ticket` off) is fine — the
 skills still work one by one (§ Definitions, Entry points). `all=true` and `skills=`
 skip the question.
 
-### 3. The models
-`<.claude>/tiers.json` without models (a first install) → ask once for the three model
-names the runtime knows — a fast one, the standard one, the strongest — suggesting
-the runtime's current family; then `node <.claude>/skills/_lib/model.mjs tiers
-<.claude> low=<model> medium=<model> high=<model>` (the only place a model name is ever
-written — § Models and budget). `models=` answers without asking; models already
-mapped → say which and go on.
+### 3. The ceiling — the largest model the pipeline may use
+The one decision that bounds every model the pipeline's agents run on (`skills/README.md`
+§ Models and budget, The ceiling). Ask it when `<.claude>/tiers.json` records no ceiling
+(a first install) or the person asked to change it — and never from memory of which
+models exist:
+
+1. **The ladder** — the runtime's current models, smallest first: each family at its latest
+   version, taken from the runtime's own list of its models and the names its spawn
+   argument takes (aliases where it has them, so the ceiling follows the family).
+   `node <.claude>/skills/_lib/model.mjs ceiling '{ "claudeDir": "<.claude>" }'` shows the
+   one already recorded; on a re-run start from it and add what the runtime now offers.
+2. **The questions**, in one call of the runtime's interactive question tool — *What is
+   the largest model this pipeline may use?* (single choice: one option per model on the
+   ladder, the four largest when there are more and the person can name another;
+   labelled with the family and its latest version, each described by what the pipeline
+   would then use — that model and every smaller one; preselected: the current ceiling,
+   else the model this session runs on when it is on the ladder) and *Start this
+   project's sessions on it?* (yes or no; yes preselected). The runtime's `model` setting
+   is a session's starting model: the pipeline can set it, not enforce it.
+3. **Write it** — `node <.claude>/skills/_lib/model.mjs tiers <.claude> ceiling=<model>
+   ladder=<smallest>,…,<largest>` (`ladder=` is optional once one is recorded): the
+   script derives the three tiers (README, the ceiling's rule), refuses a ceiling that is
+   not on the ladder, and keeps every other setting. On *yes*, `node
+   <.claude>/skills/_lib/model.mjs pin <.claude>` writes `model` into
+   `<.claude>/settings.local.json` — unless the person's own setting there is already
+   within the ceiling, which stays.
+4. **Say what it means** — the ceiling, the models the pipeline will use, the three tiers,
+   and where this session stands (`model.mjs ceiling` with `session=<the model this
+   context runs on>`: within it, or above it with `/model <ceiling>` as the fix).
+
+`ceiling=` answers question one without asking; `models=` runs `model.mjs tiers <.claude>
+low=… medium=… high=…` — the three tiers by hand, each on the recorded ladder at or below
+the ceiling, which the script enforces (raise the ceiling first); `session=` answers
+question two. A ceiling already
+recorded and no request to change it → say which and go on.
 
 ### 3b. The gates in the repo's hooks
 A gate the repo's own pre-commit or pre-push hook runs costs the pipeline nothing
@@ -93,10 +124,10 @@ what was added for a dependency. Then, in this order:
    a day or a ticket.
 
 ### 5. Report
-The groups with each skill on or off; what was added and for whom; the models; the
-hooks per repo (written, skipped, or the gates left to the pipeline) and the reminder
+The groups with each skill on or off; what was added and for whom; the ceiling, the
+models the pipeline will use and where the session stands; the hooks per repo (written, skipped, or the gates left to the pipeline) and the reminder
 that they are an uncommitted change in that repo; the files written (`pipeline.json`,
-`tiers.json`, `notify.json`); the allowlist lines; the doctor's line; the next step (`/tp-run-ticket <id>` or `/tp-plan-day`, or the stage skills
+`tiers.json`, `notify.json`, and `settings.local.json` when the session was pinned); the allowlist lines; the doctor's line; the next step (`/tp-run-ticket <id>` or `/tp-plan-day`, or the stage skills
 one by one); and how to change the selection later (`/tp-setup` again — `setup status`
 shows it).
 

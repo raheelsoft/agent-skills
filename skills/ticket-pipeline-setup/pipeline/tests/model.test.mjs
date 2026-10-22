@@ -4,9 +4,9 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdirSync, existsSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { CLAUDE_DIR, tmp, rm, writeJson, readJson } from './helpers.mjs';
-import { rate, budget, pick, rounds, compact, higherOf, RATINGS, dayConfig, calibrate } from '../skills/_lib/model.mjs';
+import { rate, budget, pick, rounds, compact, higherOf, RATINGS, dayConfig, calibrate, tiersFor, withinCeiling, ceilingStatus, pinSession } from '../skills/_lib/model.mjs';
 
 const MODEL = join(CLAUDE_DIR, 'skills', '_lib', 'model.mjs');
 const TIERS = { low: 'fast-model', medium: 'standard-model', high: 'strongest-model' };
@@ -449,5 +449,208 @@ describe('calibrate — the base hours learn from actuals', () => {
     assert.match(c.drift, /no actuals recorded yet/);
     assert.throws(() => calibrate({}), /workroot/);
     rm(root);
+  });
+});
+
+// ---- the ceiling: the largest model the pipeline may use ---------------------------------------------------------------
+const LADDER = ['fast-model', 'standard-model', 'strongest-model', 'frontier-model']; // smallest first; fake names, as everywhere here
+const CAPPED = { ceiling: 'standard-model', ladder: LADDER, low: 'fast-model', medium: 'standard-model', high: 'standard-model' };
+
+describe('the ceiling — the tiers it gives', () => {
+  it('low is the smallest model, high the ceiling, medium the first step up from the smallest', () => {
+    const t = (ceiling) => tiersFor(LADDER, ceiling);
+    assert.deepEqual(t('fast-model').tiers, { low: 'fast-model', medium: 'fast-model', high: 'fast-model' }, 'one model serves every tier');
+    assert.deepEqual(t('standard-model').tiers, { low: 'fast-model', medium: 'standard-model', high: 'standard-model' });
+    assert.deepEqual(t('strongest-model').tiers, { low: 'fast-model', medium: 'standard-model', high: 'strongest-model' });
+    assert.deepEqual(t('frontier-model').tiers, { low: 'fast-model', medium: 'standard-model', high: 'frontier-model' });
+    assert.deepEqual(t('strongest-model').allowed, ['fast-model', 'standard-model', 'strongest-model'], 'everything up to the ceiling, nothing above');
+    assert.deepEqual(tiersFor([' a ', 'b'], 'b').tiers, { low: 'a', medium: 'b', high: 'b' }, 'names are trimmed');
+  });
+
+  it('refuses an empty ladder, a model named twice, and a ceiling that is not on the ladder', () => {
+    assert.throws(() => tiersFor([], 'x'), /no ladder/);
+    assert.throws(() => tiersFor(undefined, 'x'), /no ladder/);
+    assert.throws(() => tiersFor(['a', 'b', 'a'], 'a'), /names a model twice/);
+    assert.throws(() => tiersFor(LADDER, 'gigantic-model'), /not on the ladder \(fast-model < standard-model < strongest-model < frontier-model\)/);
+  });
+});
+
+describe('the ceiling — what the pipeline spawns', () => {
+  it('pick never returns a model above the ceiling, and says so when it lowered one', () => {
+    const over = { ...CAPPED, high: 'strongest-model' }; // edited past the ceiling by hand
+    const h = pick({ rating: 'high', tiers: over });
+    assert.deepEqual([h.model, h.effort], ['standard-model', 'high'], 'the rating still sets the effort');
+    assert.match(h.why, /strongest-model is above the ceiling standard-model: the agent runs on the ceiling/);
+    const ok = pick({ rating: 'high', tiers: CAPPED });
+    assert.equal(ok.model, 'standard-model');
+    assert.equal(ok.why, 'the rating alone decides', 'nothing to say when nothing was lowered');
+    assert.equal(pick({ rating: 'low', tiers: over }).model, 'fast-model');
+    // without a ceiling, or with a model that is not on the ladder, nothing can be compared: the tier stands (the doctor says so)
+    assert.equal(pick({ rating: 'high', tiers: { ...TIERS } }).model, 'strongest-model');
+    assert.equal(pick({ rating: 'high', tiers: { ...CAPPED, high: 'custom-alias' } }).model, 'custom-alias');
+    assert.equal(withinCeiling('frontier-model', CAPPED).clamped, true);
+    assert.equal(withinCeiling('frontier-model', { ...CAPPED, ceiling: 'not-on-it' }).clamped, false, 'a ceiling that is not on the ladder compares nothing');
+  });
+
+  it('applies a model\'s usage window to every tier that runs on it', () => {
+    const own = usageOf(win('5-hour limit', 20, '2026-09-18T18:00:00Z'), win('Weekly · standard-model', 95, '2026-09-25T07:00:00Z'));
+    const b = budget(own, CAPPED, { now: NOW });
+    assert.deepEqual(b.tiers, { medium: 'stop', high: 'stop' }, 'medium and high both run on the model whose window is out');
+    assert.deepEqual(b.windows[1].tiers, ['medium', 'high']);
+    const p = (rating) => pick({ rating, tiers: CAPPED, usage: own, now: NOW });
+    assert.equal(p('high').action, 'stop');
+    assert.equal(p('medium').action, 'stop');
+    assert.equal(p('low').action, 'run', 'the fast model has its own window');
+    // the worst of a model's windows binds, not the last one listed
+    const two = budget(usageOf(win('Weekly · standard-model', 95, '2026-09-25T07:00:00Z'), win('Daily · standard-model', 40)), CAPPED, { now: NOW });
+    assert.equal(two.tiers.medium, 'stop');
+  });
+});
+
+describe('the ceiling — what the files say', () => {
+  it('reports the ceiling, what is allowed, and what disagrees with it', () => {
+    const ok = ceilingStatus({ tiers: CAPPED });
+    assert.deepEqual([ok.ceiling, ok.allowed, ok.problems, ok.startup, ok.session], ['standard-model', ['fast-model', 'standard-model'], [], null, null]);
+    assert.deepEqual(ok.tiers, { low: 'fast-model', medium: 'standard-model', high: 'standard-model' });
+    assert.match(ceilingStatus({ tiers: TIERS }).problems[0], /no ceiling is set/);
+    assert.match(ceilingStatus({ tiers: { ...TIERS, ceiling: 'standard-model' } }).problems[0], /has no ladder/);
+    assert.match(ceilingStatus({ tiers: { ...CAPPED, ceiling: 'nope' } }).problems[0], /not on the ladder/);
+    assert.deepEqual(ceilingStatus({ tiers: { ...CAPPED, high: 'frontier-model' } }).problems, ['high=frontier-model is above the ceiling standard-model: it runs on standard-model']);
+    assert.deepEqual(ceilingStatus({ tiers: { ...CAPPED, medium: 'custom' } }).problems, ['medium=custom is not on the ladder, so the ceiling cannot be checked for it']);
+  });
+
+  it('places a model the runtime names by the ladder entry its name contains — the longest first, case aside', () => {
+    const at = (name) => ceilingStatus({ tiers: CAPPED, session: name }).session;
+    assert.deepEqual([at('claude-fast-model-4-5').rung, at('claude-fast-model-4-5').within], ['fast-model', true]);
+    assert.deepEqual([at('Standard-Model 5.5').rung, at('Standard-Model 5.5').within], ['standard-model', true]);
+    assert.deepEqual([at('claude-strongest-model-5').rung, at('claude-strongest-model-5').within], ['strongest-model', false]);
+    assert.deepEqual([at('something-else').rung, at('something-else').within], [null, null], 'a name that is not on the ladder cannot be compared');
+    const nested = { ceiling: 'x', ladder: ['x', 'x-long'], low: 'x', medium: 'x', high: 'x' };
+    assert.equal(ceilingStatus({ tiers: nested, session: 'x-long-1' }).session.within, false, 'the longest entry a name contains wins');
+  });
+
+  it('reads the model the project\'s settings start a session on — settings.local.json over settings.json', () => {
+    const dir = tmp();
+    try {
+      writeJson(dir, 'tiers.json', CAPPED);
+      assert.equal(ceilingStatus({ claudeDir: dir }).startup, null);
+      writeJson(dir, 'settings.json', { model: 'strongest-model' });
+      let s = ceilingStatus({ claudeDir: dir }).startup;
+      assert.deepEqual([s.file, s.model, s.within], ['settings.json', 'strongest-model', false]);
+      writeJson(dir, 'settings.local.json', { model: 'fast-model' });
+      s = ceilingStatus({ claudeDir: dir }).startup;
+      assert.deepEqual([s.file, s.model, s.within], ['settings.local.json', 'fast-model', true], 'the local file wins');
+    } finally { rm(dir); }
+  });
+
+  it('pin writes the ceiling as the starting model only when the setting is unset or above it, and keeps the rest of the file', () => {
+    const dir = tmp();
+    try {
+      writeJson(dir, 'tiers.json', CAPPED);
+      writeJson(dir, 'settings.local.json', { permissions: { allow: ['Bash(git *)'] } });
+      let r = pinSession(dir);
+      assert.deepEqual([r.written, r.model, r.was], [true, 'standard-model', null]);
+      assert.deepEqual(readJson(dir, 'settings.local.json'), { permissions: { allow: ['Bash(git *)'] }, model: 'standard-model' }, 'the allowlist survives');
+      writeJson(dir, 'settings.local.json', { model: 'fast-model', other: 1 });
+      r = pinSession(dir);
+      assert.deepEqual([r.written, r.model], [false, 'fast-model'], 'a choice within the ceiling is the person\'s and stays');
+      assert.deepEqual(readJson(dir, 'settings.local.json'), { model: 'fast-model', other: 1 });
+      writeJson(dir, 'settings.local.json', { model: 'frontier-model' });
+      r = pinSession(dir);
+      assert.deepEqual([r.written, r.model, r.was], [true, 'standard-model', 'frontier-model'], 'a setting above the ceiling is lowered to it');
+      rmSync(join(dir, 'settings.local.json'));
+      assert.equal(pinSession(dir).written, true, 'the file is created when it is missing');
+      assert.deepEqual(readJson(dir, 'settings.local.json'), { model: 'standard-model' });
+      writeFileSync(join(dir, 'settings.local.json'), '{ nope');
+      assert.throws(() => pinSession(dir), /not valid JSON/);
+      assert.equal(readFileSync(join(dir, 'settings.local.json'), 'utf8'), '{ nope', 'a file that cannot be read is never overwritten');
+      writeJson(dir, 'tiers.json', TIERS);
+      assert.throws(() => pinSession(dir), /nothing to pin: no ceiling is set/);
+    } finally { rm(dir); }
+  });
+});
+
+describe('CLI — tiers with a ceiling, ceiling, pin', () => {
+  let root;
+  before(() => { root = tmp(); });
+  after(() => rm(root));
+  const NAMES = LADDER.join(',');
+  const fresh = (name) => { const d = join(root, name); mkdirSync(d); return d; };
+
+  it('tiers ceiling= writes the ceiling, the ladder and the three tiers they give, ahead of everything else, and keeps the rest', () => {
+    const dir = fresh('derive');
+    writeJson(dir, 'tiers.json', { low: 'old', medium: 'old', high: 'old', budget: { economy: 60, stop: 80 } });
+    const r = cli('tiers', dir, 'ceiling=standard-model', `ladder=${NAMES}`);
+    assert.equal(r.code, 0, r.stderr);
+    const t = readJson(dir, 'tiers.json');
+    assert.deepEqual(t, { ceiling: 'standard-model', ladder: LADDER, low: 'fast-model', medium: 'standard-model', high: 'standard-model', budget: { economy: 60, stop: 80 } });
+    assert.deepEqual(Object.keys(t).slice(0, 5), ['ceiling', 'ladder', 'low', 'medium', 'high'], 'the decision leads the file');
+    assert.deepEqual(r.json, t, 'the command prints what it wrote');
+  });
+
+  it('moves the ceiling along the recorded ladder without naming the ladder again', () => {
+    const dir = fresh('move');
+    cli('tiers', dir, 'ceiling=standard-model', `ladder=${NAMES}`);
+    assert.equal(cli('tiers', dir, 'ceiling=frontier-model').code, 0);
+    assert.deepEqual(readJson(dir, 'tiers.json'), { ceiling: 'frontier-model', ladder: LADDER, low: 'fast-model', medium: 'standard-model', high: 'frontier-model' });
+    assert.equal(cli('tiers', dir, 'ceiling=fast-model').code, 0);
+    const t = readJson(dir, 'tiers.json');
+    assert.deepEqual([t.low, t.medium, t.high], ['fast-model', 'fast-model', 'fast-model']);
+  });
+
+  it('takes a tier by hand only inside the ceiling, and refuses one above it or off the ladder', () => {
+    const dir = fresh('hand');
+    cli('tiers', dir, 'ceiling=strongest-model', `ladder=${NAMES}`);
+    assert.equal(cli('tiers', dir, 'ceiling=strongest-model', 'medium=strongest-model').code, 0, 'a hand-named tier within the ceiling overrides the derived one');
+    assert.equal(readJson(dir, 'tiers.json').medium, 'strongest-model');
+    const above = cli('tiers', dir, 'low=fast-model', 'medium=standard-model', 'high=frontier-model');
+    assert.equal(above.code, 2);
+    assert.match(above.stderr, /high=frontier-model is above the ceiling strongest-model/);
+    assert.match(above.stderr, /raise the ceiling first: ceiling=frontier-model/);
+    const off = cli('tiers', dir, 'low=fast-model', 'medium=custom', 'high=strongest-model');
+    assert.equal(off.code, 2);
+    assert.match(off.stderr, /medium=custom is not on the ladder/);
+    assert.equal(readJson(dir, 'tiers.json').medium, 'strongest-model', 'a refused write changes nothing');
+    assert.equal(cli('tiers', dir, 'low=fast-model', 'medium=standard-model', 'high=strongest-model').code, 0, 'three tiers by hand, within the ceiling');
+  });
+
+  it('refuses a ceiling it cannot place, and writes nothing', () => {
+    const dir = fresh('refuse');
+    for (const [args, re] of [
+      [['ceiling=gigantic-model', `ladder=${NAMES}`], /ceiling "gigantic-model" is not on the ladder/],
+      [['ceiling=standard-model'], /no ladder/],
+      [[`ladder=${NAMES}`], /ladder= goes with ceiling=/],
+      [['ceiling=a', 'ladder=a,b,a'], /names a model twice/],
+    ]) {
+      const r = cli('tiers', dir, ...args);
+      assert.equal(r.code, 2, args.join(' '));
+      assert.match(r.stderr, re, args.join(' '));
+    }
+    assert.ok(!existsSync(join(dir, 'tiers.json')), 'nothing was written');
+  });
+
+  it('ceiling prints the report and pin writes the starting model', () => {
+    const dir = fresh('report');
+    cli('tiers', dir, 'ceiling=standard-model', `ladder=${NAMES}`);
+    const r = cli('ceiling', JSON.stringify({ claudeDir: dir, session: 'claude-frontier-model-1' }));
+    assert.equal(r.code, 0);
+    assert.deepEqual([r.json.ceiling, r.json.allowed, r.json.problems, r.json.session.within], ['standard-model', ['fast-model', 'standard-model'], [], false]);
+    const p = cli('pin', dir);
+    assert.equal(p.code, 0, p.stderr);
+    assert.deepEqual([p.json.written, p.json.model], [true, 'standard-model']);
+    assert.equal(readJson(dir, 'settings.local.json').model, 'standard-model');
+    assert.equal(cli('ceiling', JSON.stringify({ claudeDir: dir })).json.startup.within, true);
+    assert.equal(cli('pin').code, 2, 'usage');
+    assert.equal(cli('pin', join(root, 'none')).code, 2, 'no tiers.json there: nothing to pin');
+  });
+});
+
+describe('budget — a reading with only per-model windows', () => {
+  it('is ample for the pool and stops only the tiers that run on the model whose window is out', () => {
+    const b = budget(usageOf(win('Weekly · standard-model', 95, '2026-09-25T07:00:00Z')), CAPPED, { now: NOW });
+    assert.equal(b.band, 'ample', 'no general window binds');
+    assert.equal(b.binding, null);
+    assert.deepEqual(b.tiers, { medium: 'stop', high: 'stop' });
+    assert.match(b.why, /only per-model windows \(Weekly · standard-model at 95%\)/);
   });
 });
